@@ -1,9 +1,13 @@
 package com.example.strikers
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.os.Build
 import android.view.Choreographer
@@ -25,6 +29,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val timeline = SpawnTimeline()
   private val particles = ParticleManager(resources)
   private val boss = BossController(resources)
+  private val panicBomb = PanicBomb()
+  private val srcCore = Rect()
+  private val bombDstRect = RectF()
+  private val bodyPaint = Paint().apply { isFilterBitmap = true }
+  private val bombSheets = arrayOfNulls<Bitmap>(6)
+  private var availableBombs = 3
+  private var lastTapUpMs = 0L
+  private var touchDownMs = 0L
+  private var touchDownX = 0f
+  private var touchDownY = 0f
+  private var awaitingSecondTap = false
+  private var bossBombDmgBank = 0f
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
@@ -63,6 +79,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     boss.onSizeChanged(w, h)
     screenW = w
     screenH = h
+    loadBombSheetsIfNeeded()
   }
 
   override fun surfaceCreated(holder: SurfaceHolder) {
@@ -80,6 +97,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     boss.onSizeChanged(width, height)
     screenW = width
     screenH = height
+    loadBombSheetsIfNeeded()
   }
 
   override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -100,6 +118,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
     boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
     enemyShots.update(dt)
+    updatePanicBomb(dt)
     particles.update(dt)
     resolveCollisions()
     val canvas = lockGameCanvas()
@@ -112,6 +131,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         bullets.draw(canvas)
         enemyShots.draw(canvas)
         particles.draw(canvas)
+        drawPanicBomb(canvas)
         drawArcadeUI(canvas)
       } finally {
         holder.unlockCanvasAndPost(canvas)
@@ -137,6 +157,156 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val end = uiStringBuilder.length
     canvas.drawText(uiStringBuilder, 0, end, 44f, 84f, uiShadowPaint)
     canvas.drawText(uiStringBuilder, 0, end, 40f, 80f, uiTextPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("BOMB: ")
+    i = 0
+    while (i < availableBombs) {
+      uiStringBuilder.append('★')
+      i++
+    }
+    val bombEnd = uiStringBuilder.length
+    canvas.drawText(uiStringBuilder, 0, bombEnd, 44f, 144f, uiShadowPaint)
+    canvas.drawText(uiStringBuilder, 0, bombEnd, 40f, 140f, uiTextPaint)
+  }
+
+  private fun updatePanicBomb(dt: Float) {
+    if (!panicBomb.isActive) return
+    panicBomb.currentFrameTime += dt
+    if (panicBomb.currentFrameTime >= PanicBomb.FRAME_DURATION) {
+      panicBomb.currentFrameTime = 0f
+      panicBomb.currentFrameIndex++
+      if (panicBomb.currentFrameIndex > 5) {
+        panicBomb.isActive = false
+        bossBombDmgBank = 0f
+        return
+      }
+    }
+    val currentProgress = (panicBomb.currentFrameIndex + 1).toFloat() / PanicBomb.FRAME_COUNT.toFloat()
+    val maxClearRadius = screenH * 0.5f
+    val rSq = (maxClearRadius * currentProgress) * (maxClearRadius * currentProgress)
+    val bx = panicBomb.x
+    val by = panicBomb.y
+
+    val shotPool = enemyShots.getBulletPool()
+    val shotCount = enemyShots.getPoolSize()
+    var si = 0
+    while (si < shotCount) {
+      val shot = shotPool[si]
+      if (shot.isActive) {
+        val dx = shot.x - bx
+        val dy = shot.y - by
+        if ((dx * dx) + (dy * dy) <= rSq) {
+          shot.isActive = false
+        }
+      }
+      si++
+    }
+
+    val enemyPool = enemies.getEnemyPool()
+    val enemyCount = enemies.getPoolSize()
+    var ei = 0
+    while (ei < enemyCount) {
+      val enemy = enemyPool[ei]
+      if (enemy.isActive) {
+        val dx = enemy.x - bx
+        val dy = enemy.y - by
+        if ((dx * dx) + (dy * dy) <= rSq) {
+          enemy.isActive = false
+          particles.triggerExplosion(enemy.x, enemy.y)
+        }
+      }
+      ei++
+    }
+
+    if (boss.isActive()) {
+      bossBombDmgBank += BOSS_BOMB_DPS * dt
+      val dmg = bossBombDmgBank.toInt()
+      if (dmg > 0) {
+        bossBombDmgBank -= dmg
+        val parts = boss.getComponents()
+        val partCount = boss.getComponentCount()
+        var pi = 0
+        while (pi < partCount) {
+          val part = parts[pi]
+          if (!part.isDestroyed) {
+            val dx = part.x - bx
+            val dy = part.y - by
+            if ((dx * dx) + (dy * dy) <= rSq) {
+              part.health -= dmg
+              if (part.health <= 0) {
+                part.health = 0
+                part.isDestroyed = true
+                particles.triggerExplosion(part.x, part.y)
+              }
+            }
+          }
+          pi++
+        }
+      }
+    }
+  }
+
+  private fun drawPanicBomb(canvas: Canvas) {
+    if (!panicBomb.isActive) return
+    val frame = panicBomb.currentFrameIndex
+    if (frame < 0 || frame > 5) return
+    val activeBmp = bombSheets[frame] ?: return
+    canvas.drawBitmap(activeBmp, srcCore, bombDstRect, bodyPaint)
+  }
+
+  private fun loadBombSheetsIfNeeded() {
+    if (bombSheets[0] == null) {
+      bombSheets[0] = decodeKeyed(R.drawable.player_bomb_1)
+      bombSheets[1] = decodeKeyed(R.drawable.player_bomb_2)
+      bombSheets[2] = decodeKeyed(R.drawable.player_bomb_3)
+      bombSheets[3] = decodeKeyed(R.drawable.player_bomb_4)
+      bombSheets[4] = decodeKeyed(R.drawable.player_bomb_5)
+      bombSheets[5] = decodeKeyed(R.drawable.player_bomb_6)
+    }
+    val referenceBmp = bombSheets[0] ?: return
+    srcCore.set(0, 0, referenceBmp.width, referenceBmp.height)
+    if (screenW <= 0 || screenH <= 0) return
+    val targetDisplayH = screenH.toFloat()
+    val inverseAspect = referenceBmp.width.toFloat() / referenceBmp.height.toFloat()
+    val targetDisplayW = targetDisplayH * inverseAspect
+    val leftOffset = (screenW - targetDisplayW) * 0.5f
+    bombDstRect.set(leftOffset, 0f, leftOffset + targetDisplayW, targetDisplayH)
+  }
+
+  private fun decodeKeyed(drawableId: Int): Bitmap {
+    val opts = BitmapFactory.Options().apply {
+      inScaled = false
+      inPreferredConfig = Bitmap.Config.ARGB_8888
+      inMutable = true
+    }
+    val src = BitmapFactory.decodeResource(resources, drawableId, opts)
+      ?: error("Missing drawable $drawableId")
+    val bmp = if (src.isMutable) src else src.copy(Bitmap.Config.ARGB_8888, true).also { src.recycle() }
+    keyGreen(bmp)
+    return bmp
+  }
+
+  private fun keyGreen(bmp: Bitmap) {
+    val w = bmp.width
+    val h = bmp.height
+    val row = IntArray(w)
+    var rowY = 0
+    while (rowY < h) {
+      bmp.getPixels(row, 0, w, 0, rowY, w, 1)
+      var i = 0
+      while (i < w) {
+        val c = row[i]
+        val r = (c ushr 16) and 0xFF
+        val g = (c ushr 8) and 0xFF
+        val b = c and 0xFF
+        if (g > 160 && g > r + 40 && g > b + 40) {
+          row[i] = 0
+        }
+        i++
+      }
+      bmp.setPixels(row, 0, w, 0, rowY, w, 1)
+      rowY++
+    }
   }
 
   private fun resolveCollisions() {
@@ -240,10 +410,42 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     enemies.release()
     particles.release()
     boss.release()
+    var i = 0
+    while (i < bombSheets.size) {
+      val bmp = bombSheets[i]
+      if (bmp != null && !bmp.isRecycled) bmp.recycle()
+      bombSheets[i] = null
+      i++
+    }
     super.onDetachedFromWindow()
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+        val now = event.eventTime
+        if (
+          awaitingSecondTap &&
+          now - lastTapUpMs <= DOUBLE_TAP_MS &&
+          availableBombs > 0 &&
+          !player.isGameOver()
+        ) {
+          availableBombs--
+          panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+          awaitingSecondTap = false
+        }
+        touchDownMs = now
+        touchDownX = event.x
+        touchDownY = event.y
+      }
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+        val dx = event.x - touchDownX
+        val dy = event.y - touchDownY
+        val dur = event.eventTime - touchDownMs
+        awaitingSecondTap = (dx * dx + dy * dy) <= TAP_SLOP_SQ && dur <= TAP_MAX_MS
+        lastTapUpMs = event.eventTime
+      }
+    }
     return player.onTouch(event)
   }
 
@@ -252,5 +454,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val MAX_FRAME_NS = 50_000_000L
     const val RADIUS_SUM_THRESHOLD = 28f
     const val PLAYER_HIT_RADIUS = 12f
+    const val BOSS_BOMB_DPS = 28f
+    const val DOUBLE_TAP_MS = 280L
+    const val TAP_MAX_MS = 220L
+    const val TAP_SLOP_SQ = 48f * 48f
   }
 }
