@@ -32,8 +32,14 @@ class BossController(private val resources: Resources) {
   private var hoverY = 0f
   private var sweepPhase = 0f
   private var turretAngle = 0f
-  private var fireTimer = 0f
-  private var barrelIndex = 0
+  private var turretFireTimer = 0f
+  private var wingFireTimer = 0f
+  private var turretBurstRemaining = 0
+  private var turretBurstTimer = 0f
+  private var turretBurstAngle = 0f
+  private var tankBarrelTimer = 0f
+  private var tankTreadTimer = 0f
+  private var fireLeftBarrel = true
   private var entering = false
   private var active = false
   private var isExploding = false
@@ -75,8 +81,13 @@ class BossController(private val resources: Resources) {
     active = true
     entering = true
     sweepPhase = 0f
-    fireTimer = if (currentStage >= 2) TANK_FIRE_INTERVAL else FIRE_INTERVAL
-    barrelIndex = 0
+    turretFireTimer = TURRET_BURST_INTERVAL
+    wingFireTimer = WING_FIRE_INTERVAL
+    turretBurstRemaining = 0
+    turretBurstTimer = 0f
+    tankBarrelTimer = TANK_BARREL_INTERVAL
+    tankTreadTimer = TANK_TREAD_INTERVAL
+    fireLeftBarrel = true
     turretAngle = 1.5707964f
     coreX = screenW * 0.5f
     coreY = -bodyHalfH - 24f
@@ -211,28 +222,85 @@ class BossController(private val resources: Resources) {
   }
 
   private fun updatePlaneCombat(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
-    val turret = parts[TYPE_TURRET]
-    if (turret.isDestroyed) return
-    turretAngle = atan2(playerY - turret.y, playerX - turret.x)
     if (entering) return
-    fireTimer -= dt
-    if (fireTimer > 0f) return
-    fireRing(weapons, turret.x + cos(turretAngle) * turret.halfH, turret.y + sin(turretAngle) * turret.halfH)
-    fireTimer = FIRE_INTERVAL
+    val turret = parts[TYPE_STAGE1_TURRET]
+    if (turret.isDestroyed) {
+      turretBurstRemaining = 0
+    } else if (turretBurstRemaining > 0) {
+      turretBurstTimer -= dt
+      if (turretBurstTimer <= 0f) {
+        fireAimed(weapons, turret.x, turret.y, turretBurstAngle, TURRET_SHOT_SPEED)
+        turretBurstRemaining -= 1
+        turretBurstTimer = TURRET_BURST_GAP
+      }
+    } else {
+      turretFireTimer -= dt
+      if (turretFireTimer <= 0f) {
+        turretBurstAngle = atan2(playerY - turret.y, playerX - turret.x)
+        fireAimed(weapons, turret.x, turret.y, turretBurstAngle, TURRET_SHOT_SPEED)
+        turretBurstRemaining = TURRET_BURST_COUNT - 1
+        turretBurstTimer = TURRET_BURST_GAP
+        turretFireTimer = TURRET_BURST_INTERVAL
+      }
+    }
+    wingFireTimer -= dt
+    if (wingFireTimer > 0f) return
+    wingFireTimer = WING_FIRE_INTERVAL
+    val left = parts[TYPE_STAGE1_LEFT_WING]
+    if (!left.isDestroyed) {
+      fireWingVolley(weapons, left.x, left.y)
+    }
+    val right = parts[TYPE_STAGE1_RIGHT_WING]
+    if (!right.isDestroyed) {
+      fireWingVolley(weapons, right.x, right.y)
+    }
+  }
+
+  private fun fireWingVolley(weapons: EnemyWeaponSystem, originX: Float, originY: Float) {
+    fireAimed(weapons, originX, originY, DOWN_ANGLE, WING_SHOT_SPEED)
+    fireAimed(weapons, originX, originY, DOWN_ANGLE + WING_DIAG, WING_SHOT_SPEED)
+    fireAimed(weapons, originX, originY, DOWN_ANGLE - WING_DIAG, WING_SHOT_SPEED)
+  }
+
+  private fun fireAimed(weapons: EnemyWeaponSystem, originX: Float, originY: Float, ang: Float, speed: Float) {
+    weapons.fireBullet(originX, originY, cos(ang) * speed, sin(ang) * speed)
   }
 
   private fun updateTankCombat(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
-    val turret = parts[TYPE_STAGE2_MAIN_TURRET]
-    if (turret.isDestroyed) return
     if (entering) return
-    fireTimer -= dt
-    if (fireTimer > 0f) return
-    val sep = bodyHalfW * TANK_BARREL_SEP_FRAC
-    val ox = if (barrelIndex == 0) turret.x - sep else turret.x + sep
-    val oy = turret.y - turret.halfH
-    fireDirect(weapons, ox, oy, playerX, playerY)
-    barrelIndex = 1 - barrelIndex
-    fireTimer = TANK_FIRE_INTERVAL
+    tankBarrelTimer -= dt
+    if (tankBarrelTimer <= 0f) {
+      tankBarrelTimer = TANK_BARREL_INTERVAL
+      val tankTurret = parts[TYPE_STAGE2_MAIN_TURRET]
+      if (!tankTurret.isDestroyed) {
+        val muzzleX = if (fireLeftBarrel) tankTurret.x - TANK_BARREL_SEP else tankTurret.x + TANK_BARREL_SEP
+        val muzzleY = tankTurret.y + tankTurret.halfH
+        fireDirect(weapons, muzzleX, muzzleY, playerX, playerY)
+        fireLeftBarrel = !fireLeftBarrel
+      }
+    }
+    tankTreadTimer -= dt
+    if (tankTreadTimer > 0f) return
+    tankTreadTimer = TANK_TREAD_INTERVAL
+    val leftTread = parts[TYPE_STAGE2_LEFT_TREAD]
+    if (!leftTread.isDestroyed) {
+      fireTreadFan(weapons, leftTread.x, leftTread.y, true)
+    }
+    val rightTread = parts[TYPE_STAGE2_RIGHT_TREAD]
+    if (!rightTread.isDestroyed) {
+      fireTreadFan(weapons, rightTread.x, rightTread.y, false)
+    }
+  }
+
+  private fun fireTreadFan(weapons: EnemyWeaponSystem, originX: Float, originY: Float, leftSide: Boolean) {
+    fireAimed(weapons, originX, originY, DOWN_ANGLE, TANK_TREAD_SHOT_SPEED)
+    if (leftSide) {
+      fireAimed(weapons, originX, originY, DOWN_ANGLE + DEG_30, TANK_TREAD_SHOT_SPEED)
+      fireAimed(weapons, originX, originY, DOWN_ANGLE + DEG_45, TANK_TREAD_SHOT_SPEED)
+    } else {
+      fireAimed(weapons, originX, originY, DOWN_ANGLE - DEG_30, TANK_TREAD_SHOT_SPEED)
+      fireAimed(weapons, originX, originY, DOWN_ANGLE - DEG_45, TANK_TREAD_SHOT_SPEED)
+    }
   }
 
   private fun fireDirect(
@@ -248,15 +316,6 @@ class BossController(private val resources: Resources) {
     if (lenSq < 0.0001f) return
     val inv = TANK_SHOT_SPEED / sqrt(lenSq)
     weapons.fireBullet(originX, originY, dx * inv, dy * inv)
-  }
-
-  private fun fireRing(weapons: EnemyWeaponSystem, originX: Float, originY: Float) {
-    var i = 0
-    while (i < RING_COUNT) {
-      val ang = turretAngle + i * RING_STEP
-      weapons.fireBullet(originX, originY, cos(ang) * RING_SPEED, sin(ang) * RING_SPEED)
-      i++
-    }
   }
 
   private fun cacheSrcRects() {
@@ -392,6 +451,9 @@ class BossController(private val resources: Resources) {
     const val TYPE_LEFT_WING = 1
     const val TYPE_RIGHT_WING = 2
     const val TYPE_TURRET = 3
+    const val TYPE_STAGE1_LEFT_WING = 1
+    const val TYPE_STAGE1_RIGHT_WING = 2
+    const val TYPE_STAGE1_TURRET = 3
     const val TYPE_STAGE2_LEFT_TREAD = 4
     const val TYPE_STAGE2_RIGHT_TREAD = 5
     const val TYPE_STAGE2_MAIN_TURRET = 6
@@ -402,9 +464,21 @@ class BossController(private val resources: Resources) {
     const val SWEEP_RATE = 0.55f
     const val SWEEP_AMP = 0.18f
     const val FIRE_INTERVAL = 1.5f
-    const val TANK_FIRE_INTERVAL = 0.42f
+    const val TURRET_BURST_INTERVAL = 1.2f
+    const val TURRET_BURST_GAP = 0.08f
+    const val TURRET_BURST_COUNT = 3
+    const val TURRET_SHOT_SPEED = 450f
+    const val WING_FIRE_INTERVAL = 0.8f
+    const val WING_SHOT_SPEED = 450f
+    const val WING_DIAG = 0.15f
+    const val DOWN_ANGLE = 1.5707964f
+    const val TANK_BARREL_INTERVAL = 0.30f
+    const val TANK_TREAD_INTERVAL = 1.5f
+    const val TANK_BARREL_SEP = 16f
     const val TANK_SHOT_SPEED = 780f
-    const val TANK_BARREL_SEP_FRAC = 0.09f
+    const val TANK_TREAD_SHOT_SPEED = 420f
+    const val DEG_30 = 0.5235988f
+    const val DEG_45 = 0.7853982f
     const val RING_COUNT = 5
     const val RING_STEP = (Math.PI * 2.0 / RING_COUNT).toFloat()
     const val RING_SPEED = 420f
