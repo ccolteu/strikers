@@ -16,9 +16,16 @@ class SpawnTimeline {
   )
 
   private var elapsedTime = 0f
+  private var bossCueFired = false
   private var nextIndex = 0
 
-  fun update(dt: Float, enemyManager: EnemyPoolManager, screenWidth: Int, screenHeight: Int) {
+  fun update(
+    dt: Float,
+    enemyManager: EnemyPoolManager,
+    screenWidth: Int,
+    screenHeight: Int,
+    boss: BossController,
+  ) {
     if (screenWidth <= 0 || screenHeight <= 0) return
     elapsedTime += dt
     val w = screenWidth.toFloat()
@@ -35,6 +42,10 @@ class SpawnTimeline {
       )
       nextIndex++
     }
+    if (!bossCueFired && elapsedTime >= BOSS_ENTER_SEC) {
+      boss.beginEntrance()
+      bossCueFired = true
+    }
   }
 
   private companion object {
@@ -42,5 +53,6 @@ class SpawnTimeline {
     const val FAST_DOWN = 320f
     const val SWEEP_VX = 210f
     const val SWEEP_VY = 240f
+    const val BOSS_ENTER_SEC = 8f
   }
 }

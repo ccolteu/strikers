@@ -24,6 +24,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val enemyShots = EnemyWeaponSystem()
   private val timeline = SpawnTimeline()
   private val particles = ParticleManager(resources)
+  private val boss = BossController(resources)
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
@@ -59,6 +60,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     enemies.onSizeChanged(w, h)
     enemyShots.onSizeChanged(w, h)
     particles.onSizeChanged(w, h)
+    boss.onSizeChanged(w, h)
     screenW = w
     screenH = h
   }
@@ -75,6 +77,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     enemies.onSizeChanged(width, height)
     enemyShots.onSizeChanged(width, height)
     particles.onSizeChanged(width, height)
+    boss.onSizeChanged(width, height)
     screenW = width
     screenH = height
   }
@@ -93,8 +96,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     parallax.update(GROUND_PX_PER_SEC * dt)
     player.update(dt)
     bullets.update(dt, player)
-    timeline.update(dt, enemies, screenW, screenH)
+    timeline.update(dt, enemies, screenW, screenH, boss)
     enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
+    boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
     enemyShots.update(dt)
     particles.update(dt)
     resolveCollisions()
@@ -103,6 +107,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       try {
         parallax.draw(canvas)
         enemies.draw(canvas)
+        boss.draw(canvas)
         player.draw(canvas)
         bullets.draw(canvas)
         enemyShots.draw(canvas)
@@ -164,6 +169,37 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       bi++
     }
 
+    if (boss.isActive()) {
+      val parts = boss.getComponents()
+      val partCount = boss.getComponentCount()
+      bi = 0
+      while (bi < bulletCount) {
+        val bullet = bulletPool[bi]
+        if (bullet.isActive) {
+          var pi = 0
+          while (pi < partCount) {
+            val part = parts[pi]
+            if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
+              val dx = (bullet.x - part.x) / part.halfW
+              val dy = (bullet.y - part.y) / part.halfH
+              if ((dx * dx) + (dy * dy) <= 1f) {
+                bullet.isActive = false
+                part.health -= 1
+                if (part.health <= 0) {
+                  part.health = 0
+                  part.isDestroyed = true
+                  particles.triggerExplosion(part.x, part.y)
+                }
+                break
+              }
+            }
+            pi++
+          }
+        }
+        bi++
+      }
+    }
+
     val enemyBullets = enemyShots.getBulletPool()
     val playerX = player.getHitboxX()
     val playerY = player.getHitboxY()
@@ -203,6 +239,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.release()
     enemies.release()
     particles.release()
+    boss.release()
     super.onDetachedFromWindow()
   }
 
