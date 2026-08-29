@@ -23,6 +23,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val enemies = EnemyPoolManager(resources)
   private val enemyShots = EnemyWeaponSystem()
   private val timeline = SpawnTimeline()
+  private val particles = ParticleManager(resources)
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
@@ -57,6 +58,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.onSizeChanged(w, h)
     enemies.onSizeChanged(w, h)
     enemyShots.onSizeChanged(w, h)
+    particles.onSizeChanged(w, h)
     screenW = w
     screenH = h
   }
@@ -72,6 +74,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.onSizeChanged(width, height)
     enemies.onSizeChanged(width, height)
     enemyShots.onSizeChanged(width, height)
+    particles.onSizeChanged(width, height)
     screenW = width
     screenH = height
   }
@@ -93,6 +96,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     timeline.update(dt, enemies, screenW, screenH)
     enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
     enemyShots.update(dt)
+    particles.update(dt)
     resolveCollisions()
     val canvas = lockGameCanvas()
     if (canvas != null) {
@@ -102,6 +106,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         player.draw(canvas)
         bullets.draw(canvas)
         enemyShots.draw(canvas)
+        particles.draw(canvas)
         drawArcadeUI(canvas)
       } finally {
         holder.unlockCanvasAndPost(canvas)
@@ -149,6 +154,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             if (distanceSquared <= radiusSq) {
               bullet.isActive = false
               enemy.isActive = false
+              particles.triggerExplosion(enemy.x, enemy.y)
               break
             }
           }
@@ -196,6 +202,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     parallax.release()
     player.release()
     enemies.release()
+    particles.release()
     super.onDetachedFromWindow()
   }
 
