@@ -25,64 +25,67 @@ class BulletManager {
   private val drawRect = RectF()
 
   /**
-   * Updates the firing cooldown, spawns dual streams if held,
+   * Updates the firing cooldown, spawns the current power-level stream if held,
    * moves projectiles, and recycles off-screen bullets.
    */
-  fun update(dt: Float, player: PlayerShip) {
-    // 1. Process Automatic Machine Gun Firing Cooldown
+  fun update(dt: Float, player: PlayerShip, screenW: Int) {
     if (fireCooldownTimer > 0f) {
       fireCooldownTimer -= dt
     }
 
-    // 2. If the user is touching the screen, handle continuous bullet generation
     if (player.isFiringHeld() && fireCooldownTimer <= 0f) {
-      spawnDualBulletStream(player)
-      fireCooldownTimer = fireRateInterval // Reset firing timer clock
+      spawnWeaponStream(player)
+      fireCooldownTimer = fireRateInterval
     }
 
-    // 3. Update active physics and clear out bound structures
-    for (i in 0 until poolSize) {
+    val maxX = screenW + 40f
+    var i = 0
+    while (i < poolSize) {
       val bullet = bulletPool[i]
       if (bullet.isActive) {
-        // Move bullet rapidly up the screen (negative Y axis)
+        bullet.x += bullet.vx * dt
         bullet.y -= BULLET_SPEED_PX_PER_SEC * dt
-
-        // If bullet travels completely past the top display line, recycle it immediately
-        if (bullet.y < 0f) {
+        if (bullet.y < 0f || bullet.x < -40f || bullet.x > maxX) {
           bullet.isActive = false
         }
+      }
+      i++
+    }
+  }
+
+  private fun spawnWeaponStream(player: PlayerShip) {
+    val my = player.muzzleY()
+    when (player.getWeaponPower()) {
+      2 -> {
+        spawnBullet(player.getHitboxX(), my, 0f)
+        spawnBullet(player.leftMuzzleX(), my, LEVEL2_SPREAD_VX)
+        spawnBullet(player.rightMuzzleX(), my, -LEVEL2_SPREAD_VX)
+      }
+      3 -> {
+        spawnBullet(player.muzzleXAt(-LANE3_OUTER), my, 0f)
+        spawnBullet(player.muzzleXAt(-LANE3_INNER), my, 0f)
+        spawnBullet(player.muzzleXAt(LANE3_INNER), my, 0f)
+        spawnBullet(player.muzzleXAt(LANE3_OUTER), my, 0f)
+      }
+      else -> {
+        spawnBullet(player.leftMuzzleX(), my, 0f)
+        spawnBullet(player.rightMuzzleX(), my, 0f)
       }
     }
   }
 
-  /**
-   * Loops through the object pool to find two inactive objects,
-   * assigning them to start traveling from the left and right wing tips simultaneously.
-   */
-  private fun spawnDualBulletStream(player: PlayerShip) {
-    var leftSpawned = false
-    var rightSpawned = false
-
-    // Look for the first two available inactive objects inside our pre-allocated array pool
-    for (i in 0 until poolSize) {
+  private fun spawnBullet(x: Float, y: Float, vx: Float) {
+    var i = 0
+    while (i < poolSize) {
       val bullet = bulletPool[i]
       if (!bullet.isActive) {
-        if (!leftSpawned) {
-          bullet.x = player.leftMuzzleX()
-          bullet.y = player.muzzleY()
-          bullet.isActive = true
-          leftSpawned = true
-          continue // Skip to look for the right wing container asset
-        }
-        if (!rightSpawned) {
-          bullet.x = player.rightMuzzleX()
-          bullet.y = player.muzzleY()
-          bullet.isActive = true
-          rightSpawned = true
-        }
+        bullet.x = x
+        bullet.y = y
+        bullet.vx = vx
+        bullet.isActive = true
+        return
       }
-      // Once both projectiles are securely decoupled out of inventory, exit immediately
-      if (leftSpawned && rightSpawned) break
+      i++
     }
   }
 
@@ -103,29 +106,28 @@ class BulletManager {
    * to a single float drawRect template variable to keep memory generation completely clean.
    */
   fun draw(canvas: Canvas) {
-    for (i in 0 until poolSize) {
+    var i = 0
+    while (i < poolSize) {
       val bullet = bulletPool[i]
       if (bullet.isActive) {
-        // Configure our zero-allocation primitive geometric coordinate layout window
         drawRect.set(
           bullet.x - HALF_BULLET_WIDTH,
           bullet.y - HALF_BULLET_HEIGHT,
           bullet.x + HALF_BULLET_WIDTH,
           bullet.y + HALF_BULLET_HEIGHT
         )
-
-        // Draw high-performance hardware vector bullets onto the running environment
         canvas.drawRoundRect(drawRect, HALF_BULLET_WIDTH, HALF_BULLET_WIDTH, bulletPaint)
       }
+      i++
     }
   }
 
   private companion object {
-    // High velocity standard arcade machine gun travel calculations
     const val BULLET_SPEED_PX_PER_SEC = 1600f
-
-    // Classic slender 1990s Psikyo bullet profiles (Adjust for larger/smaller scale)
     const val HALF_BULLET_WIDTH = 6f
     const val HALF_BULLET_HEIGHT = 16f
+    const val LEVEL2_SPREAD_VX = -150f
+    const val LANE3_OUTER = 0.72f
+    const val LANE3_INNER = 0.28f
   }
 }

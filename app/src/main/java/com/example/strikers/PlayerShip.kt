@@ -28,6 +28,7 @@ class PlayerShip(private val resources: Resources) {
   private var x = 0f
   private var y = 0f
   private var health = 3
+  private var weaponPowerLevel = 1
   private var isInvulnerable = false
   private var invulnTimer = 0f
   private var isGameOverFlag = false
@@ -147,10 +148,17 @@ class PlayerShip(private val resources: Resources) {
 
   fun getHealth(): Int = health
 
+  fun getWeaponPower(): Int = weaponPowerLevel
+
+  fun upgradeWeapon() {
+    if (weaponPowerLevel < 3) weaponPowerLevel++
+  }
+
   fun isGameOver(): Boolean = isGameOverFlag
 
   fun resetForStage() {
     health = 3
+    weaponPowerLevel = 1
     isInvulnerable = false
     invulnTimer = 0f
     isGameOverFlag = false
@@ -186,6 +194,8 @@ class PlayerShip(private val resources: Resources) {
   fun leftMuzzleX(): Float = x - halfW * MUZZLE_X_FRAC
 
   fun rightMuzzleX(): Float = x + halfW * MUZZLE_X_FRAC
+
+  fun muzzleXAt(spanFrac: Float): Float = x + halfW * spanFrac
 
   fun muzzleY(): Float = y - halfH * MUZZLE_Y_FRAC
 

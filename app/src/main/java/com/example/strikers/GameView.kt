@@ -31,9 +31,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val boss = BossController(resources)
   private val scorecard = VictoryScorecard()
   private val panicBomb = PanicBomb()
+  private val powerUpItem = PowerUpItem()
   private val srcCore = Rect()
   private val bombDstRect = RectF()
   private val hudIconDst = RectF()
+  private val powerUpDst = RectF()
   private val bodyPaint = Paint().apply { isFilterBitmap = true }
   private val bombSheets = arrayOfNulls<Bitmap>(6)
   private var lifeIconBmp: Bitmap? = null
@@ -41,6 +43,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var availableBombs = 3
   private var gameState = STATE_TITLE
   private var logoBmp: Bitmap? = null
+  private var powerUpBmp: Bitmap? = null
   private var lastTapUpMs = 0L
   private var touchDownMs = 0L
   private var touchDownX = 0f
@@ -158,7 +161,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         parallax.update(GROUND_PX_PER_SEC * dt)
         scorecard.update(dt)
         player.update(dt)
-        bullets.update(dt, player)
+        bullets.update(dt, player, screenW)
+        powerUpItem.update(dt, screenW)
         timeline.update(dt, enemies, screenW, screenH, boss)
         enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
         boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
@@ -176,6 +180,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           enemies.draw(canvas)
           boss.draw(canvas)
           player.draw(canvas)
+          drawPowerUpItem(canvas)
           bullets.draw(canvas)
           enemyShots.draw(canvas)
           particles.draw(canvas)
@@ -447,6 +452,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     if (logoBmp == null) {
       logoBmp = decodeKeyed(R.drawable.game_logo)
     }
+    if (powerUpBmp == null) {
+      powerUpBmp = decodeKeyed(R.drawable.item_powerup)
+    }
   }
 
   private fun decodeKeyed(drawableId: Int): Bitmap {
@@ -510,6 +518,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               bullet.isActive = false
               enemy.isActive = false
               particles.triggerExplosion(enemy.x, enemy.y)
+              if (Math.random() < 0.15 && !powerUpItem.isActive) {
+                powerUpItem.spawn(enemy.x, enemy.y)
+              }
               break
             }
           }
@@ -577,6 +588,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       i++
     }
+
+    if (powerUpItem.isActive) {
+      val dx = playerX - powerUpItem.x
+      val dy = playerY - powerUpItem.y
+      val pickup = PLAYER_HIT_RADIUS + POWERUP_HALF
+      if ((dx * dx) + (dy * dy) <= pickup * pickup) {
+        powerUpItem.isActive = false
+        player.upgradeWeapon()
+      }
+    }
+  }
+
+  private fun drawPowerUpItem(canvas: Canvas) {
+    if (!powerUpItem.isActive) return
+    val bmp = powerUpBmp ?: return
+    val hx = POWERUP_HALF
+    powerUpDst.set(
+      powerUpItem.x - hx,
+      powerUpItem.y - hx,
+      powerUpItem.x + hx,
+      powerUpItem.y + hx,
+    )
+    canvas.drawBitmap(bmp, null, powerUpDst, bodyPaint)
   }
 
   private fun lockGameCanvas(): Canvas? {
@@ -611,6 +645,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val logo = logoBmp
     if (logo != null && !logo.isRecycled) logo.recycle()
     logoBmp = null
+    val powerUp = powerUpBmp
+    if (powerUp != null && !powerUp.isRecycled) powerUp.recycle()
+    powerUpBmp = null
     super.onDetachedFromWindow()
   }
 
@@ -623,6 +660,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     bossBombDmgBank = 0f
     awaitingSecondTap = false
     player.resetForStage()
+    powerUpItem.isActive = false
     bullets.deactivateAll()
     enemies.deactivateAll()
     enemyShots.deactivateAll()
@@ -696,6 +734,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val MAX_FRAME_NS = 50_000_000L
     const val RADIUS_SUM_THRESHOLD = 28f
     const val PLAYER_HIT_RADIUS = 12f
+    const val POWERUP_HALF = 32f
     const val BOSS_BOMB_DPS = 28f
     const val DOUBLE_TAP_MS = 280L
     const val TAP_MAX_MS = 220L
