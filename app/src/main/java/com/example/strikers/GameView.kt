@@ -159,7 +159,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       STATE_GAMEOVER -> {
         parallax.update(0f)
-        particles.update(0f)
+        particles.update(dt)
       }
       else -> {
         parallax.update(stageManager.scrollSpeedY * dt)
@@ -621,8 +621,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         val distSq = (dx * dx) + (dy * dy)
         if (distSq <= sumSq) {
           b.isActive = false
-          player.takeDamage()
-          if (player.getHealth() <= 0) gameState = STATE_GAMEOVER
+          if (player.takeDamage()) {
+            particles.triggerExplosion(playerX, playerY)
+            if (player.isGameOver()) gameState = STATE_GAMEOVER
+          }
           break
         }
       }
@@ -698,7 +700,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     scorecard.isActive = false
     scorecard.isCountingDone = false
     scorecard.currentDisplayLine = 0
-    availableBombs = 3
     panicBomb.isActive = false
     bossBombDmgBank = 0f
     awaitingSecondTap = false
@@ -719,8 +720,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       STATE_TITLE -> {
         if (down) {
           stageManager.resetToStart()
-          resetStage()
+          player.resetWeaponPower()
+          player.restoreLives()
           availableBombs = 3
+          resetStage()
           gameState = STATE_PLAYING
         }
         return true
@@ -736,6 +739,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       STATE_GAMEOVER -> {
         if (down) {
           stageManager.resetToStart()
+          player.resetWeaponPower()
+          player.restoreLives()
+          availableBombs = 3
           resetStage()
           gameState = STATE_TITLE
         }

@@ -27,10 +27,12 @@ class PlayerShip(private val resources: Resources) {
 
   private var x = 0f
   private var y = 0f
-  private var health = 3
+  private var lives = START_LIVES
+  private var hitsLeft = HITS_PER_LIFE
   private var weaponPowerLevel = 1
   private var isInvulnerable = false
   private var invulnTimer = 0f
+  private var respawnTimer = 0f
   private var isGameOverFlag = false
 
   private var pointerId = MotionEvent.INVALID_POINTER_ID
@@ -69,7 +71,7 @@ class PlayerShip(private val resources: Resources) {
   }
 
   fun onTouch(event: MotionEvent): Boolean {
-    if (isGameOverFlag || health <= 0) {
+    if (isGameOverFlag || lives <= 0 || respawnTimer > 0f) {
       releaseSteer()
       return true
     }
@@ -138,6 +140,18 @@ class PlayerShip(private val resources: Resources) {
         isInvulnerable = false
       }
     }
+    if (respawnTimer > 0f) {
+      respawnTimer -= dt
+      if (respawnTimer <= 0f) {
+        respawnTimer = 0f
+        if (screenW > 0 && screenH > 0) {
+          x = screenW * 0.5f
+          y = screenH * 0.78f
+        }
+        isInvulnerable = true
+        invulnTimer = INVULN_SEC
+      }
+    }
     clamp()
     writeDst()
   }
@@ -146,7 +160,7 @@ class PlayerShip(private val resources: Resources) {
 
   fun getHitboxY(): Float = y
 
-  fun getHealth(): Int = health
+  fun getHealth(): Int = lives
 
   fun getWeaponPower(): Int = weaponPowerLevel
 
@@ -154,13 +168,23 @@ class PlayerShip(private val resources: Resources) {
     if (weaponPowerLevel < 3) weaponPowerLevel++
   }
 
+  fun resetWeaponPower() {
+    weaponPowerLevel = 1
+  }
+
+  fun restoreLives() {
+    lives = START_LIVES
+    hitsLeft = HITS_PER_LIFE
+    respawnTimer = 0f
+    isGameOverFlag = false
+  }
+
   fun isGameOver(): Boolean = isGameOverFlag
 
   fun resetForStage() {
-    health = 3
-    weaponPowerLevel = 1
     isInvulnerable = false
     invulnTimer = 0f
+    respawnTimer = 0f
     isGameOverFlag = false
     isDragging = false
     isMovingHorizontal = false
@@ -176,20 +200,29 @@ class PlayerShip(private val resources: Resources) {
     }
   }
 
-  fun takeDamage() {
-    if (isInvulnerable || isGameOverFlag) return
-    health -= 1
-    if (health <= 0) {
-      health = 0
-      isGameOverFlag = true
-      releaseSteer()
-      return
+  /** @return true if this hit destroyed the ship (explosion). */
+  fun takeDamage(): Boolean {
+    if (isInvulnerable || isGameOverFlag || respawnTimer > 0f) return false
+    hitsLeft -= 1
+    if (hitsLeft > 0) {
+      isInvulnerable = true
+      invulnTimer = INVULN_SEC
+      return false
     }
-    isInvulnerable = true
-    invulnTimer = INVULN_SEC
+    lives -= 1
+    hitsLeft = HITS_PER_LIFE
+    releaseSteer()
+    if (lives <= 0) {
+      lives = 0
+      isGameOverFlag = true
+      return true
+    }
+    respawnTimer = RESPAWN_SEC
+    return true
   }
 
-  fun isFiringHeld(): Boolean = isDragging && !isGameOverFlag && health > 0
+  fun isFiringHeld(): Boolean =
+    isDragging && !isGameOverFlag && lives > 0 && respawnTimer <= 0f
 
   fun leftMuzzleX(): Float = x - halfW * MUZZLE_X_FRAC
 
@@ -200,7 +233,7 @@ class PlayerShip(private val resources: Resources) {
   fun muzzleY(): Float = y - halfH * MUZZLE_Y_FRAC
 
   fun draw(canvas: Canvas) {
-    if (isGameOverFlag) return
+    if (isGameOverFlag || respawnTimer > 0f) return
     if (isInvulnerable && ((invulnTimer * 20f).toInt() and 1) == 0) return
     val bmp = sheet ?: return
     val frame = kotlin.math.round(currentFrameIndex).toInt().coerceIn(0, FRAME_COUNT - 1)
@@ -296,5 +329,8 @@ class PlayerShip(private val resources: Resources) {
     const val MUZZLE_X_FRAC = 0.42f
     const val MUZZLE_Y_FRAC = 0.38f
     const val INVULN_SEC = 2.0f
+    const val START_LIVES = 3
+    const val HITS_PER_LIFE = 3
+    const val RESPAWN_SEC = 0.4f
   }
 }
