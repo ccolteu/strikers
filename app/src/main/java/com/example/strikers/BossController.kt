@@ -21,6 +21,10 @@ class BossController(private val resources: Resources) {
   private var bodySheet: Bitmap? = null
   private var leftWreckSheet: Bitmap? = null
   private var rightWreckSheet: Bitmap? = null
+  private var expFrame1: Bitmap? = null
+  private var expFrame2: Bitmap? = null
+  private var expFrame3: Bitmap? = null
+  private val srcExp = Rect()
   private var screenW = 0f
   private var screenH = 0f
   private var coreX = 0f
@@ -32,6 +36,9 @@ class BossController(private val resources: Resources) {
   private var barrelIndex = 0
   private var entering = false
   private var active = false
+  private var isExploding = false
+  private var explosionTimer = 0f
+  private var activeExpFrame = 0
   private var currentStage = 1
   private var loadedStage = -1
   private var bodyHalfW = 0f
@@ -73,6 +80,9 @@ class BossController(private val resources: Resources) {
     turretAngle = 1.5707964f
     coreX = screenW * 0.5f
     coreY = -bodyHalfH - 24f
+    isExploding = false
+    explosionTimer = 0f
+    activeExpFrame = 0
     var i = 0
     while (i < MAX_PART_COUNT) {
       val p = parts[i]
@@ -86,9 +96,14 @@ class BossController(private val resources: Resources) {
 
   fun isActive(): Boolean = active
 
+  fun isExploding(): Boolean = isExploding
+
   fun deactivate() {
     active = false
     entering = false
+    isExploding = false
+    explosionTimer = 0f
+    activeExpFrame = 0
   }
 
   fun getComponents(): Array<BossComponent> = parts
@@ -97,6 +112,26 @@ class BossController(private val resources: Resources) {
 
   fun update(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
     if (!active) return
+    if (isExploding) {
+      explosionTimer += dt
+      if (explosionTimer < EXPLODE_FRAME_SEC) {
+        activeExpFrame = 1
+      } else if (explosionTimer < EXPLODE_FRAME_SEC * 2f) {
+        activeExpFrame = 2
+      } else if (explosionTimer < EXPLODE_FRAME_SEC * 3f) {
+        activeExpFrame = 3
+      } else {
+        isExploding = false
+        active = false
+      }
+      return
+    }
+    if (parts[TYPE_CORE].isDestroyed) {
+      isExploding = true
+      explosionTimer = 0f
+      activeExpFrame = 1
+      return
+    }
     if (entering) {
       coreY += ENTER_SPEED * dt
       if (coreY >= hoverY) {
@@ -108,11 +143,6 @@ class BossController(private val resources: Resources) {
       coreX = screenW * 0.5f + sin(sweepPhase) * screenW * SWEEP_AMP
     } else {
       coreX = screenW * 0.5f
-    }
-    val core = parts[TYPE_CORE]
-    if (core.isDestroyed) {
-      active = false
-      return
     }
     var i = 0
     while (i < MAX_PART_COUNT) {
@@ -131,8 +161,6 @@ class BossController(private val resources: Resources) {
   fun draw(canvas: Canvas) {
     if (!active) return
     val sheet = bodySheet ?: return
-    val core = parts[TYPE_CORE]
-    if (core.isDestroyed) return
     dstRect.set(coreX - bodyHalfW, coreY - bodyHalfH, coreX + bodyHalfW, coreY + bodyHalfH)
     canvas.drawBitmap(sheet, srcCore, dstRect, bodyPaint)
     val leftWreck = leftWreckSheet
@@ -152,15 +180,33 @@ class BossController(private val resources: Resources) {
         canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
       }
     }
+    if (isExploding) {
+      val exp = if (activeExpFrame == 1) {
+        expFrame1
+      } else if (activeExpFrame == 2) {
+        expFrame2
+      } else {
+        expFrame3
+      }
+      if (exp != null) {
+        canvas.drawBitmap(exp, srcExp, dstRect, bodyPaint)
+      }
+    }
   }
 
   fun release() {
     recycle(bodySheet)
     recycle(leftWreckSheet)
     recycle(rightWreckSheet)
+    recycle(expFrame1)
+    recycle(expFrame2)
+    recycle(expFrame3)
     bodySheet = null
     leftWreckSheet = null
     rightWreckSheet = null
+    expFrame1 = null
+    expFrame2 = null
+    expFrame3 = null
     loadedStage = -1
   }
 
@@ -273,6 +319,15 @@ class BossController(private val resources: Resources) {
   }
 
   private fun loadKeyedSheet(stage: Int) {
+    if (expFrame1 == null) {
+      expFrame1 = decodeKeyed(R.drawable.boss_explode_f1)
+      expFrame2 = decodeKeyed(R.drawable.boss_explode_f2)
+      expFrame3 = decodeKeyed(R.drawable.boss_explode_f3)
+      val exp = expFrame1
+      if (exp != null) {
+        srcExp.set(0, 0, exp.width, exp.height)
+      }
+    }
     if (loadedStage == stage && bodySheet != null) return
     recycle(bodySheet)
     recycle(leftWreckSheet)
@@ -359,5 +414,6 @@ class BossController(private val resources: Resources) {
     const val S2_CORE_HP = 90
     const val S2_TREAD_HP = 35
     const val S2_TURRET_HP = 30
+    const val EXPLODE_FRAME_SEC = 0.35f
   }
 }

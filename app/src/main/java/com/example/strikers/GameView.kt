@@ -52,6 +52,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var touchDownY = 0f
   private var awaitingSecondTap = false
   private var bossBombDmgBank = 0f
+  private var bossFought = false
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
@@ -178,10 +179,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         )
         enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
         boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
+        if (boss.isActive() || boss.isExploding()) {
+          bossFought = true
+        }
         enemyShots.update(dt)
         updatePanicBomb(dt)
         particles.update(dt)
         resolveCollisions()
+        if (
+          gameState == STATE_PLAYING &&
+          bossFought &&
+          !boss.isActive() &&
+          !boss.isExploding()
+        ) {
+          scorecard.trigger(player.getHealth(), availableBombs)
+          gameState = STATE_CLEAR
+        }
       }
     }
     val canvas = lockGameCanvas()
@@ -404,26 +417,24 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         bossBombDmgBank -= dmg
         val parts = boss.getComponents()
         val partCount = boss.getComponentCount()
-        var pi = 0
-        while (pi < partCount) {
+        var pi = partCount - 1
+        while (pi >= 0) {
           val part = parts[pi]
-          if (!part.isDestroyed) {
+          if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
+            val pr = if (part.halfW > part.halfH) part.halfW else part.halfH
+            val hitR = maxClearRadius * currentProgress + pr
             val dx = part.x - bx
             val dy = part.y - by
-            if ((dx * dx) + (dy * dy) <= rSq) {
+            if ((dx * dx) + (dy * dy) <= hitR * hitR) {
               part.health -= dmg
               if (part.health <= 0) {
                 part.health = 0
                 part.isDestroyed = true
                 particles.triggerExplosion(part.x, part.y)
-                if (part.componentType == BossController.TYPE_CORE && gameState == STATE_PLAYING) {
-                  scorecard.trigger(player.getHealth(), availableBombs)
-                  gameState = STATE_CLEAR
-                }
               }
             }
           }
-          pi++
+          pi--
         }
       }
     }
@@ -577,12 +588,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       while (bi < bulletCount) {
         val bullet = bulletPool[bi]
         if (bullet.isActive) {
-          var pi = 0
-          while (pi < partCount) {
+          var pi = partCount - 1
+          while (pi >= 0) {
             val part = parts[pi]
             if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
-              val dx = (bullet.x - part.x) / part.halfW
-              val dy = (bullet.y - part.y) / part.halfH
+              val hw = part.halfW + BOSS_BULLET_PAD_X
+              val hh = part.halfH + BOSS_BULLET_PAD_Y
+              val dx = (bullet.x - part.x) / hw
+              val dy = (bullet.y - part.y) / hh
               if ((dx * dx) + (dy * dy) <= 1f) {
                 bullet.isActive = false
                 part.health -= 1
@@ -590,15 +603,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                   part.health = 0
                   part.isDestroyed = true
                   particles.triggerExplosion(part.x, part.y)
-                  if (part.componentType == BossController.TYPE_CORE && gameState == STATE_PLAYING) {
-                    scorecard.trigger(player.getHealth(), availableBombs)
-                    gameState = STATE_CLEAR
-                  }
                 }
                 break
               }
             }
-            pi++
+            pi--
           }
         }
         bi++
@@ -754,6 +763,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     panicBomb.isActive = false
     bossBombDmgBank = 0f
     awaitingSecondTap = false
+    bossFought = false
     player.resetForStage()
     powerUpItem.isActive = false
     bullets.deactivateAll()
@@ -838,6 +848,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val MAX_FRAME_NS = 50_000_000L
     const val RADIUS_SUM_THRESHOLD = 28f
     const val PLAYER_HIT_RADIUS = 12f
+    const val BOSS_BULLET_PAD_X = 6f
+    const val BOSS_BULLET_PAD_Y = 16f
     const val ENEMY_RAM_BODY_FRAC = 0.45f
     const val POWERUP_HALF = 32f
     const val BOSS_BOMB_DPS = 28f
