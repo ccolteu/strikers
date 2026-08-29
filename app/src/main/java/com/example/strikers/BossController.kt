@@ -70,6 +70,11 @@ class BossController(private val resources: Resources) {
 
   fun isActive(): Boolean = active
 
+  fun deactivate() {
+    active = false
+    entering = false
+  }
+
   fun getComponents(): Array<BossComponent> = parts
 
   fun getComponentCount(): Int = PART_COUNT

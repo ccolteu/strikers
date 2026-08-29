@@ -68,6 +68,10 @@ class PlayerShip(private val resources: Resources) {
   }
 
   fun onTouch(event: MotionEvent): Boolean {
+    if (isGameOverFlag || health <= 0) {
+      releaseSteer()
+      return true
+    }
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
         if (pointerId == MotionEvent.INVALID_POINTER_ID) {
@@ -145,19 +149,39 @@ class PlayerShip(private val resources: Resources) {
 
   fun isGameOver(): Boolean = isGameOverFlag
 
+  fun resetForStage() {
+    health = 3
+    isInvulnerable = false
+    invulnTimer = 0f
+    isGameOverFlag = false
+    isDragging = false
+    isMovingHorizontal = false
+    pointerId = MotionEvent.INVALID_POINTER_ID
+    currentFrameIndex = IDLE_FRAME
+    targetFrameIndex = IDLE_FRAME
+    targetVelocityX = 0f
+    if (screenW > 0 && screenH > 0) {
+      x = screenW * 0.5f
+      y = screenH * 0.78f
+      clamp()
+      writeDst()
+    }
+  }
+
   fun takeDamage() {
     if (isInvulnerable || isGameOverFlag) return
     health -= 1
     if (health <= 0) {
       health = 0
       isGameOverFlag = true
+      releaseSteer()
       return
     }
     isInvulnerable = true
     invulnTimer = INVULN_SEC
   }
 
-  fun isFiringHeld(): Boolean = isDragging
+  fun isFiringHeld(): Boolean = isDragging && !isGameOverFlag && health > 0
 
   fun leftMuzzleX(): Float = x - halfW * MUZZLE_X_FRAC
 

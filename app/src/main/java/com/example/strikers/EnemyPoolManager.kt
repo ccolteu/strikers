@@ -41,6 +41,16 @@ class EnemyPoolManager(private val resources: Resources) {
 
   fun getPoolSize(): Int = POOL_SIZE
 
+  fun deactivateAll() {
+    synchronized(lock) {
+      var i = 0
+      while (i < POOL_SIZE) {
+        pool[i].isActive = false
+        i++
+      }
+    }
+  }
+
   fun spawnEnemy(startX: Float, startY: Float, velocityX: Float, velocityY: Float, enemyType: Int) {
     synchronized(lock) {
       for (i in 0 until POOL_SIZE) {

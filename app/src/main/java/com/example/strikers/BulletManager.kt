@@ -90,6 +90,14 @@ class BulletManager {
 
   fun getPoolSize(): Int = poolSize
 
+  fun deactivateAll() {
+    var i = 0
+    while (i < poolSize) {
+      bulletPool[i].isActive = false
+      i++
+    }
+  }
+
   /**
    * Iterates through your active projectile states, mapping points directly
    * to a single float drawRect template variable to keep memory generation completely clean.

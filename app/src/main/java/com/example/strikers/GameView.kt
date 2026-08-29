@@ -29,12 +29,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val timeline = SpawnTimeline()
   private val particles = ParticleManager(resources)
   private val boss = BossController(resources)
+  private val scorecard = VictoryScorecard()
   private val panicBomb = PanicBomb()
   private val srcCore = Rect()
   private val bombDstRect = RectF()
+  private val hudIconDst = RectF()
   private val bodyPaint = Paint().apply { isFilterBitmap = true }
   private val bombSheets = arrayOfNulls<Bitmap>(6)
+  private var lifeIconBmp: Bitmap? = null
+  private var bombIconBmp: Bitmap? = null
   private var availableBombs = 3
+  private var isGameOver = false
   private var lastTapUpMs = 0L
   private var touchDownMs = 0L
   private var touchDownX = 0f
@@ -48,19 +53,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var screenH = 0
   private val uiTextPaint = Paint().apply {
     color = Color.WHITE
-    isFakeBoldText = true
-    typeface = Typeface.MONOSPACE
-    textSize = 52f
+    typeface = Typeface.DEFAULT_BOLD
+    textSize = 54f
     isAntiAlias = true
   }
   private val uiShadowPaint = Paint().apply {
     color = Color.BLACK
-    isFakeBoldText = true
-    typeface = Typeface.MONOSPACE
-    textSize = 52f
+    typeface = Typeface.DEFAULT_BOLD
+    textSize = 54f
     isAntiAlias = true
   }
-  private val uiStringBuilder = StringBuilder(32)
+  private val uiGoldPaint = Paint().apply {
+    color = Color.YELLOW
+    typeface = Typeface.DEFAULT_BOLD
+    textSize = 68f
+    isAntiAlias = true
+  }
+  private val uiGoldShadowPaint = Paint().apply {
+    color = Color.BLACK
+    typeface = Typeface.DEFAULT_BOLD
+    textSize = 68f
+    isAntiAlias = true
+  }
+  private val uiStringBuilder = StringBuilder(64)
 
   init {
     holder.addCallback(this)
@@ -80,6 +95,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     screenW = w
     screenH = h
     loadBombSheetsIfNeeded()
+    loadHudIconsIfNeeded()
   }
 
   override fun surfaceCreated(holder: SurfaceHolder) {
@@ -98,6 +114,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     screenW = width
     screenH = height
     loadBombSheetsIfNeeded()
+    loadHudIconsIfNeeded()
   }
 
   override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -111,16 +128,24 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       ((frameTimeNanos - lastNanos).coerceIn(0L, MAX_FRAME_NS) / 1_000_000_000f)
     }
     lastNanos = frameTimeNanos
-    parallax.update(GROUND_PX_PER_SEC * dt)
-    player.update(dt)
-    bullets.update(dt, player)
-    timeline.update(dt, enemies, screenW, screenH, boss)
-    enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
-    boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
-    enemyShots.update(dt)
-    updatePanicBomb(dt)
-    particles.update(dt)
-    resolveCollisions()
+    val simDt = if (isGameOver) 0f else dt
+    parallax.update(GROUND_PX_PER_SEC * simDt)
+    if (!isGameOver) {
+      scorecard.update(dt)
+    }
+    if (!scorecard.isActive) {
+      player.update(simDt)
+      bullets.update(simDt, player)
+      timeline.update(simDt, enemies, screenW, screenH, boss)
+      enemies.update(simDt, player.getHitboxX(), player.getHitboxY(), enemyShots)
+      boss.update(simDt, player.getHitboxX(), player.getHitboxY(), enemyShots)
+      enemyShots.update(simDt)
+      updatePanicBomb(simDt)
+    }
+    particles.update(simDt)
+    if (!scorecard.isActive && !isGameOver) {
+      resolveCollisions()
+    }
     val canvas = lockGameCanvas()
     if (canvas != null) {
       try {
@@ -146,27 +171,106 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
    * [SurfaceHolder.lockCanvas].
    */
   private fun drawArcadeUI(canvas: Canvas) {
-    uiStringBuilder.setLength(0)
-    uiStringBuilder.append("1P LIFE: ")
-    val currentLives = player.getHealth()
-    var i = 0
-    while (i < currentLives) {
-      uiStringBuilder.append('★')
-      i++
+    val bombWidth = 80f
+    val bombHeight = 80f
+    val lifeSize = 72f
+    val marginBottom = 45f
+    val bombStartY = screenH - marginBottom - bombHeight
+    val lifeStartY = bombStartY + (bombHeight - lifeSize) * 0.5f
+    val lifeBmp = lifeIconBmp
+    if (lifeBmp != null) {
+      val currentLives = player.getHealth()
+      val marginLeft = 45f
+      val spacing = 16f
+      var i = 0
+      while (i < currentLives) {
+        val posX = marginLeft + i * (lifeSize + spacing)
+        hudIconDst.set(posX, lifeStartY, posX + lifeSize, lifeStartY + lifeSize)
+        canvas.drawBitmap(lifeBmp, null, hudIconDst, bodyPaint)
+        i++
+      }
     }
-    val end = uiStringBuilder.length
-    canvas.drawText(uiStringBuilder, 0, end, 44f, 84f, uiShadowPaint)
-    canvas.drawText(uiStringBuilder, 0, end, 40f, 80f, uiTextPaint)
-    uiStringBuilder.setLength(0)
-    uiStringBuilder.append("BOMB: ")
-    i = 0
-    while (i < availableBombs) {
-      uiStringBuilder.append('★')
-      i++
+    val bombBmp = bombIconBmp
+    if (bombBmp != null) {
+      val marginRight = 45f
+      val spacing = 20f
+      var i = 0
+      while (i < availableBombs) {
+        val posX = screenW - marginRight - bombWidth - (i * (bombWidth + spacing))
+        hudIconDst.set(posX, bombStartY, posX + bombWidth, bombStartY + bombHeight)
+        canvas.drawBitmap(bombBmp, null, hudIconDst, bodyPaint)
+        i++
+      }
     }
-    val bombEnd = uiStringBuilder.length
-    canvas.drawText(uiStringBuilder, 0, bombEnd, 44f, 144f, uiShadowPaint)
-    canvas.drawText(uiStringBuilder, 0, bombEnd, 40f, 140f, uiTextPaint)
+    val topTextY = 80f
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("1P-START")
+    val startEnd = uiStringBuilder.length
+    canvas.drawText(uiStringBuilder, 0, startEnd, 35f + 4f, topTextY + 4f, uiShadowPaint)
+    canvas.drawText(uiStringBuilder, 0, startEnd, 30f, topTextY, uiTextPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("00")
+    val scoreEnd = uiStringBuilder.length
+    val scoreW = uiTextPaint.measureText(uiStringBuilder, 0, scoreEnd)
+    canvas.drawText(uiStringBuilder, 0, scoreEnd, screenW - scoreW - 35f + 4f, topTextY + 4f, uiShadowPaint)
+    canvas.drawText(uiStringBuilder, 0, scoreEnd, screenW - scoreW - 30f, topTextY, uiTextPaint)
+    if (isGameOver) {
+      val goCx = screenW * 0.5f
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("GAME OVER")
+      drawCenteredHud(canvas, uiStringBuilder, goCx, screenH * 0.45f, uiGoldPaint, uiGoldShadowPaint)
+      if ((System.currentTimeMillis() / 500L) % 2L == 0L) {
+        uiStringBuilder.setLength(0)
+        uiStringBuilder.append("TAP SCREEN TO RESTART")
+        drawCenteredHud(canvas, uiStringBuilder, goCx, screenH * 0.55f, uiTextPaint, uiShadowPaint)
+      }
+      return
+    }
+    if (!scorecard.isActive) return
+    val cx = screenW * 0.5f
+    if (scorecard.currentDisplayLine >= 1) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("STAGE 1 CLEAR")
+      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.22f, uiGoldPaint, uiGoldShadowPaint)
+    }
+    if (scorecard.currentDisplayLine >= 2) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("LIFE BONUS: ")
+      uiStringBuilder.append(scorecard.visibleLifeBonus)
+      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.34f, uiTextPaint, uiShadowPaint)
+    }
+    if (scorecard.currentDisplayLine >= 3) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("BOMB BONUS: ")
+      uiStringBuilder.append(scorecard.visibleBombBonus)
+      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.44f, uiTextPaint, uiShadowPaint)
+    }
+    if (scorecard.currentDisplayLine >= 4) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("TOTAL GAIN: ")
+      uiStringBuilder.append(scorecard.visibleTotalScore)
+      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.54f, uiGoldPaint, uiGoldShadowPaint)
+    }
+    if (scorecard.isCountingDone && ((scorecard.elapsedTime * 3f).toInt() and 1) == 0) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("TOUCH SCREEN TO CONTINUE")
+      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.82f, uiTextPaint, uiShadowPaint)
+    }
+  }
+
+  private fun drawCenteredHud(
+    canvas: Canvas,
+    text: StringBuilder,
+    centerX: Float,
+    y: Float,
+    fill: Paint,
+    shadow: Paint,
+  ) {
+    val end = text.length
+    val w = fill.measureText(text, 0, end)
+    val x = centerX - w * 0.5f
+    canvas.drawText(text, 0, end, x + 6f, y + 6f, shadow)
+    canvas.drawText(text, 0, end, x, y, fill)
   }
 
   private fun updatePanicBomb(dt: Float) {
@@ -237,6 +341,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 part.health = 0
                 part.isDestroyed = true
                 particles.triggerExplosion(part.x, part.y)
+                if (part.componentType == BossController.TYPE_CORE && !scorecard.isActive) {
+                  scorecard.trigger(player.getHealth(), availableBombs)
+                }
               }
             }
           }
@@ -271,6 +378,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val targetDisplayW = targetDisplayH * inverseAspect
     val leftOffset = (screenW - targetDisplayW) * 0.5f
     bombDstRect.set(leftOffset, 0f, leftOffset + targetDisplayW, targetDisplayH)
+  }
+
+  private fun loadHudIconsIfNeeded() {
+    if (lifeIconBmp == null) {
+      lifeIconBmp = decodeKeyed(R.drawable.hud_life_icon)
+    }
+    if (bombIconBmp == null) {
+      bombIconBmp = decodeKeyed(R.drawable.hud_bomb_icon)
+    }
   }
 
   private fun decodeKeyed(drawableId: Int): Bitmap {
@@ -310,6 +426,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun resolveCollisions() {
+    if (player.getHealth() <= 0) {
+      isGameOver = true
+      return
+    }
     val bulletPool = bullets.getBulletPool()
     val bulletCount = bullets.getPoolSize()
     val enemyPool = enemies.getEnemyPool()
@@ -359,6 +479,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                   part.health = 0
                   part.isDestroyed = true
                   particles.triggerExplosion(part.x, part.y)
+                  if (part.componentType == BossController.TYPE_CORE && !scorecard.isActive) {
+                    scorecard.trigger(player.getHealth(), availableBombs)
+                  }
                 }
                 break
               }
@@ -387,6 +510,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (distSq <= sumSq) {
           b.isActive = false
           player.takeDamage()
+          if (player.getHealth() <= 0) isGameOver = true
           break
         }
       }
@@ -417,10 +541,49 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       bombSheets[i] = null
       i++
     }
+    val lifeIcon = lifeIconBmp
+    if (lifeIcon != null && !lifeIcon.isRecycled) lifeIcon.recycle()
+    lifeIconBmp = null
+    val bombIcon = bombIconBmp
+    if (bombIcon != null && !bombIcon.isRecycled) bombIcon.recycle()
+    bombIconBmp = null
     super.onDetachedFromWindow()
   }
 
+  private fun resetStage() {
+    isGameOver = false
+    scorecard.isActive = false
+    scorecard.isCountingDone = false
+    scorecard.currentDisplayLine = 0
+    availableBombs = 3
+    panicBomb.isActive = false
+    bossBombDmgBank = 0f
+    awaitingSecondTap = false
+    player.resetForStage()
+    bullets.deactivateAll()
+    enemies.deactivateAll()
+    enemyShots.deactivateAll()
+    boss.deactivate()
+    timeline.reset()
+  }
+
   override fun onTouchEvent(event: MotionEvent): Boolean {
+    if (scorecard.isActive) {
+      if (
+        scorecard.isCountingDone &&
+        (event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_POINTER_DOWN)
+      ) {
+        resetStage()
+      }
+      return true
+    }
+    if (isGameOver) {
+      if (event.actionMasked == MotionEvent.ACTION_DOWN || event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+        resetStage()
+      }
+      return true
+    }
+    if (player.getHealth() <= 0) return true
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
         val now = event.eventTime

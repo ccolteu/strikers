@@ -48,6 +48,12 @@ class SpawnTimeline {
     }
   }
 
+  fun reset() {
+    elapsedTime = 0f
+    bossCueFired = false
+    nextIndex = 0
+  }
+
   private companion object {
     const val TYPE_DRONE = 0
     const val FAST_DOWN = 320f

@@ -31,6 +31,14 @@ class EnemyWeaponSystem {
 
   fun getPoolSize(): Int = POOL_SIZE
 
+  fun deactivateAll() {
+    var i = 0
+    while (i < POOL_SIZE) {
+      pool[i].isActive = false
+      i++
+    }
+  }
+
   fun fireBullet(startX: Float, startY: Float, velX: Float, velY: Float) {
     var i = 0
     while (i < POOL_SIZE) {
