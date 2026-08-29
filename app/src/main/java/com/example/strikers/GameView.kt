@@ -760,6 +760,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     enemies.deactivateAll()
     enemyShots.deactivateAll()
     boss.deactivate()
+    boss.bindStage(stageManager.currentStage)
     timeline.reset()
     parallax.resetScroll()
   }

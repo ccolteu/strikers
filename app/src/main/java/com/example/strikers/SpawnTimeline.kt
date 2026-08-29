@@ -2,7 +2,7 @@ package com.example.strikers
 
 /**
  * Pre-ordered wave cues. [update] only advances a cursor; the event arrays
- * are allocated once at construction.
+ * are allocated once at construction to prevent GC stutter in Grok/Cursor builds.
  */
 class SpawnTimeline {
 
@@ -30,41 +30,53 @@ class SpawnTimeline {
   )
 
   private val stage2Events = arrayOf(
-    SpawnEvent(1.0f, -0.08f, 0.12f, KAMI_VX, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(1.18f, 1.08f, 0.08f, -KAMI_VX, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(1.36f, -0.08f, 0.22f, KAMI_VX, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(1.54f, 1.08f, 0.18f, -KAMI_VX, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(1.72f, -0.08f, 0.05f, KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(1.90f, 1.08f, 0.28f, -KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(5.0f, -0.08f, 0.10f, KAMI_VX_FAST, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(5.12f, 1.08f, 0.10f, -KAMI_VX_FAST, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(5.24f, -0.08f, 0.25f, KAMI_VX, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(5.36f, 1.08f, 0.25f, -KAMI_VX, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(5.48f, -0.08f, 0.02f, KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(5.60f, 1.08f, 0.40f, -KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(10.0f, -0.08f, 0.08f, KAMI_VX, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(10.15f, 1.08f, 0.16f, -KAMI_VX, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(10.30f, -0.08f, 0.24f, KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(10.45f, 1.08f, 0.08f, -KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(10.60f, -0.08f, 0.32f, KAMI_VX, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(10.75f, 1.08f, 0.32f, -KAMI_VX, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(16.0f, -0.08f, 0.06f, KAMI_VX_FAST, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(16.12f, 1.08f, 0.06f, -KAMI_VX_FAST, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(16.24f, -0.08f, 0.20f, KAMI_VX, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(16.36f, 1.08f, 0.20f, -KAMI_VX, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(16.48f, -0.08f, 0.34f, KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(16.60f, 1.08f, 0.34f, -KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(22.0f, -0.08f, 0.10f, KAMI_VX_FAST, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(22.10f, 1.08f, 0.10f, -KAMI_VX_FAST, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(22.20f, -0.08f, 0.22f, KAMI_VX, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(22.30f, 1.08f, 0.22f, -KAMI_VX, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(22.40f, -0.08f, 0.34f, KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(22.50f, 1.08f, 0.34f, -KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),
-    SpawnEvent(26.0f, -0.08f, 0.15f, KAMI_VX_FAST, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(26.15f, 1.08f, 0.15f, -KAMI_VX_FAST, KAMI_VY_FAST, TYPE_KAMIKAZE),
-    SpawnEvent(26.30f, 0.20f, 0f, 0f, FAST_DOWN, TYPE_DRONE),
-    SpawnEvent(26.50f, 0.50f, 0f, 0f, FAST_DOWN, TYPE_DRONE),
-    SpawnEvent(26.70f, 0.80f, 0f, 0f, FAST_DOWN, TYPE_DRONE),
+    // === FORMATION 1: THE PINCER ARROWHEAD CROSS ===
+    // Sweeps from top-left diagonally down-right, and top-right diagonally down-left
+    SpawnEvent(1.0f, -0.05f, -0.05f, SWEEP_VX, SWEEP_VY, TYPE_DRONE),
+    SpawnEvent(1.0f, 1.05f, -0.05f, -SWEEP_VX, SWEEP_VY, TYPE_DRONE),
+
+    SpawnEvent(1.4f, -0.10f, -0.10f, SWEEP_VX, SWEEP_VY, TYPE_DRONE),
+    SpawnEvent(1.4f, 1.10f, -0.10f, -SWEEP_VX, SWEEP_VY, TYPE_DRONE),
+
+    SpawnEvent(1.8f, -0.15f, -0.15f, SWEEP_VX, SWEEP_VY, TYPE_DRONE),
+    SpawnEvent(1.8f, 1.15f, -0.15f, -SWEEP_VX, SWEEP_VY, TYPE_DRONE),
+
+    // === FORMATION 2: THE KAMIKAZE V-FORMATION ===
+    // Six aggressive suicide drones forming a perfect flying wedge downward
+    SpawnEvent(6.0f, 0.50f, -0.05f, 0f, KAMI_VY_FAST, TYPE_KAMIKAZE), // The Tip
+
+    SpawnEvent(6.4f, 0.38f, -0.05f, KAMI_VX, KAMI_VY, TYPE_KAMIKAZE),  // Left wing tier 1
+    SpawnEvent(6.4f, 0.62f, -0.05f, -KAMI_VX, KAMI_VY, TYPE_KAMIKAZE), // Right wing tier 1
+
+    SpawnEvent(6.8f, 0.26f, -0.05f, KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE),  // Left wing tier 2
+    SpawnEvent(6.8f, 0.74f, -0.05f, -KAMI_VX_FAST, KAMI_VY, TYPE_KAMIKAZE), // Right wing tier 2
+
+    SpawnEvent(7.2f, 0.50f, -0.10f, 0f, KAMI_VY_FAST, TYPE_KAMIKAZE), // Rear anchor slot
+
+    // === FORMATION 3: THE ALTERNATING FLANK WALLS ===
+    // Left side horizontal block, then right side horizontal block
+    SpawnEvent(14.0f, 0.10f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+    SpawnEvent(14.2f, 0.22f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+    SpawnEvent(14.4f, 0.34f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+    SpawnEvent(14.6f, 0.46f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+
+    SpawnEvent(17.0f, 0.90f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+    SpawnEvent(17.2f, 0.78f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+    SpawnEvent(17.4f, 0.66f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+    SpawnEvent(17.6f, 0.54f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+
+    // === FORMATION 4: THE INFINITY LOOP CROSS ===
+    // Interceptors rising quickly from the bottom sides to catch players resting below
+    SpawnEvent(22.0f, -0.08f, 0.85f, KAMI_VX_FAST, -KAMI_VY, TYPE_DRONE),
+    SpawnEvent(22.0f, 1.08f, 0.85f, -KAMI_VX_FAST, -KAMI_VY, TYPE_DRONE),
+
+    SpawnEvent(22.4f, -0.08f, 0.70f, KAMI_VX_FAST, -KAMI_VY_FAST, TYPE_DRONE),
+    SpawnEvent(22.4f, 1.08f, 0.70f, -KAMI_VX_FAST, -KAMI_VY_FAST, TYPE_DRONE),
+
+    // Final pre-boss warning drones
+    SpawnEvent(26.0f, 0.30f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+    SpawnEvent(26.5f, 0.50f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
+    SpawnEvent(26.7f, 0.80f, -0.05f, 0f, FAST_DOWN, TYPE_DRONE),
   )
 
   private var elapsedTime = 0f
@@ -98,7 +110,7 @@ class SpawnTimeline {
       nextIndex++
     }
     if (!bossCueFired && elapsedTime >= bossEnterSeconds) {
-      boss.beginEntrance()
+      boss.beginEntranceForStage(currentStage)
       bossCueFired = true
     }
   }

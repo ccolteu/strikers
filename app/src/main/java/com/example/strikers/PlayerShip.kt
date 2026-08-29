@@ -211,6 +211,7 @@ class PlayerShip(private val resources: Resources) {
     }
     lives -= 1
     hitsLeft = HITS_PER_LIFE
+    weaponPowerLevel = 1
     releaseSteer()
     if (lives <= 0) {
       lives = 0
