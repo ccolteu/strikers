@@ -48,6 +48,10 @@ class EnemyPoolManager(private val resources: Resources) {
 
   fun getPoolSize(): Int = POOL_SIZE
 
+  fun getHalfW(): Float = halfW
+
+  fun getHalfH(): Float = halfH
+
   fun deactivateAll() {
     synchronized(lock) {
       var i = 0

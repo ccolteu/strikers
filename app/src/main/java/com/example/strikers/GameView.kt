@@ -631,6 +631,57 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       i++
     }
 
+    if (!player.isGameOver()) {
+      val eHalfW = enemies.getHalfW() * ENEMY_RAM_BODY_FRAC
+      val eHalfH = enemies.getHalfH() * ENEMY_RAM_BODY_FRAC
+      val ramRx = playerRadius + eHalfW
+      val ramRy = playerRadius + eHalfH
+      var ei = 0
+      while (ei < enemyCount) {
+        val enemy = enemyPool[ei]
+        if (enemy.isActive && ramRx > 0f && ramRy > 0f) {
+          val nx = (enemy.x - playerX) / ramRx
+          val ny = (enemy.y - playerY) / ramRy
+          if ((nx * nx) + (ny * ny) <= 1f) {
+            enemy.isActive = false
+            particles.triggerExplosion(enemy.x, enemy.y)
+            if (Math.random() < 0.15 && !powerUpItem.isActive) {
+              powerUpItem.spawn(enemy.x, enemy.y)
+            }
+            if (player.takeDamage()) {
+              particles.triggerExplosion(playerX, playerY)
+              if (player.isGameOver()) gameState = STATE_GAMEOVER
+            }
+            break
+          }
+        }
+        ei++
+      }
+    }
+
+    if (!player.isGameOver() && boss.isActive()) {
+      val parts = boss.getComponents()
+      val partCount = boss.getComponentCount()
+      var pi = 0
+      while (pi < partCount) {
+        val part = parts[pi]
+        if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
+          val rx = part.halfW + playerRadius
+          val ry = part.halfH + playerRadius
+          val nx = (playerX - part.x) / rx
+          val ny = (playerY - part.y) / ry
+          if ((nx * nx) + (ny * ny) <= 1f) {
+            if (player.takeDamage()) {
+              particles.triggerExplosion(playerX, playerY)
+              if (player.isGameOver()) gameState = STATE_GAMEOVER
+            }
+            break
+          }
+        }
+        pi++
+      }
+    }
+
     if (powerUpItem.isActive) {
       val dx = playerX - powerUpItem.x
       val dy = playerY - powerUpItem.y
@@ -786,6 +837,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val MAX_FRAME_NS = 50_000_000L
     const val RADIUS_SUM_THRESHOLD = 28f
     const val PLAYER_HIT_RADIUS = 12f
+    const val ENEMY_RAM_BODY_FRAC = 0.45f
     const val POWERUP_HALF = 32f
     const val BOSS_BOMB_DPS = 28f
     const val DOUBLE_TAP_MS = 280L
