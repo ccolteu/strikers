@@ -4,11 +4,11 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Simplified P-38 twin-boom silhouette for themed icons -->
+    <!-- Twin-boom silhouette kept inside the 66dp circular safe zone -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M22,50 L22,62 L38,62 L42,78 L50,78 L54,70 L58,78 L66,78 L70,62 L86,62 L86,50 L70,50 L66,30 L58,30 L54,38 L50,30 L42,30 L38,50 Z"/>
+        android:pathData="M32,50 L32,60 L44,60 L47,74 L53,74 L54,67 L55,74 L61,74 L64,60 L76,60 L76,50 L64,50 L61,34 L55,34 L54,41 L53,34 L47,34 L44,50 Z"/>
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M48,44 L60,44 L60,64 L48,64 Z"/>
+        android:pathData="M50,42 L58,42 L58,62 L50,62 Z"/>
 </vector>
