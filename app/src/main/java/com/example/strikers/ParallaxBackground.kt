@@ -64,10 +64,18 @@ class ParallaxBackground(private val resources: Resources) {
     yHigh = wrap(yHigh + baseSpeed * SPEED_HIGH, h)
   }
 
-  fun draw(canvas: Canvas) {
+  fun resetScroll() {
+    yGround = 0f
+    yMid = 0f
+    yHigh = 0f
+  }
+
+  fun draw(canvas: Canvas, groundOverride: Bitmap?) {
     val h = screenH.toFloat()
     if (h <= 0f) return
-    blit(canvas, ground, yGround, h, paintGround)
+    val groundBmp = groundOverride ?: ground
+    blit(canvas, groundBmp, yGround, h, paintGround)
+    if (groundOverride != null) return
     blit(canvas, mid, yMid, h, paintMid)
     blit(canvas, high, yHigh, h, paintHigh)
   }

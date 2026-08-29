@@ -32,6 +32,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val scorecard = VictoryScorecard()
   private val panicBomb = PanicBomb()
   private val powerUpItem = PowerUpItem()
+  private val stageManager = StageData()
   private val srcCore = Rect()
   private val bombDstRect = RectF()
   private val hudIconDst = RectF()
@@ -44,6 +45,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var gameState = STATE_TITLE
   private var logoBmp: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
+  private var bgStage2Bmp: Bitmap? = null
   private var lastTapUpMs = 0L
   private var touchDownMs = 0L
   private var touchDownX = 0f
@@ -112,6 +114,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     screenH = h
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
+    loadStage2Background(w, h)
   }
 
   override fun surfaceCreated(holder: SurfaceHolder) {
@@ -131,6 +134,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     screenH = height
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
+    loadStage2Background(width, height)
   }
 
   override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -158,12 +162,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         particles.update(0f)
       }
       else -> {
-        parallax.update(GROUND_PX_PER_SEC * dt)
+        parallax.update(stageManager.scrollSpeedY * dt)
         scorecard.update(dt)
         player.update(dt)
         bullets.update(dt, player, screenW)
         powerUpItem.update(dt, screenW)
-        timeline.update(dt, enemies, screenW, screenH, boss)
+        timeline.update(
+          dt,
+          enemies,
+          screenW,
+          screenH,
+          boss,
+          stageManager.currentStage,
+          stageManager.targetBossTimelineSeconds,
+        )
         enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
         boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
         enemyShots.update(dt)
@@ -175,7 +187,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val canvas = lockGameCanvas()
     if (canvas != null) {
       try {
-        parallax.draw(canvas)
+        parallax.draw(canvas, stageGroundBitmap())
         if (gameState != STATE_TITLE) {
           enemies.draw(canvas)
           boss.draw(canvas)
@@ -263,7 +275,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val cx = screenW * 0.5f
     if (scorecard.currentDisplayLine >= 1) {
       uiStringBuilder.setLength(0)
-      uiStringBuilder.append("STAGE 1 CLEAR")
+      uiStringBuilder.append("STAGE ")
+      uiStringBuilder.append(stageManager.currentStage)
+      uiStringBuilder.append(" CLEAR")
       drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.22f, uiGoldPaint, uiGoldShadowPaint)
     }
     if (scorecard.currentDisplayLine >= 2) {
@@ -457,6 +471,32 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
+  private fun stageGroundBitmap(): Bitmap? {
+    return if (stageManager.currentStage >= 2) bgStage2Bmp else null
+  }
+
+  private fun loadStage2Background(width: Int, height: Int) {
+    if (width <= 0 || height <= 0) return
+    val existing = bgStage2Bmp
+    if (existing != null && !existing.isRecycled && existing.width == width && existing.height == height) {
+      return
+    }
+    if (existing != null && !existing.isRecycled) existing.recycle()
+    bgStage2Bmp = null
+    val opts = BitmapFactory.Options().apply {
+      inScaled = false
+      inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    val src = BitmapFactory.decodeResource(resources, R.drawable.background_stage2, opts)
+      ?: error("Missing drawable background_stage2")
+    if (src.width == width && src.height == height) {
+      bgStage2Bmp = src
+      return
+    }
+    bgStage2Bmp = Bitmap.createScaledBitmap(src, width, height, true)
+    if (bgStage2Bmp !== src) src.recycle()
+  }
+
   private fun decodeKeyed(drawableId: Int): Bitmap {
     val opts = BitmapFactory.Options().apply {
       inScaled = false
@@ -648,6 +688,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val powerUp = powerUpBmp
     if (powerUp != null && !powerUp.isRecycled) powerUp.recycle()
     powerUpBmp = null
+    val stage2 = bgStage2Bmp
+    if (stage2 != null && !stage2.isRecycled) stage2.recycle()
+    bgStage2Bmp = null
     super.onDetachedFromWindow()
   }
 
@@ -666,6 +709,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     enemyShots.deactivateAll()
     boss.deactivate()
     timeline.reset()
+    parallax.resetScroll()
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -674,6 +718,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     when (gameState) {
       STATE_TITLE -> {
         if (down) {
+          stageManager.resetToStart()
           resetStage()
           availableBombs = 3
           gameState = STATE_PLAYING
@@ -682,6 +727,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       STATE_CLEAR -> {
         if (scorecard.isCountingDone && down) {
+          stageManager.advanceToNextStage()
           resetStage()
           gameState = STATE_PLAYING
         }
@@ -689,6 +735,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       STATE_GAMEOVER -> {
         if (down) {
+          stageManager.resetToStart()
           resetStage()
           gameState = STATE_TITLE
         }
@@ -730,7 +777,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val STATE_CLEAR = 2
     const val STATE_GAMEOVER = 3
     const val TITLE_SCROLL_PX = 50f
-    const val GROUND_PX_PER_SEC = 140f
     const val MAX_FRAME_NS = 50_000_000L
     const val RADIUS_SUM_THRESHOLD = 28f
     const val PLAYER_HIT_RADIUS = 12f

@@ -5,6 +5,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
 
 class EnemyPoolManager(private val resources: Resources) {
@@ -14,6 +16,11 @@ class EnemyPoolManager(private val resources: Resources) {
   private val paint = Paint().apply {
     isFilterBitmap = true
     isAntiAlias = false
+  }
+  private val kamikazePaint = Paint().apply {
+    isFilterBitmap = true
+    isAntiAlias = false
+    colorFilter = PorterDuffColorFilter(0xFFFFCC33.toInt(), PorterDuff.Mode.MULTIPLY)
   }
   private val drawRect = RectF()
   private var droneSheet: Bitmap? = null
@@ -84,6 +91,7 @@ class EnemyPoolManager(private val resources: Resources) {
           e.isActive = false
           continue
         }
+        if (e.type == TYPE_KAMIKAZE) continue
         e.fireTimer -= dt
         if (e.fireTimer <= 0f) {
           val dx = playerX - e.x
@@ -116,7 +124,8 @@ class EnemyPoolManager(private val resources: Resources) {
         canvas.translate(e.x, e.y)
         canvas.rotate(180f)
         drawRect.set(-hw, -hh, hw, hh)
-        canvas.drawBitmap(sheet, null, drawRect, paint)
+        val bodyPaint = if (e.type == TYPE_KAMIKAZE) kamikazePaint else paint
+        canvas.drawBitmap(sheet, null, drawRect, bodyPaint)
         canvas.restore()
       }
     }
@@ -162,6 +171,7 @@ class EnemyPoolManager(private val resources: Resources) {
 
   private companion object {
     const val POOL_SIZE = 30
+    const val TYPE_KAMIKAZE = 1
     const val ENEMY_WIDTH_FRAC = 0.18f
     const val FIRE_DELAY_MIN = 0.5f
     const val FIRE_DELAY_MAX = 1.5f
