@@ -12,7 +12,6 @@ class Enemy {
   var weaveT = 0f
   var homeX = 0f
   var health = 1
-  var drawScale = 1f
   var isActive = false
   var fireTimer = 0f
   var burstLeft = 0

@@ -755,29 +755,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     if (!player.isGameOver()) {
-      val eHalfW = enemies.getHalfW() * ENEMY_RAM_BODY_FRAC
-      val eHalfH = enemies.getHalfH() * ENEMY_RAM_BODY_FRAC
-      val ramRx = playerRadius + eHalfW
-      val ramRy = playerRadius + eHalfH
+      val ramBody = ENEMY_RAM_BODY_FRAC
+      val playerRadius = PLAYER_HIT_RADIUS
       var ei = 0
       while (ei < enemyCount) {
         val enemy = enemyPool[ei]
-        if (enemy.isActive && ramRx > 0f && ramRy > 0f) {
-          val sx = ramRx * enemy.drawScale
-          val sy = ramRy * enemy.drawScale
-          val nx = (enemy.x - playerX) / sx
-          val ny = (enemy.y - playerY) / sy
-          if ((nx * nx) + (ny * ny) <= 1f) {
-            enemy.isActive = false
-            particles.triggerExplosion(enemy.x, enemy.y)
-            if (Math.random() < 0.15 && !powerUpItem.isActive) {
-              powerUpItem.spawn(enemy.x, enemy.y)
+        if (enemy.isActive) {
+          val sx = playerRadius + enemies.halfWOf(enemy.type) * ramBody
+          val sy = playerRadius + enemies.halfHOf(enemy.type) * ramBody
+          if (sx > 0f && sy > 0f) {
+            val nx = (enemy.x - playerX) / sx
+            val ny = (enemy.y - playerY) / sy
+            if ((nx * nx) + (ny * ny) <= 1f) {
+              enemy.isActive = false
+              particles.triggerExplosion(enemy.x, enemy.y)
+              if (Math.random() < 0.15 && !powerUpItem.isActive) {
+                powerUpItem.spawn(enemy.x, enemy.y)
+              }
+              if (player.takeDamage()) {
+                particles.triggerExplosion(playerX, playerY)
+                if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
+              }
+              break
             }
-            if (player.takeDamage()) {
-              particles.triggerExplosion(playerX, playerY)
-              if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
-            }
-            break
           }
         }
         ei++

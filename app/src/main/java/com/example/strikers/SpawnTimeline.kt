@@ -150,8 +150,8 @@ class SpawnTimeline {
     if (!wallSpawned && elapsedTime >= WALL_AT) {
       if (enemies.countActive() < MAX_ACTIVE) {
         wallSpawned = true
-        enemies.spawnEnemy(0.30f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP, HEAVY_SCALE)
-        enemies.spawnEnemy(0.70f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP, HEAVY_SCALE)
+        enemies.spawnEnemy(0.30f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP)
+        enemies.spawnEnemy(0.70f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP)
         weaveGap = WEAVE_SPACING
       }
     }
@@ -169,9 +169,9 @@ class SpawnTimeline {
   }
 
   private fun spawnVFormation(enemies: EnemyPoolManager, w: Float, h: Float) {
-    enemies.spawnEnemy(0.50f * w, -0.02f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2, INTERCEPT_SCALE)
-    enemies.spawnEnemy(0.38f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2, INTERCEPT_SCALE)
-    enemies.spawnEnemy(0.62f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2, INTERCEPT_SCALE)
+    enemies.spawnEnemy(0.50f * w, -0.02f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2)
+    enemies.spawnEnemy(0.38f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2)
+    enemies.spawnEnemy(0.62f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2)
   }
 
   private companion object {
@@ -197,9 +197,7 @@ class SpawnTimeline {
     const val WEAVE_VY = 150f
     const val HEAVY_VY = 78f
     const val HEAVY_HP = 6
-    const val HEAVY_SCALE = 1.42f
     const val INTERCEPT_VY = 210f
-    const val INTERCEPT_SCALE = 1.18f
     const val MAX_ACTIVE = 10
   }
 }

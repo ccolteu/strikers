@@ -18,21 +18,6 @@ class EnemyPoolManager(private val resources: Resources) {
     isFilterBitmap = true
     isAntiAlias = false
   }
-  private val kamikazePaint = Paint().apply {
-    isFilterBitmap = true
-    isAntiAlias = false
-    colorFilter = PorterDuffColorFilter(0xFFFFCC33.toInt(), PorterDuff.Mode.MULTIPLY)
-  }
-  private val interceptorPaint = Paint().apply {
-    isFilterBitmap = true
-    isAntiAlias = false
-    colorFilter = PorterDuffColorFilter(0xFFCC88FF.toInt(), PorterDuff.Mode.MULTIPLY)
-  }
-  private val heavyPaint = Paint().apply {
-    isFilterBitmap = true
-    isAntiAlias = false
-    colorFilter = PorterDuffColorFilter(0xFF8899BB.toInt(), PorterDuff.Mode.MULTIPLY)
-  }
   private val outlinePaint = Paint().apply {
     isFilterBitmap = true
     isAntiAlias = false
@@ -44,25 +29,28 @@ class EnemyPoolManager(private val resources: Resources) {
     colorFilter = PorterDuffColorFilter(0xCC000000.toInt(), PorterDuff.Mode.SRC_IN)
   }
   private val drawRect = RectF()
-  private var droneSheet: Bitmap? = null
+  private val sheets = arrayOfNulls<Bitmap>(TYPE_COUNT)
+  private val halfW = FloatArray(TYPE_COUNT)
+  private val halfH = FloatArray(TYPE_COUNT)
   private var screenW = 0f
   private var screenH = 0f
-  private var halfW = 0f
-  private var halfH = 0f
   private var rng = 2463534242
 
   fun onSizeChanged(width: Int, height: Int) {
     screenW = width.toFloat()
     screenH = height.toFloat()
-    if (droneSheet == null) {
-      droneSheet = loadKeyedDrone()
+    ensureSheetsLoaded()
+    var t = 0
+    while (t < TYPE_COUNT) {
+      val sheet = sheets[t] ?: sheets[0] ?: return
+      val frac = WIDTH_FRAC[t]
+      val targetDrawW = (width * frac).toInt().coerceAtLeast(1)
+      val aspectRatio = sheet.height.toFloat() / sheet.width.toFloat()
+      val targetDrawH = (targetDrawW * aspectRatio).toInt().coerceAtLeast(1)
+      halfW[t] = targetDrawW * 0.5f
+      halfH[t] = targetDrawH * 0.5f
+      t++
     }
-    val sheet = droneSheet ?: return
-    val targetDrawW = (width * ENEMY_WIDTH_FRAC).toInt().coerceAtLeast(1)
-    val aspectRatio = sheet.height.toFloat() / sheet.width.toFloat()
-    val targetDrawH = (targetDrawW * aspectRatio).toInt().coerceAtLeast(1)
-    halfW = targetDrawW * 0.5f
-    halfH = targetDrawH * 0.5f
   }
 
   fun getEnemyPool(): Array<Enemy> = pool
@@ -81,9 +69,13 @@ class EnemyPoolManager(private val resources: Resources) {
     }
   }
 
-  fun getHalfW(): Float = halfW
+  fun getHalfW(): Float = halfW[TYPE_DRONE]
 
-  fun getHalfH(): Float = halfH
+  fun getHalfH(): Float = halfH[TYPE_DRONE]
+
+  fun halfWOf(type: Int): Float = halfW[typeIndex(type)]
+
+  fun halfHOf(type: Int): Float = halfH[typeIndex(type)]
 
   fun deactivateAll() {
     synchronized(lock) {
@@ -103,7 +95,6 @@ class EnemyPoolManager(private val resources: Resources) {
     enemyType: Int,
     pattern: Int = 0,
     health: Int = 1,
-    scale: Float = 1f,
   ) {
     synchronized(lock) {
       for (i in 0 until POOL_SIZE) {
@@ -120,7 +111,6 @@ class EnemyPoolManager(private val resources: Resources) {
         e.weaveT = 0f
         e.homeX = startX
         e.health = if (health < 1) 1 else health
-        e.drawScale = scale
         e.fireTimer = FIRE_DELAY_MIN + nextUnit() * (FIRE_DELAY_MAX - FIRE_DELAY_MIN)
         e.burstLeft = 0
         e.burstWait = 0f
@@ -152,8 +142,8 @@ class EnemyPoolManager(private val resources: Resources) {
             e.y += e.vy * dt
           }
         }
-        val eh = halfH * e.drawScale
-        val ew = halfW * e.drawScale
+        val eh = halfHOf(e.type)
+        val ew = halfWOf(e.type)
         if (e.y - eh > h || e.x - ew > w || (e.x + ew < 0f && e.vx <= 0f) || (e.y + eh < 0f && e.vy <= 0f)) {
           e.isActive = false
           continue
@@ -305,16 +295,16 @@ class EnemyPoolManager(private val resources: Resources) {
   }
 
   fun draw(canvas: Canvas) {
-    val sheet = droneSheet ?: return
     synchronized(lock) {
       for (i in 0 until POOL_SIZE) {
         val e = pool[i]
         if (!e.isActive) continue
+        val sheet = sheetFor(e.type) ?: continue
         canvas.save()
         canvas.translate(e.x, e.y)
         canvas.rotate(180f)
-        val ew = halfW * e.drawScale
-        val eh = halfH * e.drawScale
+        val ew = halfWOf(e.type)
+        val eh = halfHOf(e.type)
         drawRect.set(-ew, -eh, ew, eh)
         // Local +x/+y is screen up-left after 180°, so negate for a screen down-right shadow.
         drawRect.offset(-SHADOW_PX.toFloat(), -SHADOW_PX.toFloat())
@@ -333,35 +323,43 @@ class EnemyPoolManager(private val resources: Resources) {
           }
           oy += OUTLINE_PX
         }
-        val bodyPaint = if (e.type == TYPE_KAMIKAZE) {
-          kamikazePaint
-        } else if (e.type == TYPE_HEAVY) {
-          heavyPaint
-        } else if (e.type == TYPE_INTERCEPTOR) {
-          interceptorPaint
-        } else {
-          paint
-        }
-        canvas.drawBitmap(sheet, null, drawRect, bodyPaint)
+        canvas.drawBitmap(sheet, null, drawRect, paint)
         canvas.restore()
       }
     }
   }
 
   fun release() {
-    val sheet = droneSheet
-    if (sheet != null && !sheet.isRecycled) sheet.recycle()
-    droneSheet = null
+    var t = 0
+    while (t < TYPE_COUNT) {
+      val sheet = sheets[t]
+      if (sheet != null && !sheet.isRecycled) sheet.recycle()
+      sheets[t] = null
+      t++
+    }
   }
 
-  private fun loadKeyedDrone(): Bitmap {
+  private fun typeIndex(type: Int): Int =
+    if (type in 0 until TYPE_COUNT) type else TYPE_DRONE
+
+  private fun sheetFor(type: Int): Bitmap? = sheets[typeIndex(type)] ?: sheets[TYPE_DRONE]
+
+  private fun ensureSheetsLoaded() {
+    if (sheets[TYPE_DRONE] != null) return
+    sheets[TYPE_DRONE] = loadKeyed(R.drawable.enemy_drone)
+    sheets[TYPE_KAMIKAZE] = loadKeyed(R.drawable.enemy_kamikaze)
+    sheets[TYPE_INTERCEPTOR] = loadKeyed(R.drawable.enemy_interceptor)
+    sheets[TYPE_HEAVY] = loadKeyed(R.drawable.enemy_heavy)
+  }
+
+  private fun loadKeyed(drawableId: Int): Bitmap {
     val opts = BitmapFactory.Options().apply {
       inScaled = false
       inPreferredConfig = Bitmap.Config.ARGB_8888
       inMutable = true
     }
-    val src = BitmapFactory.decodeResource(resources, R.drawable.enemy_drone, opts)
-      ?: error("Missing drawable enemy_drone")
+    val src = BitmapFactory.decodeResource(resources, drawableId, opts)
+      ?: error("Missing drawable $drawableId")
     val bmp = if (src.isMutable) src else src.copy(Bitmap.Config.ARGB_8888, true).also { src.recycle() }
     keyGreen(bmp)
     return bmp
@@ -388,6 +386,8 @@ class EnemyPoolManager(private val resources: Resources) {
 
   private companion object {
     const val POOL_SIZE = 48
+    const val TYPE_COUNT = 4
+    const val TYPE_DRONE = 0
     const val TYPE_KAMIKAZE = 1
     const val TYPE_INTERCEPTOR = 2
     const val TYPE_HEAVY = 3
@@ -409,7 +409,7 @@ class EnemyPoolManager(private val resources: Resources) {
     const val DIVE_ACCEL = 520f
     const val WEAVE_RATE = 6.2f
     const val WEAVE_AMP_FRAC = 0.055f
-    const val ENEMY_WIDTH_FRAC = 0.18f
+    val WIDTH_FRAC = floatArrayOf(0.18f, 0.14f, 0.22f, 0.28f)
     const val FIRE_DELAY_MIN = 0.5f
     const val FIRE_DELAY_MAX = 1.5f
     const val FIRE_ONCE_LOCK = 999f
