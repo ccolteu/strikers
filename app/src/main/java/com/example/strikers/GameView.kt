@@ -74,6 +74,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var awaitingSecondTap = false
   private var enemyBombDmgBank = 0f
   private var bossBombDmgBank = 0f
+  private var bombCoreWasOpen = false
   private var bossFought = false
   private var lastBgmRes = 0
   private var idleT = 0f
@@ -287,6 +288,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           stageManager.currentStage,
           stageManager.targetBossTimelineSeconds,
           true,
+          player.getWeaponPower(),
         )
         enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
         boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
@@ -671,6 +673,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         panicBomb.isActive = false
         enemyBombDmgBank = 0f
         bossBombDmgBank = 0f
+        bombCoreWasOpen = false
         return
       }
     }
@@ -713,9 +716,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           ) {
             enemy.health -= enemyDmg
             if (enemy.health <= 0) {
+              onEnemyKilled(enemy)
               enemy.isActive = false
               particles.triggerExplosion(enemy.x, enemy.y, true)
-              dropEnemyLoot(enemy.x, enemy.y, enemy.type)
+              dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
             }
           }
         }
@@ -724,10 +728,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     if (boss.isActive() && !boss.isExploding()) {
-      bossBombDmgBank += BOMB_BOSS_DPS * dt
-      val dmg = bossBombDmgBank.toInt()
-      if (dmg > 0) {
-        bossBombDmgBank -= dmg
+      val bossDps = BOMB_BOSS_DPS
+      bossBombDmgBank += bossDps * dt
+      val raw = bossBombDmgBank.toInt()
+      if (raw > 0) {
+        bossBombDmgBank -= raw
+        var dmg = raw
+        if (dmg > BOMB_BOSS_DPS_FRAME_CAP) dmg = BOMB_BOSS_DPS_FRAME_CAP
         val parts = boss.getComponents()
         val partCount = boss.getComponentCount()
         var pi = partCount - 1
@@ -738,7 +745,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               part.x + part.halfW >= bombLeft && part.x - part.halfW <= bombRight &&
               part.y + part.halfH >= bombTop && part.y - part.halfH <= bombBottom
             ) {
-              if (part.componentType == BossController.TYPE_CORE && !boss.isCoreVulnerable()) {
+              if (part.componentType == BossController.TYPE_CORE && !bombCoreWasOpen) {
                 pi--
                 continue
               }
@@ -902,9 +909,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               bullet.isActive = false
               enemy.health -= 1
               if (enemy.health <= 0) {
+                onEnemyKilled(enemy)
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
-                dropEnemyLoot(enemy.x, enemy.y, enemy.type)
+                dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
               }
               break
             }
@@ -932,9 +940,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               missile.isActive = false
               enemy.health -= 1
               if (enemy.health <= 0) {
+                onEnemyKilled(enemy)
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
-                dropEnemyLoot(enemy.x, enemy.y, enemy.type)
+                dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
               }
               break
             }
@@ -1049,9 +1058,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             val nx = (enemy.x - playerX) / sx
             val ny = (enemy.y - playerY) / sy
             if ((nx * nx) + (ny * ny) <= 1f) {
+              onEnemyKilled(enemy)
               enemy.isActive = false
               particles.triggerExplosion(enemy.x, enemy.y)
-              dropEnemyLoot(enemy.x, enemy.y, enemy.type)
+              dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
               if (player.takeDamage()) {
                 particles.triggerExplosion(playerX, playerY)
                 if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
@@ -1117,8 +1127,26 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
-  private fun dropEnemyLoot(x: Float, y: Float, enemyType: Int) {
+  private fun onEnemyKilled(enemy: Enemy) {
+    if (enemy.deathClearBullets) {
+      enemyShots.beginDeathClear(enemy.x, enemy.y)
+    }
+    if (enemy.diamondLeader) {
+      enemies.triggerDiamondSplinter()
+    }
+  }
+
+  private fun dropEnemyLoot(
+    x: Float,
+    y: Float,
+    enemyType: Int,
+    guaranteedPowerup: Boolean,
+  ) {
     powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_MEDAL)
+    if (guaranteedPowerup) {
+      powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_POWERUP)
+      return
+    }
     val dropChance = if (
       enemyType == ENEMY_TYPE_HEAVY ||
       enemyType == ENEMY_TYPE_INTERCEPTOR
@@ -1296,6 +1324,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     screenShakeTrauma = 0f
     enemyBombDmgBank = 0f
     bossBombDmgBank = 0f
+    bombCoreWasOpen = false
     awaitingSecondTap = false
     bossFought = false
     player.resetForStage()
@@ -1489,6 +1518,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         ) {
           availableBombs--
           panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+          bombCoreWasOpen = boss.isCoreVulnerable()
+          bossBombDmgBank = 0f
           addScreenShake(0.8f)
           SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
           awaitingSecondTap = false
@@ -1571,7 +1602,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val FLOATING_SPEED = 90f
     const val FLOATING_LIFE = 0.75f
     const val BOMB_ENEMY_DPS = 250f
-    const val BOMB_BOSS_DPS = 400f
+    const val BOMB_BOSS_DPS = 200f
+    const val BOMB_BOSS_DPS_FRAME_CAP = 12
     const val ENEMY_TYPE_INTERCEPTOR = 2
     const val ENEMY_TYPE_HEAVY = 3
     const val MAX_BOMBS = 3

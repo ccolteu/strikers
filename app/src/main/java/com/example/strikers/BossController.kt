@@ -734,13 +734,13 @@ class BossController(private val resources: Resources) {
     const val RING_COUNT = 5
     const val RING_STEP = (Math.PI * 2.0 / RING_COUNT).toFloat()
     const val RING_SPEED = 420f
-    const val S1_CORE_HP = 160
+    const val S1_CORE_HP = 240
     const val S1_WING_HP = 55
     const val S1_TURRET_HP = 45
-    const val S2_CORE_HP = 220
+    const val S2_CORE_HP = 330
     const val S2_TREAD_HP = 80
     const val S2_TURRET_HP = 70
-    const val S3_CORE_HP = 320
+    const val S3_CORE_HP = 480
     const val S3_FLAK_HP = 100
     const val S3_CANNON_HP = 160
     const val S3_FLAK_INTERVAL = 0.40f

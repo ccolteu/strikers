@@ -30,10 +30,14 @@ class EnemyPoolManager(private val resources: Resources) {
   }
   private val drawRect = RectF()
   private val sheets = arrayOfNulls<Bitmap>(TYPE_COUNT)
+  private var droneRedSheet: Bitmap? = null
   private val halfW = FloatArray(TYPE_COUNT)
   private val halfH = FloatArray(TYPE_COUNT)
   private var screenW = 0f
   private var screenH = 0f
+  private val sweepArcS = FloatArray(SWEEP_LUT)
+  private var sweepArcLen = 1f
+  private var sweepTailDelay = 0.75f
   private var rng = 2463534242
 
   fun onSizeChanged(width: Int, height: Int) {
@@ -51,7 +55,10 @@ class EnemyPoolManager(private val resources: Resources) {
       halfH[t] = targetDrawH * 0.5f
       t++
     }
+    rebuildSweepLut()
   }
+
+  fun sweepArcTailDelay(): Float = sweepTailDelay
 
   fun getEnemyPool(): Array<Enemy> = pool
 
@@ -82,6 +89,14 @@ class EnemyPoolManager(private val resources: Resources) {
       var i = 0
       while (i < POOL_SIZE) {
         pool[i].isActive = false
+        pool[i].isRedShipAnchor = false
+        pool[i].flightProfile = 0
+        pool[i].flightTime = 0f
+        pool[i].patternDelay = 0f
+        pool[i].deathClearBullets = false
+        pool[i].diamondLeader = false
+        pool[i].diamondWingSign = 0f
+        pool[i].splinterVeer = false
         i++
       }
     }
@@ -95,6 +110,10 @@ class EnemyPoolManager(private val resources: Resources) {
     enemyType: Int,
     pattern: Int = 0,
     health: Int = 1,
+    isRedShipAnchor: Boolean = false,
+    flightProfile: Int = 0,
+    patternDelay: Float = 0f,
+    spawnCue: Int = 0,
   ) {
     synchronized(lock) {
       for (i in 0 until POOL_SIZE) {
@@ -106,6 +125,9 @@ class EnemyPoolManager(private val resources: Resources) {
         e.vy = velocityY
         e.type = enemyType
         e.pattern = pattern
+        e.flightProfile = flightProfile
+        e.flightTime = 0f
+        e.patternDelay = patternDelay
         e.aiPhase = 0
         e.holdTimer = 0f
         e.weaveT = 0f
@@ -116,9 +138,41 @@ class EnemyPoolManager(private val resources: Resources) {
         e.burstWait = 0f
         e.aimVx = 0f
         e.aimVy = 0f
+        e.isRedShipAnchor = isRedShipAnchor
+        e.deathClearBullets = spawnCue == SpawnEvent.CUE_DEATH_CLEAR
+        e.diamondLeader = spawnCue == SpawnEvent.CUE_DIAMOND_LEADER
+        e.diamondWingSign = 0f
+        if (spawnCue == SpawnEvent.CUE_DIAMOND_WING_L) e.diamondWingSign = -1f
+        if (spawnCue == SpawnEvent.CUE_DIAMOND_WING_R) e.diamondWingSign = 1f
+        e.splinterVeer = false
         e.isActive = true
         return
       }
+    }
+  }
+
+  fun triggerDiamondSplinter() {
+    synchronized(lock) {
+      var i = 0
+      while (i < POOL_SIZE) {
+        val e = pool[i]
+        if (e.isActive && e.diamondWingSign != 0f) {
+          e.splinterVeer = true
+        }
+        i++
+      }
+    }
+  }
+
+  fun hasActiveRedShipAnchor(): Boolean {
+    synchronized(lock) {
+      var i = 0
+      while (i < POOL_SIZE) {
+        val e = pool[i]
+        if (e.isActive && e.isRedShipAnchor) return true
+        i++
+      }
+      return false
     }
   }
 
@@ -130,6 +184,10 @@ class EnemyPoolManager(private val resources: Resources) {
       for (i in 0 until POOL_SIZE) {
         val e = pool[i]
         if (!e.isActive) continue
+        if (e.flightProfile == Enemy.FLIGHT_PROFILE_SWEEP_ARC) {
+          updateSweepArc(e, dt, w, h)
+          continue
+        }
         when (e.pattern) {
           PATTERN_V_HOLD -> updateInterceptorHold(e, dt, h)
           PATTERN_WEAVE -> {
@@ -138,6 +196,9 @@ class EnemyPoolManager(private val resources: Resources) {
             e.y += e.vy * dt
           }
           else -> {
+            if (e.splinterVeer) {
+              e.vx += e.diamondWingSign * SPLINTER_ACCEL * dt
+            }
             e.x += e.vx * dt
             e.y += e.vy * dt
           }
@@ -146,12 +207,105 @@ class EnemyPoolManager(private val resources: Resources) {
         val ew = halfWOf(e.type)
         if (e.y - eh > h || e.x - ew > w || (e.x + ew < 0f && e.vx <= 0f) || (e.y + eh < 0f && e.vy <= 0f)) {
           e.isActive = false
+          e.isRedShipAnchor = false
           continue
         }
         if (e.type == TYPE_KAMIKAZE) continue
         updateEnemyFire(e, dt, playerX, playerY, weapons, speed)
       }
     }
+  }
+
+  private fun recycleEnemy(e: Enemy) {
+    e.isActive = false
+    e.isRedShipAnchor = false
+    e.flightProfile = 0
+    e.flightTime = 0f
+    e.patternDelay = 0f
+    e.deathClearBullets = false
+    e.diamondLeader = false
+    e.diamondWingSign = 0f
+    e.splinterVeer = false
+  }
+
+  private fun updateSweepArc(e: Enemy, dt: Float, screenW: Float, screenH: Float) {
+    e.patternDelay -= dt
+    if (e.patternDelay > 0f) {
+      val ew = halfWOf(e.type)
+      e.x = -SWEEP_ARC_MARGIN - ew
+      e.y = screenH * SWEEP_ARC_START_Y_FRAC
+      return
+    }
+    e.flightTime += dt
+    val t = e.flightTime / SWEEP_ARC_DURATION
+    if (t >= 1.0f) {
+      recycleEnemy(e)
+      return
+    }
+    val u = sweepUForArcLength(t * sweepArcLen)
+    val startLeftX = -SWEEP_ARC_MARGIN
+    val targetRightX = screenW + SWEEP_ARC_MARGIN
+    val startTopY = screenH * SWEEP_ARC_START_Y_FRAC
+    e.x = startLeftX + (targetRightX - startLeftX) * u
+    e.y = startTopY + (screenH * SWEEP_ARC_DIP_FRAC) * kotlin.math.sin(u * SWEEP_ARC_PI)
+    val eh = halfHOf(e.type)
+    val ew = halfWOf(e.type)
+    if (e.y - eh > screenH || e.x - ew > screenW) {
+      recycleEnemy(e)
+    }
+  }
+
+  private fun rebuildSweepLut() {
+    val n = SWEEP_LUT
+    val x0 = -SWEEP_ARC_MARGIN
+    val x1 = screenW + SWEEP_ARC_MARGIN
+    val y0 = screenH * SWEEP_ARC_START_Y_FRAC
+    val dip = screenH * SWEEP_ARC_DIP_FRAC
+    val span = x1 - x0
+    var prevX = x0
+    var prevY = y0
+    sweepArcS[0] = 0f
+    var i = 1
+    while (i < n) {
+      val u = i / (n - 1).toFloat()
+      val x = x0 + span * u
+      val y = y0 + dip * kotlin.math.sin(u * SWEEP_ARC_PI)
+      val dx = x - prevX
+      val dy = y - prevY
+      sweepArcS[i] = sweepArcS[i - 1] + kotlin.math.sqrt(dx * dx + dy * dy)
+      prevX = x
+      prevY = y
+      i++
+    }
+    sweepArcLen = sweepArcS[n - 1]
+    if (sweepArcLen < 1f) sweepArcLen = 1f
+    val shipW = halfW[TYPE_DRONE] * 2f
+    val shipH = halfH[TYPE_DRONE] * 2f
+    val shipSpan = kotlin.math.max(shipW, shipH)
+    val gap = if (shipSpan > 1f) shipSpan * SWEEP_ARC_SPACING else sweepArcLen * 0.12f
+    sweepTailDelay = (gap / sweepArcLen) * SWEEP_ARC_DURATION
+  }
+
+  private fun sweepUForArcLength(s: Float): Float {
+    val n = SWEEP_LUT
+    val last = n - 1
+    if (s <= 0f) return 0f
+    if (s >= sweepArcS[last]) return 1f
+    var lo = 0
+    var hi = last
+    while (lo < hi) {
+      val mid = (lo + hi) ushr 1
+      if (sweepArcS[mid] < s) lo = mid + 1 else hi = mid
+    }
+    val i = lo
+    if (i <= 0) return 0f
+    val s0 = sweepArcS[i - 1]
+    val s1 = sweepArcS[i]
+    val ds = s1 - s0
+    val f = if (ds > 0.0001f) (s - s0) / ds else 0f
+    val u0 = (i - 1) / last.toFloat()
+    val u1 = i / last.toFloat()
+    return u0 + (u1 - u0) * f
   }
 
   private fun updateInterceptorHold(e: Enemy, dt: Float, screenH: Float) {
@@ -302,7 +456,9 @@ class EnemyPoolManager(private val resources: Resources) {
       for (i in 0 until POOL_SIZE) {
         val e = pool[i]
         if (!e.isActive) continue
-        val sheet = sheetFor(e.type) ?: continue
+        if (e.flightProfile == Enemy.FLIGHT_PROFILE_SWEEP_ARC && e.patternDelay > 0f) continue
+        val base = sheetFor(e.type) ?: continue
+        val sheet = if (e.isRedShipAnchor) (droneRedSheet ?: base) else base
         canvas.save()
         canvas.translate(e.x, e.y)
         canvas.rotate(180f)
@@ -340,6 +496,9 @@ class EnemyPoolManager(private val resources: Resources) {
       sheets[t] = null
       t++
     }
+    val red = droneRedSheet
+    if (red != null && !red.isRecycled) red.recycle()
+    droneRedSheet = null
   }
 
   private fun typeIndex(type: Int): Int =
@@ -350,6 +509,7 @@ class EnemyPoolManager(private val resources: Resources) {
   private fun ensureSheetsLoaded() {
     if (sheets[TYPE_DRONE] != null) return
     sheets[TYPE_DRONE] = loadKeyed(R.drawable.enemy_drone)
+    droneRedSheet = loadKeyed(R.drawable.enemy_drone_red)
     sheets[TYPE_KAMIKAZE] = loadKeyed(R.drawable.enemy_kamikaze)
     sheets[TYPE_INTERCEPTOR] = loadKeyed(R.drawable.enemy_interceptor)
     sheets[TYPE_HEAVY] = loadKeyed(R.drawable.enemy_heavy)
@@ -420,7 +580,15 @@ class EnemyPoolManager(private val resources: Resources) {
     const val FIRE_DELAY_MAX = 1.5f
     const val FIRE_ONCE_LOCK = 999f
     const val AIMED_SHOT_SPEED = 550f
+    const val SPLINTER_ACCEL = 180f
     const val SHADOW_PX = 2
     const val OUTLINE_PX = 3
+    const val SWEEP_ARC_DURATION = 4.8f
+    const val SWEEP_ARC_SPACING = 1.15f
+    const val SWEEP_ARC_DIP_FRAC = 0.30f
+    const val SWEEP_ARC_START_Y_FRAC = 0.08f
+    const val SWEEP_ARC_MARGIN = 64f
+    const val SWEEP_ARC_PI = 3.1415927f
+    const val SWEEP_LUT = 64
   }
 }

@@ -21,6 +21,9 @@ class EnemyWeaponSystem {
   private val drawRect = RectF()
   private var screenW = 0f
   private var screenH = 0f
+  private val clearX = FloatArray(CLEAR_SLOTS)
+  private val clearY = FloatArray(CLEAR_SLOTS)
+  private val clearT = FloatArray(CLEAR_SLOTS)
 
   fun onSizeChanged(width: Int, height: Int) {
     screenW = width.toFloat()
@@ -37,6 +40,27 @@ class EnemyWeaponSystem {
       pool[i].isActive = false
       i++
     }
+    i = 0
+    while (i < CLEAR_SLOTS) {
+      clearT[i] = 0f
+      i++
+    }
+  }
+
+  fun beginDeathClear(originX: Float, originY: Float) {
+    var i = 0
+    while (i < CLEAR_SLOTS) {
+      if (clearT[i] <= 0f) {
+        clearX[i] = originX
+        clearY[i] = originY
+        clearT[i] = CLEAR_LIFE
+        return
+      }
+      i++
+    }
+    clearX[0] = originX
+    clearY[0] = originY
+    clearT[0] = CLEAR_LIFE
   }
 
   fun fireBullet(startX: Float, startY: Float, velX: Float, velY: Float) {
@@ -71,6 +95,38 @@ class EnemyWeaponSystem {
       }
       i++
     }
+    updateDeathClears(dt)
+  }
+
+  private fun updateDeathClears(dt: Float) {
+    var i = 0
+    while (i < CLEAR_SLOTS) {
+      if (clearT[i] > 0f) {
+        clearT[i] -= dt
+        val age = CLEAR_LIFE - clearT[i]
+        var u = age / CLEAR_LIFE
+        if (u < 0f) u = 0f
+        if (u > 1f) u = 1f
+        val radius = CLEAR_RADIUS * u
+        val rSq = radius * radius
+        val ox = clearX[i]
+        val oy = clearY[i]
+        var bi = 0
+        while (bi < POOL_SIZE) {
+          val b = pool[bi]
+          if (b.isActive) {
+            val dx = b.x - ox
+            val dy = b.y - oy
+            if ((dx * dx) + (dy * dy) <= rSq) {
+              b.isActive = false
+            }
+          }
+          bi++
+        }
+        if (clearT[i] < 0f) clearT[i] = 0f
+      }
+      i++
+    }
   }
 
   fun draw(canvas: Canvas) {
@@ -93,5 +149,8 @@ class EnemyWeaponSystem {
     const val POOL_SIZE = 220
     const val HALF_BULLET_WIDTH = 18f
     const val HALF_BULLET_HEIGHT = 18f
+    const val CLEAR_SLOTS = 4
+    const val CLEAR_RADIUS = 150f
+    const val CLEAR_LIFE = 0.15f
   }
 }
