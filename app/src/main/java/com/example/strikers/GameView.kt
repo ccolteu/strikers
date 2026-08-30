@@ -480,6 +480,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             val dx = part.x - bx
             val dy = part.y - by
             if ((dx * dx) + (dy * dy) <= hitR * hitR) {
+              if (part.componentType == BossController.TYPE_CORE && !boss.isCoreVulnerable()) {
+                pi--
+                continue
+              }
               part.health -= dmg
               if (part.health <= 0) {
                 part.health = 0
@@ -676,11 +680,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               val dy = (bullet.y - part.y) / hh
               if ((dx * dx) + (dy * dy) <= 1f) {
                 bullet.isActive = false
-                part.health -= 1
-                if (part.health <= 0) {
-                  part.health = 0
-                  part.isDestroyed = true
-                  particles.triggerExplosion(part.x, part.y, false)
+                if (part.componentType != BossController.TYPE_CORE || boss.isCoreVulnerable()) {
+                  part.health -= 1
+                  if (part.health <= 0) {
+                    part.health = 0
+                    part.isDestroyed = true
+                    particles.triggerExplosion(part.x, part.y, false)
+                  }
                 }
                 break
               }
@@ -704,11 +710,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               val dy = (missile.y - part.y) / hh
               if ((dx * dx) + (dy * dy) <= 1f) {
                 missile.isActive = false
-                part.health -= 1
-                if (part.health <= 0) {
-                  part.health = 0
-                  part.isDestroyed = true
-                  particles.triggerExplosion(part.x, part.y, false)
+                if (part.componentType != BossController.TYPE_CORE || boss.isCoreVulnerable()) {
+                  part.health -= 1
+                  if (part.health <= 0) {
+                    part.health = 0
+                    part.isDestroyed = true
+                    particles.triggerExplosion(part.x, part.y, false)
+                  }
                 }
                 break
               }
@@ -1108,7 +1116,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val BOSS_BULLET_PAD_Y = 16f
     const val ENEMY_RAM_BODY_FRAC = 0.45f
     const val POWERUP_HALF = 32f
-    const val BOSS_BOMB_DPS = 28f
+    const val BOSS_BOMB_DPS = 16f
     const val DOUBLE_TAP_MS = 280L
     const val TAP_MAX_MS = 220L
     const val TAP_SLOP_SQ = 48f * 48f

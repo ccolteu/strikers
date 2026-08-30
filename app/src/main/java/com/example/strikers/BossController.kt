@@ -125,6 +125,16 @@ class BossController(private val resources: Resources) {
 
   fun isExploding(): Boolean = isExploding
 
+  fun isCoreVulnerable(): Boolean {
+    var i = 1
+    while (i < MAX_PART_COUNT) {
+      val p = parts[i]
+      if (p.halfW > 0f && !p.isDestroyed) return false
+      i++
+    }
+    return true
+  }
+
   fun deactivate() {
     active = false
     entering = false
@@ -548,12 +558,12 @@ class BossController(private val resources: Resources) {
     const val RING_COUNT = 5
     const val RING_STEP = (Math.PI * 2.0 / RING_COUNT).toFloat()
     const val RING_SPEED = 420f
-    const val S1_CORE_HP = 60
-    const val S1_WING_HP = 25
-    const val S1_TURRET_HP = 20
-    const val S2_CORE_HP = 90
-    const val S2_TREAD_HP = 35
-    const val S2_TURRET_HP = 30
+    const val S1_CORE_HP = 160
+    const val S1_WING_HP = 55
+    const val S1_TURRET_HP = 45
+    const val S2_CORE_HP = 220
+    const val S2_TREAD_HP = 80
+    const val S2_TURRET_HP = 70
     const val EXPLODE_FRAME_COUNT = 8
     const val EXPLODE_FRAME_SEC = 0.13f
     const val SHADOW_PX = 2
