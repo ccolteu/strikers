@@ -211,9 +211,24 @@ class BossController(private val resources: Resources) {
 
   fun draw(canvas: Canvas) {
     if (!active) return
-    val sheet = bodySheet ?: return
     dstRect.set(coreX - bodyHalfW, coreY - bodyHalfH, coreX + bodyHalfW, coreY + bodyHalfH)
-    blitOutlined(canvas, sheet, srcCore, bodyPaint)
+    val hideBody = isExploding && activeExpFrame >= EXPLODE_HIDE_BODY_FRAME
+    if (!hideBody) {
+      val sheet = bodySheet
+      if (sheet != null) {
+        blitOutlined(canvas, sheet, srcCore, bodyPaint)
+        drawWreckOverlays(canvas)
+      }
+    }
+    if (isExploding) {
+      val exp = expFrames[activeExpFrame]
+      if (exp != null) {
+        canvas.drawBitmap(exp, srcExp, dstRect, bodyPaint)
+      }
+    }
+  }
+
+  private fun drawWreckOverlays(canvas: Canvas) {
     val leftWreck = leftWreckSheet
     val rightWreck = rightWreckSheet
     val centerWreck = centerWreckSheet
@@ -256,12 +271,6 @@ class BossController(private val resources: Resources) {
         (parts[TYPE_TURRET].isDestroyed || parts[TYPE_CORE].isDestroyed)
       ) {
         canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
-      }
-    }
-    if (isExploding) {
-      val exp = expFrames[activeExpFrame]
-      if (exp != null) {
-        canvas.drawBitmap(exp, srcExp, dstRect, bodyPaint)
       }
     }
   }
@@ -745,6 +754,7 @@ class BossController(private val resources: Resources) {
     const val S3_SPIRAL_SWEEP_SEC = 1.5f
     const val EXPLODE_FRAME_COUNT = 8
     const val EXPLODE_FRAME_SEC = 0.13f
+    const val EXPLODE_HIDE_BODY_FRAME = 3
     const val SHADOW_PX = 2
     const val OUTLINE_PX = 3
   }

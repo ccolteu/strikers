@@ -33,6 +33,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val particles = ParticleManager(resources)
   private val boss = BossController(resources)
   private val scorecard = VictoryScorecard()
+  private var campaignScore = 0
   private val panicBomb = PanicBomb()
   private val powerUpItem = PowerUpItem()
   private val stageManager = StageData()
@@ -277,7 +278,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           !boss.isActive() &&
           !boss.isExploding()
         ) {
-          scorecard.trigger(player.getHealth(), availableBombs)
+          scorecard.trigger(player.getHealth(), availableBombs, campaignScore)
+          campaignScore = scorecard.totalStageScore
           gameState = STATE_CLEAR
         }
         if (gameState == STATE_DEMO) {
@@ -393,7 +395,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val startEnd = uiStringBuilder.length
     drawHudTextAt(canvas, uiStringBuilder, 0, startEnd, 30f, topTextY, uiTextPaint, uiShadowPaint)
     uiStringBuilder.setLength(0)
-    var score = if (gameState == STATE_CLEAR) scorecard.visibleTotalScore else 0
+    var score = if (gameState == STATE_CLEAR) scorecard.visibleTotalScore else campaignScore
     if (score < 0) score = 0
     if (score > 99_999_999) score = 99_999_999
     var digits = 1
@@ -462,7 +464,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (scorecard.currentDisplayLine >= 4) {
       uiStringBuilder.setLength(0)
-      uiStringBuilder.append("TOTAL GAIN: ")
+      uiStringBuilder.append("TOTAL SCORE: ")
       uiStringBuilder.append(scorecard.visibleTotalScore)
       drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.54f, uiGoldPaint, uiGoldShadowPaint)
     }
@@ -1144,6 +1146,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.resetWeaponPower()
     player.restoreLives()
     availableBombs = 3
+    campaignScore = 0
     resetStage()
     idleT = 0f
     demoT = 0f
@@ -1255,6 +1258,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             player.resetWeaponPower()
             player.restoreLives()
             availableBombs = 3
+            campaignScore = 0
             resetStage()
             gameState = STATE_PLAYING
           }

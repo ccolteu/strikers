@@ -18,7 +18,7 @@ class VictoryScorecard {
     var visibleBombBonus = 0
     var visibleTotalScore = 0
 
-    fun trigger(remainingLives: Int, remainingBombs: Int) {
+    fun trigger(remainingLives: Int, remainingBombs: Int, carriedScore: Int) {
         elapsedTime = 0f
         currentDisplayLine = 0
         isCountingDone = false
@@ -26,11 +26,15 @@ class VictoryScorecard {
         // Classic Psikyo balancing multipliers
         lifeBonus = remainingLives * 10_000
         bombBonus = remainingBombs * 5_000
-        totalStageScore = lifeBonus + bombBonus
+        totalStageScore = carriedScore + lifeBonus + bombBonus
+        if (totalStageScore < 0) totalStageScore = 0
+        if (totalStageScore > 99_999_999) totalStageScore = 99_999_999
 
         visibleLifeBonus = 0
         visibleBombBonus = 0
-        visibleTotalScore = 0
+        visibleTotalScore = carriedScore
+        if (visibleTotalScore < 0) visibleTotalScore = 0
+        if (visibleTotalScore > 99_999_999) visibleTotalScore = 99_999_999
 
         isActive = true
     }
