@@ -90,7 +90,7 @@ class EnemyWeaponSystem {
   }
 
   companion object {
-    const val POOL_SIZE = 150
+    const val POOL_SIZE = 220
     const val HALF_BULLET_WIDTH = 18f
     const val HALF_BULLET_HEIGHT = 18f
   }

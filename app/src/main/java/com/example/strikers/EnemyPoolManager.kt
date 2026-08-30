@@ -23,6 +23,16 @@ class EnemyPoolManager(private val resources: Resources) {
     isAntiAlias = false
     colorFilter = PorterDuffColorFilter(0xFFFFCC33.toInt(), PorterDuff.Mode.MULTIPLY)
   }
+  private val interceptorPaint = Paint().apply {
+    isFilterBitmap = true
+    isAntiAlias = false
+    colorFilter = PorterDuffColorFilter(0xFFCC88FF.toInt(), PorterDuff.Mode.MULTIPLY)
+  }
+  private val heavyPaint = Paint().apply {
+    isFilterBitmap = true
+    isAntiAlias = false
+    colorFilter = PorterDuffColorFilter(0xFF8899BB.toInt(), PorterDuff.Mode.MULTIPLY)
+  }
   private val outlinePaint = Paint().apply {
     isFilterBitmap = true
     isAntiAlias = false
@@ -59,6 +69,18 @@ class EnemyPoolManager(private val resources: Resources) {
 
   fun getPoolSize(): Int = POOL_SIZE
 
+  fun countActive(): Int {
+    synchronized(lock) {
+      var n = 0
+      var i = 0
+      while (i < POOL_SIZE) {
+        if (pool[i].isActive) n++
+        i++
+      }
+      return n
+    }
+  }
+
   fun getHalfW(): Float = halfW
 
   fun getHalfH(): Float = halfH
@@ -73,7 +95,16 @@ class EnemyPoolManager(private val resources: Resources) {
     }
   }
 
-  fun spawnEnemy(startX: Float, startY: Float, velocityX: Float, velocityY: Float, enemyType: Int) {
+  fun spawnEnemy(
+    startX: Float,
+    startY: Float,
+    velocityX: Float,
+    velocityY: Float,
+    enemyType: Int,
+    pattern: Int = 0,
+    health: Int = 1,
+    scale: Float = 1f,
+  ) {
     synchronized(lock) {
       for (i in 0 until POOL_SIZE) {
         val e = pool[i]
@@ -83,7 +114,18 @@ class EnemyPoolManager(private val resources: Resources) {
         e.vx = velocityX
         e.vy = velocityY
         e.type = enemyType
+        e.pattern = pattern
+        e.aiPhase = 0
+        e.holdTimer = 0f
+        e.weaveT = 0f
+        e.homeX = startX
+        e.health = if (health < 1) 1 else health
+        e.drawScale = scale
         e.fireTimer = FIRE_DELAY_MIN + nextUnit() * (FIRE_DELAY_MAX - FIRE_DELAY_MIN)
+        e.burstLeft = 0
+        e.burstWait = 0f
+        e.aimVx = 0f
+        e.aimVy = 0f
         e.isActive = true
         return
       }
@@ -94,32 +136,167 @@ class EnemyPoolManager(private val resources: Resources) {
     synchronized(lock) {
       val w = screenW
       val h = screenH
-      val hw = halfW
-      val hh = halfH
       val speed = AIMED_SHOT_SPEED
       for (i in 0 until POOL_SIZE) {
         val e = pool[i]
         if (!e.isActive) continue
-        e.x += e.vx * dt
-        e.y += e.vy * dt
-        if (e.y - hh > h || e.x - hw > w || (e.x + hw < 0f && e.vx <= 0f) || (e.y + hh < 0f && e.vy <= 0f)) {
+        when (e.pattern) {
+          PATTERN_V_HOLD -> updateInterceptorHold(e, dt, h)
+          PATTERN_WEAVE -> {
+            e.weaveT += dt
+            e.x = e.homeX + kotlin.math.sin(e.weaveT * WEAVE_RATE) * (w * WEAVE_AMP_FRAC)
+            e.y += e.vy * dt
+          }
+          else -> {
+            e.x += e.vx * dt
+            e.y += e.vy * dt
+          }
+        }
+        val eh = halfH * e.drawScale
+        val ew = halfW * e.drawScale
+        if (e.y - eh > h || e.x - ew > w || (e.x + ew < 0f && e.vx <= 0f) || (e.y + eh < 0f && e.vy <= 0f)) {
           e.isActive = false
           continue
         }
         if (e.type == TYPE_KAMIKAZE) continue
-        e.fireTimer -= dt
-        if (e.fireTimer <= 0f) {
-          val dx = playerX - e.x
-          val dy = playerY - e.y
-          val lenSq = dx * dx + dy * dy
-          if (lenSq > 0.0001f) {
-            val inv = speed / kotlin.math.sqrt(lenSq)
-            weapons.fireBullet(e.x, e.y, dx * inv, dy * inv)
-          }
-          e.fireTimer = FIRE_ONCE_LOCK
+        updateEnemyFire(e, dt, playerX, playerY, weapons, speed)
+      }
+    }
+  }
+
+  private fun updateInterceptorHold(e: Enemy, dt: Float, screenH: Float) {
+    val holdY = screenH * HOLD_Y_FRAC
+    when (e.aiPhase) {
+      0 -> {
+        e.x += e.vx * dt
+        e.y += e.vy * dt
+        if (e.y >= holdY) {
+          e.y = holdY
+          e.vx = 0f
+          e.vy = 0f
+          e.aiPhase = 1
+          e.holdTimer = HOLD_SEC
+          e.fireTimer = 0f
+        }
+      }
+      1 -> {
+        e.holdTimer -= dt
+        if (e.holdTimer <= 0f) {
+          e.aiPhase = 2
+          e.vy = DIVE_VY
+        }
+      }
+      else -> {
+        e.vy += DIVE_ACCEL * dt
+        e.y += e.vy * dt
+      }
+    }
+  }
+
+  private fun updateEnemyFire(
+    e: Enemy,
+    dt: Float,
+    playerX: Float,
+    playerY: Float,
+    weapons: EnemyWeaponSystem,
+    speed: Float,
+  ) {
+    // --- PATTERN 1: LIGHT DRONES AMED 3-SHOT BURST ---
+    // If mid-burst, handle timed delay ticks between bullets
+    if (e.burstLeft > 0) {
+      e.burstWait -= dt
+      if (e.burstWait <= 0f) {
+        // Recalculate tracking vector slightly to prevent complete linear avoidance
+        val dx = playerX - e.x
+        val dy = playerY - e.y
+        val lenSq = dx * dx + dy * dy
+        if (lenSq > 0.0001f) {
+          val inv = speed / kotlin.math.sqrt(lenSq)
+          e.aimVx = dx * inv
+          e.aimVy = dy * inv
+        }
+        weapons.fireBullet(e.x, e.y, e.aimVx, e.aimVy)
+        SoundManager.instance.playSFX(SoundManager.SFX_LASER) // Play retro laser sound per burst element
+
+        e.burstLeft -= 1
+        if (e.burstLeft > 0) {
+          e.burstWait = BURST_GAP
+        } else {
+          e.fireTimer = SCOUT_REFIRE
+        }
+      }
+      return
+    }
+
+    e.fireTimer -= dt
+    if (e.fireTimer > 0f) return
+
+    when (e.type) {
+      TYPE_HEAVY -> {
+        // --- PATTERN 3: HEAVY VINYARD GUNSHIPS 12-WAY RADIAL RING ---
+        fireHeavyRing(e, weapons, RING_SPEED)
+        e.fireTimer = HEAVY_FIRE_GAP
+      }
+      TYPE_INTERCEPTOR -> {
+        // --- PATTERN 2: MEDIUM INTERCEPTORS WIDE 3-WAY SPREAD ---
+        fireInterceptorSpread(e, weapons, speed)
+        e.fireTimer = if (e.pattern == PATTERN_V_HOLD && e.aiPhase == 1) HOLD_FIRE_GAP else INTERCEPT_REFIRE
+      }
+      else -> {
+        // Initiate the 3-shot burst cycle for standard drones
+        val dx = playerX - e.x
+        val dy = playerY - e.y
+        val lenSq = dx * dx + dy * dy
+        if (lenSq > 0.0001f) {
+          val inv = speed / kotlin.math.sqrt(lenSq)
+          e.aimVx = dx * inv
+          e.aimVy = dy * inv
+
+          // Fire initial shot immediately
+          weapons.fireBullet(e.x, e.y, e.aimVx, e.aimVy)
+          SoundManager.instance.playSFX(SoundManager.SFX_LASER)
+
+          e.burstLeft = 2 // 2 more shots left to complete the 3-shot arcade burst
+          e.burstWait = BURST_GAP
+        } else {
+          e.fireTimer = SCOUT_REFIRE
         }
       }
     }
+  }
+
+  private fun fireInterceptorSpread(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
+    // Fire a classic 3-way branching wall (Center Down, Left-Angled Down, Right-Angled Down)
+    var k = -1
+    while (k <= 1) {
+      // Android Canvas Math Fix: To point straight down by default, your starting base angle must be PI / 2.
+      val baseAng = Math.PI / 2.0
+      val finalAng = baseAng + (k * SPREAD_RAD)
+
+      // Realignment: X uses cosine for horizontal offset, Y uses sine for downward travel vector
+      val vx = speed * kotlin.math.cos(finalAng).toFloat()
+      val vy = speed * kotlin.math.sin(finalAng).toFloat()
+
+      weapons.fireBullet(e.x, e.y, vx, vy)
+      k++
+    }
+    SoundManager.instance.playSFX(SoundManager.SFX_LASER)
+  }
+
+  private fun fireHeavyRing(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
+    // Overhaul from 8 bullets to a dense 12-bullet circular ring
+    val customRingCount = 12
+    val customRingStep = (Math.PI * 2.0) / customRingCount
+    var k = 0
+    while (k < customRingCount) {
+      val ang = k * customRingStep
+      val vx = speed * kotlin.math.cos(ang).toFloat()
+      val vy = speed * kotlin.math.sin(ang).toFloat()
+
+      weapons.fireBullet(e.x, e.y, vx, vy)
+      k++
+    }
+    SoundManager.instance.playSFX(SoundManager.SFX_ALARM) // Play a quick alert warning overlay for heavy shots
   }
 
   private fun nextUnit(): Float {
@@ -130,15 +307,15 @@ class EnemyPoolManager(private val resources: Resources) {
   fun draw(canvas: Canvas) {
     val sheet = droneSheet ?: return
     synchronized(lock) {
-      val hw = halfW
-      val hh = halfH
       for (i in 0 until POOL_SIZE) {
         val e = pool[i]
         if (!e.isActive) continue
         canvas.save()
         canvas.translate(e.x, e.y)
         canvas.rotate(180f)
-        drawRect.set(-hw, -hh, hw, hh)
+        val ew = halfW * e.drawScale
+        val eh = halfH * e.drawScale
+        drawRect.set(-ew, -eh, ew, eh)
         // Local +x/+y is screen up-left after 180°, so negate for a screen down-right shadow.
         drawRect.offset(-SHADOW_PX.toFloat(), -SHADOW_PX.toFloat())
         canvas.drawBitmap(sheet, null, drawRect, shadowPaint)
@@ -156,7 +333,15 @@ class EnemyPoolManager(private val resources: Resources) {
           }
           oy += OUTLINE_PX
         }
-        val bodyPaint = if (e.type == TYPE_KAMIKAZE) kamikazePaint else paint
+        val bodyPaint = if (e.type == TYPE_KAMIKAZE) {
+          kamikazePaint
+        } else if (e.type == TYPE_HEAVY) {
+          heavyPaint
+        } else if (e.type == TYPE_INTERCEPTOR) {
+          interceptorPaint
+        } else {
+          paint
+        }
         canvas.drawBitmap(sheet, null, drawRect, bodyPaint)
         canvas.restore()
       }
@@ -202,8 +387,28 @@ class EnemyPoolManager(private val resources: Resources) {
   }
 
   private companion object {
-    const val POOL_SIZE = 30
+    const val POOL_SIZE = 48
     const val TYPE_KAMIKAZE = 1
+    const val TYPE_INTERCEPTOR = 2
+    const val TYPE_HEAVY = 3
+    const val PATTERN_V_HOLD = 1
+    const val PATTERN_WEAVE = 2
+    const val HOLD_Y_FRAC = 0.30f
+    const val HOLD_SEC = 1.15f
+    const val HOLD_FIRE_GAP = 0.55f
+    const val INTERCEPT_REFIRE = 0.85f
+    const val HEAVY_FIRE_GAP = 1.5f
+    const val BURST_EXTRA = 2
+    const val BURST_GAP = 0.10f
+    const val SCOUT_REFIRE = 0.85f
+    const val RING_COUNT = 8
+    const val RING_STEP = Math.PI * 2.0 / RING_COUNT
+    const val RING_SPEED = 340f
+    const val SPREAD_RAD = (15.0 * Math.PI / 180.0).toFloat()
+    const val DIVE_VY = 280f
+    const val DIVE_ACCEL = 520f
+    const val WEAVE_RATE = 6.2f
+    const val WEAVE_AMP_FRAC = 0.055f
     const val ENEMY_WIDTH_FRAC = 0.18f
     const val FIRE_DELAY_MIN = 0.5f
     const val FIRE_DELAY_MAX = 1.5f

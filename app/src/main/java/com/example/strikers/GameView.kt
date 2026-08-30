@@ -568,10 +568,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             val distanceSquared = (dx * dx) + (dy * dy)
             if (distanceSquared <= radiusSq) {
               bullet.isActive = false
-              enemy.isActive = false
-              particles.triggerExplosion(enemy.x, enemy.y, true)
-              if (Math.random() < 0.15 && !powerUpItem.isActive) {
-                powerUpItem.spawn(enemy.x, enemy.y)
+              enemy.health -= 1
+              if (enemy.health <= 0) {
+                enemy.isActive = false
+                particles.triggerExplosion(enemy.x, enemy.y, true)
+                if (Math.random() < 0.15 && !powerUpItem.isActive) {
+                  powerUpItem.spawn(enemy.x, enemy.y)
+                }
               }
               break
             }
@@ -650,8 +653,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       while (ei < enemyCount) {
         val enemy = enemyPool[ei]
         if (enemy.isActive && ramRx > 0f && ramRy > 0f) {
-          val nx = (enemy.x - playerX) / ramRx
-          val ny = (enemy.y - playerY) / ramRy
+          val sx = ramRx * enemy.drawScale
+          val sy = ramRy * enemy.drawScale
+          val nx = (enemy.x - playerX) / sx
+          val ny = (enemy.y - playerY) / sy
           if ((nx * nx) + (ny * ny) <= 1f) {
             enemy.isActive = false
             particles.triggerExplosion(enemy.x, enemy.y)

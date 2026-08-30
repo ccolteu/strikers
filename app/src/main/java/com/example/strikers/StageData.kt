@@ -3,7 +3,7 @@ package com.example.strikers
 class StageData {
     var currentStage = 1
     var scrollSpeedY = 180f // Stage 1 baseline scroll speed
-    var targetBossTimelineSeconds = 25f // Time before boss arrives
+    var targetBossTimelineSeconds = 38f
 
     fun advanceToNextStage() {
         currentStage++
@@ -22,6 +22,6 @@ class StageData {
     fun resetToStart() {
         currentStage = 1
         scrollSpeedY = 180f
-        targetBossTimelineSeconds = 25f
+        targetBossTimelineSeconds = 38f
     }
 }

@@ -7,4 +7,5 @@ class SpawnEvent(
   val velocityX: Float,
   val velocityY: Float,
   val enemyType: Int,
+  val pattern: Int = 0,
 )
