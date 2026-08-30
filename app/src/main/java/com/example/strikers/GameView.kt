@@ -71,6 +71,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var touchDownX = 0f
   private var touchDownY = 0f
   private var awaitingSecondTap = false
+  private var enemyBombDmgBank = 0f
   private var bossBombDmgBank = 0f
   private var bossFought = false
   private var lastBgmRes = 0
@@ -666,15 +667,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       panicBomb.currentFrameIndex++
       if (panicBomb.currentFrameIndex > 5) {
         panicBomb.isActive = false
+        enemyBombDmgBank = 0f
         bossBombDmgBank = 0f
         return
       }
     }
-    val currentProgress = (panicBomb.currentFrameIndex + 1).toFloat() / PanicBomb.FRAME_COUNT.toFloat()
-    val maxClearRadius = screenH * 0.5f
-    val rSq = (maxClearRadius * currentProgress) * (maxClearRadius * currentProgress)
-    val bx = panicBomb.x
-    val by = panicBomb.y
+    val bombLeft = bombDstRect.left
+    val bombTop = bombDstRect.top
+    val bombRight = bombDstRect.right
+    val bombBottom = bombDstRect.bottom
 
     val shotPool = enemyShots.getBulletPool()
     val shotCount = enemyShots.getPoolSize()
@@ -682,34 +683,46 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     while (si < shotCount) {
       val shot = shotPool[si]
       if (shot.isActive) {
-        val dx = shot.x - bx
-        val dy = shot.y - by
-        if ((dx * dx) + (dy * dy) <= rSq) {
+        if (
+          shot.x >= bombLeft && shot.x <= bombRight &&
+          shot.y >= bombTop && shot.y <= bombBottom
+        ) {
           shot.isActive = false
         }
       }
       si++
     }
 
-    val enemyPool = enemies.getEnemyPool()
-    val enemyCount = enemies.getPoolSize()
-    var ei = 0
-    while (ei < enemyCount) {
-      val enemy = enemyPool[ei]
-      if (enemy.isActive) {
-        val dx = enemy.x - bx
-        val dy = enemy.y - by
-        if ((dx * dx) + (dy * dy) <= rSq) {
-          enemy.isActive = false
-          particles.triggerExplosion(enemy.x, enemy.y)
-          dropEnemyLoot(enemy.x, enemy.y)
+    enemyBombDmgBank += BOMB_ENEMY_DPS * dt
+    val enemyDmg = enemyBombDmgBank.toInt()
+    if (enemyDmg > 0) {
+      enemyBombDmgBank -= enemyDmg
+      val enemyPool = enemies.getEnemyPool()
+      val enemyCount = enemies.getPoolSize()
+      var ei = 0
+      while (ei < enemyCount) {
+        val enemy = enemyPool[ei]
+        if (enemy.isActive) {
+          val ew = enemies.halfWOf(enemy.type)
+          val eh = enemies.halfHOf(enemy.type)
+          if (
+            enemy.x + ew >= bombLeft && enemy.x - ew <= bombRight &&
+            enemy.y + eh >= bombTop && enemy.y - eh <= bombBottom
+          ) {
+            enemy.health -= enemyDmg
+            if (enemy.health <= 0) {
+              enemy.isActive = false
+              particles.triggerExplosion(enemy.x, enemy.y, true)
+              dropEnemyLoot(enemy.x, enemy.y)
+            }
+          }
         }
+        ei++
       }
-      ei++
     }
 
-    if (boss.isActive()) {
-      bossBombDmgBank += BOSS_BOMB_DPS * dt
+    if (boss.isActive() && !boss.isExploding()) {
+      bossBombDmgBank += BOMB_BOSS_DPS * dt
       val dmg = bossBombDmgBank.toInt()
       if (dmg > 0) {
         bossBombDmgBank -= dmg
@@ -719,11 +732,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         while (pi >= 0) {
           val part = parts[pi]
           if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
-            val pr = if (part.halfW > part.halfH) part.halfW else part.halfH
-            val hitR = maxClearRadius * currentProgress + pr
-            val dx = part.x - bx
-            val dy = part.y - by
-            if ((dx * dx) + (dy * dy) <= hitR * hitR) {
+            if (
+              part.x + part.halfW >= bombLeft && part.x - part.halfW <= bombRight &&
+              part.y + part.halfH >= bombTop && part.y - part.halfH <= bombBottom
+            ) {
               if (part.componentType == BossController.TYPE_CORE && !boss.isCoreVulnerable()) {
                 pi--
                 continue
@@ -1244,6 +1256,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     panicBomb.isActive = false
     bossWasExploding = false
     screenShakeTrauma = 0f
+    enemyBombDmgBank = 0f
     bossBombDmgBank = 0f
     awaitingSecondTap = false
     bossFought = false
@@ -1520,7 +1533,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val MEDAL_SCORE_EDGE = 200
     const val FLOATING_SPEED = 90f
     const val FLOATING_LIFE = 0.75f
-    const val BOSS_BOMB_DPS = 16f
+    const val BOMB_ENEMY_DPS = 250f
+    const val BOMB_BOSS_DPS = 400f
     const val DOUBLE_TAP_MS = 280L
     const val TAP_MAX_MS = 220L
     const val TAP_SLOP_SQ = 48f * 48f
