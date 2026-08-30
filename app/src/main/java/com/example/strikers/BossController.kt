@@ -58,6 +58,8 @@ class BossController(private val resources: Resources) {
   private var currentStage = 1
   private var loadedStage = -1
   private val partSfxPlayed = BooleanArray(MAX_PART_COUNT)
+  private val preservedDestroyed = BooleanArray(MAX_PART_COUNT)
+  private val preservedHealth = IntArray(MAX_PART_COUNT)
   private var bodyHalfW = 0f
   private var bodyHalfH = 0f
 
@@ -219,11 +221,12 @@ class BossController(private val resources: Resources) {
         canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
       }
     } else {
+      // Wreck overlays are torn-edge PNGs; an outline would halo leftover chroma.
       if (leftWreck != null && parts[TYPE_LEFT_WING].isDestroyed) {
-        blitOutlined(canvas, leftWreck, srcCore, bodyPaint)
+        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
       }
       if (rightWreck != null && parts[TYPE_RIGHT_WING].isDestroyed) {
-        blitOutlined(canvas, rightWreck, srcCore, bodyPaint)
+        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
       }
       if (
         centerWreck != null &&
@@ -413,6 +416,15 @@ class BossController(private val resources: Resources) {
   }
 
   private fun layoutOffsets(stage: Int) {
+    val preserve = active
+    if (preserve) {
+      var i = 0
+      while (i < MAX_PART_COUNT) {
+        preservedDestroyed[i] = parts[i].isDestroyed
+        preservedHealth[i] = parts[i].health
+        i++
+      }
+    }
     disablePart(TYPE_CORE)
     disablePart(TYPE_LEFT_WING)
     disablePart(TYPE_RIGHT_WING)
@@ -430,6 +442,18 @@ class BossController(private val resources: Resources) {
       setupPart(TYPE_LEFT_WING, -bodyHalfW * 0.5f, -bodyHalfH * 0.08f, bodyHalfW * 0.30f, bodyHalfH * 0.20f, S1_WING_HP)
       setupPart(TYPE_RIGHT_WING, bodyHalfW * 0.5f, -bodyHalfH * 0.08f, bodyHalfW * 0.30f, bodyHalfH * 0.20f, S1_WING_HP)
       setupPart(TYPE_TURRET, 0f, bodyHalfH * 0.46f, bodyHalfW * 0.12f, bodyHalfW * 0.12f, S1_TURRET_HP)
+    }
+    if (preserve) {
+      var i = 0
+      while (i < MAX_PART_COUNT) {
+        val p = parts[i]
+        if (p.halfW > 0f) {
+          val dead = preservedDestroyed[i]
+          p.isDestroyed = dead
+          p.health = if (dead) 0 else preservedHealth[i].coerceIn(0, p.maxHealth)
+        }
+        i++
+      }
     }
   }
 
@@ -532,8 +556,17 @@ class BossController(private val resources: Resources) {
         val r = (c ushr 16) and 0xFF
         val g = (c ushr 8) and 0xFF
         val b = c and 0xFF
-        if (g > 160 && g > r + 40 && g > b + 40) {
+        val maxRb = if (r > b) r else b
+        val excess = g - maxRb
+        val chroma =
+          (g > 160 && g > r + 40 && g > b + 40) ||
+            (excess > 24 && g > 48 && g > r + 16 && g > b + 16) ||
+            (r + b < 90 && g > 22 && g > r + 10 && g > b + 10)
+        if (chroma) {
           row[i] = 0
+        } else if (excess > 6) {
+          val ng = maxRb + 3
+          row[i] = (r shl 16) or (ng shl 8) or b or (0xFF shl 24)
         }
         i++
       }
