@@ -104,6 +104,7 @@ class SpawnTimeline {
           cue.velocityY,
           cue.enemyType,
           cue.pattern,
+          hpFor(cue.enemyType),
         )
         nextIndex++
       }
@@ -169,9 +170,9 @@ class SpawnTimeline {
   }
 
   private fun spawnVFormation(enemies: EnemyPoolManager, w: Float, h: Float) {
-    enemies.spawnEnemy(0.50f * w, -0.02f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2)
-    enemies.spawnEnemy(0.38f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2)
-    enemies.spawnEnemy(0.62f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, 2)
+    enemies.spawnEnemy(0.50f * w, -0.02f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, INTERCEPT_HP)
+    enemies.spawnEnemy(0.38f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, INTERCEPT_HP)
+    enemies.spawnEnemy(0.62f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, INTERCEPT_HP)
   }
 
   private companion object {
@@ -197,7 +198,16 @@ class SpawnTimeline {
     const val WEAVE_VY = 150f
     const val HEAVY_VY = 78f
     const val HEAVY_HP = 6
+    const val INTERCEPT_HP = 4
+    const val KAMI_HP = 2
     const val INTERCEPT_VY = 210f
     const val MAX_ACTIVE = 10
+  }
+
+  private fun hpFor(enemyType: Int): Int {
+    if (enemyType == TYPE_HEAVY) return HEAVY_HP
+    if (enemyType == TYPE_INTERCEPTOR) return INTERCEPT_HP
+    if (enemyType == TYPE_KAMIKAZE) return KAMI_HP
+    return 1
   }
 }
