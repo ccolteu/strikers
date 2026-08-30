@@ -62,6 +62,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var logoBmp: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
   private var bgStage2Bmp: Bitmap? = null
+  private var bgStage3Bmp: Bitmap? = null
   private var lastTapUpMs = 0L
   private var touchDownMs = 0L
   private var touchDownX = 0f
@@ -182,6 +183,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
     loadStage2Background(w, h)
+    loadStage3Background(w, h)
   }
 
   override fun surfaceCreated(holder: SurfaceHolder) {
@@ -203,6 +205,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
     loadStage2Background(width, height)
+    loadStage3Background(width, height)
   }
 
   override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -290,7 +293,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val canvas = lockGameCanvas()
     if (canvas != null) {
       try {
-        parallax.draw(canvas, stageGroundBitmap())
+        parallax.draw(
+          canvas,
+          stageGroundBitmap(),
+          stageManager.currentStage == 1,
+        )
         if (gameState != STATE_TITLE) {
           enemies.draw(canvas)
           boss.draw(canvas)
@@ -729,7 +736,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun stageGroundBitmap(): Bitmap? {
-    return if (stageManager.currentStage >= 2) bgStage2Bmp else null
+    return when (stageManager.currentStage) {
+      2 -> bgStage2Bmp
+      3 -> bgStage3Bmp
+      else -> null
+    }
   }
 
   private fun loadStage2Background(width: Int, height: Int) {
@@ -741,6 +752,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     if (existing != null && !existing.isRecycled) existing.recycle()
     bgStage2Bmp = null
     bgStage2Bmp = decodeCoverScaled(resources, R.drawable.stage2_bg_layer1_ground, width, height)
+  }
+
+  private fun loadStage3Background(width: Int, height: Int) {
+    if (width <= 0 || height <= 0) return
+    val existing = bgStage3Bmp
+    if (existing != null && !existing.isRecycled && existing.width == width && existing.height == height) {
+      return
+    }
+    if (existing != null && !existing.isRecycled) existing.recycle()
+    bgStage3Bmp = null
+    bgStage3Bmp = decodeCoverScaled(resources, R.drawable.stage3_bg_layer1_ocean, width, height)
   }
 
   private fun decodeKeyed(drawableId: Int): Bitmap {
@@ -1059,6 +1081,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val stage2 = bgStage2Bmp
     if (stage2 != null && !stage2.isRecycled) stage2.recycle()
     bgStage2Bmp = null
+    val stage3 = bgStage3Bmp
+    if (stage3 != null && !stage3.isRecycled) stage3.recycle()
+    bgStage3Bmp = null
     super.onDetachedFromWindow()
   }
 

@@ -74,13 +74,14 @@ class ParallaxBackground(private val resources: Resources) {
     yHigh = 0f
   }
 
-  fun draw(canvas: Canvas, groundOverride: Bitmap?) {
+  fun draw(canvas: Canvas, groundOverride: Bitmap?, overlayClouds: Boolean) {
     val h = screenH.toFloat()
     if (h <= 0f) return
     val groundBmp = groundOverride ?: ground
     blit(canvas, groundBmp, yGround, h, paintGround)
-    if (groundOverride != null) return
+    if (!overlayClouds) return
     blit(canvas, mid, yMid, h, paintMid)
+    blit(canvas, high, yHigh, h, paintHigh)
   }
 
   fun release() {

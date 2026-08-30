@@ -3,6 +3,8 @@ package com.example.strikers
 /**
  * Stage 1 is driven by elapsed-time spawn loops (no per-frame alloc).
  * Stage 2 still uses a pre-ordered [SpawnEvent] cursor.
+ * Stage 3 (Ocean Fleet) uses interval waves, then a 25s boss gate that
+ * freezes the timeline cursor until the fight is over.
  */
 class SpawnTimeline {
 
@@ -75,6 +77,10 @@ class SpawnTimeline {
   private var weaveGap = 0f
   private var vFormSpawned = false
   private var wallSpawned = false
+  private var s3ScoutGap = 0f
+  private var s3FlankGap = 0f
+  private var s3CruiserSpawned = false
+  private var s3FlankFromLeft = true
 
   fun update(
     dt: Float,
@@ -87,12 +93,15 @@ class SpawnTimeline {
     allowBoss: Boolean,
   ) {
     if (screenWidth <= 0 || screenHeight <= 0) return
-    elapsedTime += dt
+    // Stage 3 locks the cursor at the 25s boss gate until the fight ends.
+    if (!(currentStage == 3 && bossCueFired)) {
+      elapsedTime += dt
+    }
     val w = screenWidth.toFloat()
     val h = screenHeight.toFloat()
     if (currentStage < 2) {
       updateStage1(dt, enemyManager, w, h)
-    } else {
+    } else if (currentStage == 2) {
       val events = stage2Events
       while (nextIndex < events.size) {
         val cue = events[nextIndex]
@@ -108,10 +117,16 @@ class SpawnTimeline {
         )
         nextIndex++
       }
+    } else if (currentStage == 3) {
+      updateStage3(dt, enemyManager, w, h)
     }
-    if (allowBoss && !bossCueFired && elapsedTime >= bossEnterSeconds) {
-      boss.beginEntranceForStage(currentStage)
-      bossCueFired = true
+    if (allowBoss && !bossCueFired) {
+      val bossAt = if (currentStage == 3) S3_BOSS_AT else bossEnterSeconds
+      if (elapsedTime >= bossAt) {
+        boss.beginEntranceForStage(currentStage)
+        bossCueFired = true
+        nextIndex = stage2Events.size
+      }
     }
   }
 
@@ -123,6 +138,10 @@ class SpawnTimeline {
     weaveGap = 0f
     vFormSpawned = false
     wallSpawned = false
+    s3ScoutGap = S3_SCOUT_SPACING
+    s3FlankGap = S3_FLANK_SPACING
+    s3CruiserSpawned = false
+    s3FlankFromLeft = true
   }
 
   private fun updateStage1(
@@ -175,6 +194,81 @@ class SpawnTimeline {
     enemies.spawnEnemy(0.62f * w, -0.10f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, INTERCEPT_HP)
   }
 
+  private fun updateStage3(
+    dt: Float,
+    enemies: EnemyPoolManager,
+    w: Float,
+    h: Float,
+  ) {
+    if (bossCueFired) return
+    if (elapsedTime >= S3_SCOUT_START && elapsedTime <= S3_SCOUT_END) {
+      s3ScoutGap += dt
+      var safeguard = 0
+      while (s3ScoutGap >= S3_SCOUT_SPACING && safeguard < 2) {
+        if (enemies.countActive() >= MAX_ACTIVE) break
+        s3ScoutGap -= S3_SCOUT_SPACING
+        safeguard++
+        spawnStage3ScoutV(enemies, w, h)
+      }
+    }
+    if (!s3CruiserSpawned && elapsedTime >= S3_CRUISER_AT) {
+      if (enemies.countActive() < MAX_ACTIVE) {
+        s3CruiserSpawned = true
+        enemies.spawnEnemy(
+          0.50f * w,
+          -0.10f * h,
+          0f,
+          HEAVY_VY * 0.85f,
+          TYPE_HEAVY,
+          PATTERN_V_HOLD,
+          S3_CRUISER_HP,
+        )
+      }
+    }
+    if (elapsedTime >= S3_FLANK_START && elapsedTime <= S3_FLANK_END) {
+      s3FlankGap += dt
+      var safeguard = 0
+      while (s3FlankGap >= S3_FLANK_SPACING && safeguard < 2) {
+        if (enemies.countActive() >= MAX_ACTIVE) break
+        s3FlankGap -= S3_FLANK_SPACING
+        safeguard++
+        val laneY = if (s3FlankFromLeft) 0.10f * h else 0.22f * h
+        if (s3FlankFromLeft) {
+          enemies.spawnEnemy(
+            -0.08f * w,
+            laneY,
+            SWEEP_VX * 1.35f,
+            FAST_DOWN * 1.15f,
+            TYPE_INTERCEPTOR,
+            0,
+            INTERCEPT_HP,
+          )
+        } else {
+          enemies.spawnEnemy(
+            1.08f * w,
+            laneY,
+            -SWEEP_VX * 1.35f,
+            FAST_DOWN * 1.15f,
+            TYPE_INTERCEPTOR,
+            0,
+            INTERCEPT_HP,
+          )
+        }
+        s3FlankFromLeft = !s3FlankFromLeft
+      }
+    }
+  }
+
+  private fun spawnStage3ScoutV(enemies: EnemyPoolManager, w: Float, h: Float) {
+    val vx = 0f
+    val vy = WEAVE_VY * 1.7f
+    enemies.spawnEnemy(0.46f * w, -0.04f * h, vx, vy, TYPE_DRONE, PATTERN_WEAVE)
+    enemies.spawnEnemy(0.36f * w, -0.14f * h, vx, vy, TYPE_DRONE, PATTERN_WEAVE)
+    enemies.spawnEnemy(0.56f * w, -0.14f * h, vx, vy, TYPE_DRONE, PATTERN_WEAVE)
+    enemies.spawnEnemy(0.26f * w, -0.24f * h, vx, vy, TYPE_DRONE, PATTERN_WEAVE)
+    enemies.spawnEnemy(0.66f * w, -0.24f * h, vx, vy, TYPE_DRONE, PATTERN_WEAVE)
+  }
+
   private companion object {
     const val TYPE_DRONE = 0
     const val TYPE_KAMIKAZE = 1
@@ -202,6 +296,15 @@ class SpawnTimeline {
     const val KAMI_HP = 2
     const val INTERCEPT_VY = 210f
     const val MAX_ACTIVE = 10
+    const val S3_SCOUT_START = 1.5f
+    const val S3_SCOUT_END = 5.5f
+    const val S3_SCOUT_SPACING = 0.6f
+    const val S3_CRUISER_AT = 7.5f
+    const val S3_CRUISER_HP = 12
+    const val S3_FLANK_START = 14.0f
+    const val S3_FLANK_END = 19.5f
+    const val S3_FLANK_SPACING = 0.55f
+    const val S3_BOSS_AT = 25.0f
   }
 
   private fun hpFor(enemyType: Int): Int {

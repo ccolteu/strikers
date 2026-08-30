@@ -155,7 +155,8 @@ class EnemyPoolManager(private val resources: Resources) {
   }
 
   private fun updateInterceptorHold(e: Enemy, dt: Float, screenH: Float) {
-    val holdY = screenH * HOLD_Y_FRAC
+    val heavyHold = e.type == TYPE_HEAVY
+    val holdY = screenH * if (heavyHold) HEAVY_HOLD_Y_FRAC else HOLD_Y_FRAC
     when (e.aiPhase) {
       0 -> {
         e.x += e.vx * dt
@@ -165,7 +166,7 @@ class EnemyPoolManager(private val resources: Resources) {
           e.vx = 0f
           e.vy = 0f
           e.aiPhase = 1
-          e.holdTimer = HOLD_SEC
+          e.holdTimer = if (heavyHold) HEAVY_HOLD_SEC else HOLD_SEC
           e.fireTimer = 0f
         }
       }
@@ -173,11 +174,13 @@ class EnemyPoolManager(private val resources: Resources) {
         e.holdTimer -= dt
         if (e.holdTimer <= 0f) {
           e.aiPhase = 2
-          e.vy = DIVE_VY
+          e.vy = if (heavyHold) HEAVY_RETREAT_VY else DIVE_VY
         }
       }
       else -> {
-        e.vy += DIVE_ACCEL * dt
+        if (!heavyHold) {
+          e.vy += DIVE_ACCEL * dt
+        }
         e.y += e.vy * dt
       }
     }
@@ -395,6 +398,9 @@ class EnemyPoolManager(private val resources: Resources) {
     const val PATTERN_WEAVE = 2
     const val HOLD_Y_FRAC = 0.30f
     const val HOLD_SEC = 1.15f
+    const val HEAVY_HOLD_Y_FRAC = 0.25f
+    const val HEAVY_HOLD_SEC = 5f
+    const val HEAVY_RETREAT_VY = -160f
     const val HOLD_FIRE_GAP = 0.55f
     const val INTERCEPT_REFIRE = 0.85f
     const val HEAVY_FIRE_GAP = 1.5f

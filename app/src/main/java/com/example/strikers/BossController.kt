@@ -50,6 +50,10 @@ class BossController(private val resources: Resources) {
   private var tankBarrelTimer = 0f
   private var tankTreadTimer = 0f
   private var fireLeftBarrel = true
+  private var s3FlakTimer = 0f
+  private var s3CannonTimer = 0f
+  private var s3SpiralTimer = 0f
+  private var s3SpiralSweep = 0f
   private var entering = false
   private var active = false
   private var isExploding = false
@@ -76,7 +80,7 @@ class BossController(private val resources: Resources) {
   }
 
   fun bindStage(stage: Int) {
-    currentStage = if (stage >= 2) 2 else 1
+    currentStage = if (stage >= 3) 3 else if (stage >= 2) 2 else 1
     if (screenW <= 0f) return
     loadKeyedSheet(currentStage)
     cacheSrcRects()
@@ -101,6 +105,10 @@ class BossController(private val resources: Resources) {
     tankBarrelTimer = TANK_BARREL_INTERVAL
     tankTreadTimer = TANK_TREAD_INTERVAL
     fireLeftBarrel = true
+    s3FlakTimer = S3_FLAK_INTERVAL
+    s3CannonTimer = S3_CANNON_CHARGE
+    s3SpiralTimer = 0f
+    s3SpiralSweep = 0f
     turretAngle = 1.5707964f
     coreX = screenW * 0.5f
     coreY = -bodyHalfH - 24f
@@ -179,11 +187,11 @@ class BossController(private val resources: Resources) {
         entering = false
         SoundManager.instance.stopAlarm()
       }
-    } else if (currentStage < 2) {
+    } else if (currentStage == 2) {
+      coreX = screenW * 0.5f
+    } else {
       sweepPhase += dt * SWEEP_RATE
       coreX = screenW * 0.5f + sin(sweepPhase) * screenW * SWEEP_AMP
-    } else {
-      coreX = screenW * 0.5f
     }
     var i = 0
     while (i < MAX_PART_COUNT) {
@@ -192,7 +200,9 @@ class BossController(private val resources: Resources) {
       p.y = coreY + p.relOffsetY
       i++
     }
-    if (currentStage >= 2) {
+    if (currentStage == 3) {
+      updateStage3BossWeapons(dt, playerX, playerY, weapons)
+    } else if (currentStage == 2) {
       updateTankCombat(dt, playerX, playerY, weapons)
     } else {
       updatePlaneCombat(dt, playerX, playerY, weapons)
@@ -207,7 +217,20 @@ class BossController(private val resources: Resources) {
     val leftWreck = leftWreckSheet
     val rightWreck = rightWreckSheet
     val centerWreck = centerWreckSheet
-    if (currentStage >= 2) {
+    if (currentStage == 3) {
+      if (leftWreck != null && parts[TYPE_STAGE3_LEFT_FLAK].isDestroyed) {
+        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+      }
+      if (rightWreck != null && parts[TYPE_STAGE3_RIGHT_FLAK].isDestroyed) {
+        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+      }
+      if (
+        centerWreck != null &&
+        (parts[TYPE_STAGE3_MEGA_CANNON].isDestroyed || parts[TYPE_CORE].isDestroyed)
+      ) {
+        canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+      }
+    } else if (currentStage >= 2) {
       if (leftWreck != null && parts[TYPE_STAGE2_LEFT_TREAD].isDestroyed) {
         canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
       }
@@ -336,7 +359,10 @@ class BossController(private val resources: Resources) {
           i == TYPE_STAGE1_LEFT_WING ||
           i == TYPE_STAGE1_RIGHT_WING ||
           i == TYPE_STAGE2_LEFT_TREAD ||
-          i == TYPE_STAGE2_RIGHT_TREAD
+          i == TYPE_STAGE2_RIGHT_TREAD ||
+          i == TYPE_STAGE3_LEFT_FLAK ||
+          i == TYPE_STAGE3_RIGHT_FLAK ||
+          i == TYPE_STAGE3_MEGA_CANNON
         ) {
           // Play the punchy boss segment destruction clip instead of stack tracking
           SoundManager.instance.playSFX(SoundManager.SFX_HEAVY_EXPLOSION)
@@ -344,6 +370,67 @@ class BossController(private val resources: Resources) {
           SoundManager.instance.playSFX(SoundManager.SFX_SMALL_EXPLOSION)
         }
       }
+      i++
+    }
+  }
+
+  private fun updateStage3BossWeapons(
+    dt: Float,
+    playerX: Float,
+    playerY: Float,
+    weapons: EnemyWeaponSystem,
+  ) {
+    playNewModuleSfx()
+    if (entering) return
+    val leftFlak = parts[TYPE_STAGE3_LEFT_FLAK]
+    val rightFlak = parts[TYPE_STAGE3_RIGHT_FLAK]
+    val cannon = parts[TYPE_STAGE3_MEGA_CANNON]
+    val leftLive = !leftFlak.isDestroyed && leftFlak.halfW > 0f
+    val rightLive = !rightFlak.isDestroyed && rightFlak.halfW > 0f
+    if (leftLive || rightLive) {
+      s3FlakTimer -= dt
+      if (s3FlakTimer <= 0f) {
+        s3FlakTimer = S3_FLAK_INTERVAL
+        if (fireLeftBarrel && leftLive) {
+          fireAtPlayer(weapons, leftFlak.x, leftFlak.y, playerX, playerY, S3_FLAK_SPEED)
+        } else if (!fireLeftBarrel && rightLive) {
+          fireAtPlayer(weapons, rightFlak.x, rightFlak.y, playerX, playerY, S3_FLAK_SPEED)
+        } else if (leftLive) {
+          fireAtPlayer(weapons, leftFlak.x, leftFlak.y, playerX, playerY, S3_FLAK_SPEED)
+        } else {
+          fireAtPlayer(weapons, rightFlak.x, rightFlak.y, playerX, playerY, S3_FLAK_SPEED)
+        }
+        fireLeftBarrel = !fireLeftBarrel
+      }
+    }
+    if (!cannon.isDestroyed && cannon.halfW > 0f) {
+      s3CannonTimer -= dt
+      if (s3CannonTimer <= 0f) {
+        s3CannonTimer = S3_CANNON_CHARGE
+        firePlasmaRing(weapons, cannon.x, cannon.y + cannon.halfH)
+      }
+    }
+    val flaksAndCannonDown =
+      leftFlak.isDestroyed && rightFlak.isDestroyed && cannon.isDestroyed
+    if (flaksAndCannonDown) {
+      val core = parts[TYPE_CORE]
+      s3SpiralSweep += dt / S3_SPIRAL_SWEEP_SEC
+      if (s3SpiralSweep > 1f) s3SpiralSweep -= 1f
+      s3SpiralTimer -= dt
+      if (s3SpiralTimer <= 0f) {
+        s3SpiralTimer = S3_SPIRAL_INTERVAL
+        val targetX = s3SpiralSweep * screenW
+        val targetY = screenH - 28f
+        fireAtPlayer(weapons, core.x, core.y, targetX, targetY, S3_SPIRAL_SPEED)
+      }
+    }
+  }
+
+  private fun firePlasmaRing(weapons: EnemyWeaponSystem, originX: Float, originY: Float) {
+    var i = 0
+    while (i < S3_RING_COUNT) {
+      val ang = i * S3_RING_STEP
+      fireAimed(weapons, originX, originY, ang, S3_RING_SPEED)
       i++
     }
   }
@@ -393,11 +480,22 @@ class BossController(private val resources: Resources) {
     playerX: Float,
     playerY: Float,
   ) {
-    val dx = playerX - originX
-    val dy = playerY - originY
+    fireAtPlayer(weapons, originX, originY, playerX, playerY, TANK_SHOT_SPEED)
+  }
+
+  private fun fireAtPlayer(
+    weapons: EnemyWeaponSystem,
+    originX: Float,
+    originY: Float,
+    targetX: Float,
+    targetY: Float,
+    speed: Float,
+  ) {
+    val dx = targetX - originX
+    val dy = targetY - originY
     val lenSq = dx * dx + dy * dy
     if (lenSq < 0.0001f) return
-    val inv = TANK_SHOT_SPEED / sqrt(lenSq)
+    val inv = speed / sqrt(lenSq)
     weapons.fireBullet(originX, originY, dx * inv, dy * inv)
   }
 
@@ -432,7 +530,15 @@ class BossController(private val resources: Resources) {
     disablePart(TYPE_STAGE2_LEFT_TREAD)
     disablePart(TYPE_STAGE2_RIGHT_TREAD)
     disablePart(TYPE_STAGE2_MAIN_TURRET)
-    if (stage >= 2) {
+    disablePart(TYPE_STAGE3_LEFT_FLAK)
+    disablePart(TYPE_STAGE3_RIGHT_FLAK)
+    disablePart(TYPE_STAGE3_MEGA_CANNON)
+    if (stage >= 3) {
+      setupPart(TYPE_CORE, 0f, -bodyHalfH * 0.1f, bodyHalfW * 0.35f, bodyHalfH * 0.40f, S3_CORE_HP)
+      setupPart(TYPE_STAGE3_LEFT_FLAK, -bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
+      setupPart(TYPE_STAGE3_RIGHT_FLAK, bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
+      setupPart(TYPE_STAGE3_MEGA_CANNON, 0f, bodyHalfH * 0.45f, bodyHalfW * 0.30f, bodyHalfH * 0.25f, S3_CANNON_HP)
+    } else if (stage >= 2) {
       setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S2_CORE_HP)
       setupPart(TYPE_STAGE2_LEFT_TREAD, -bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
       setupPart(TYPE_STAGE2_RIGHT_TREAD, bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
@@ -512,7 +618,12 @@ class BossController(private val resources: Resources) {
     leftWreckSheet = null
     rightWreckSheet = null
     centerWreckSheet = null
-    if (stage >= 2) {
+    if (stage >= 3) {
+      bodySheet = decodeKeyed(R.drawable.boss_stage3_battleship_full)
+      leftWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_left)
+      rightWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_right)
+      centerWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_center)
+    } else if (stage >= 2) {
       bodySheet = decodeKeyed(R.drawable.boss_stage2_tank_full)
       leftWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_left)
       rightWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_right)
@@ -586,7 +697,10 @@ class BossController(private val resources: Resources) {
     const val TYPE_STAGE2_LEFT_TREAD = 4
     const val TYPE_STAGE2_RIGHT_TREAD = 5
     const val TYPE_STAGE2_MAIN_TURRET = 6
-    const val MAX_PART_COUNT = 7
+    const val TYPE_STAGE3_LEFT_FLAK = 7
+    const val TYPE_STAGE3_RIGHT_FLAK = 8
+    const val TYPE_STAGE3_MEGA_CANNON = 9
+    const val MAX_PART_COUNT = 10
     const val HOVER_Y_FRAC = 0.25f
     const val CORE_WIDTH_FRAC = 0.85f
     const val ENTER_SPEED = 90f
@@ -617,6 +731,18 @@ class BossController(private val resources: Resources) {
     const val S2_CORE_HP = 220
     const val S2_TREAD_HP = 80
     const val S2_TURRET_HP = 70
+    const val S3_CORE_HP = 320
+    const val S3_FLAK_HP = 100
+    const val S3_CANNON_HP = 160
+    const val S3_FLAK_INTERVAL = 0.40f
+    const val S3_FLAK_SPEED = 640f
+    const val S3_CANNON_CHARGE = 2.2f
+    const val S3_RING_COUNT = 16
+    const val S3_RING_STEP = (Math.PI * 2.0 / S3_RING_COUNT).toFloat()
+    const val S3_RING_SPEED = 260f
+    const val S3_SPIRAL_INTERVAL = 0.08f
+    const val S3_SPIRAL_SPEED = 400f
+    const val S3_SPIRAL_SWEEP_SEC = 1.5f
     const val EXPLODE_FRAME_COUNT = 8
     const val EXPLODE_FRAME_SEC = 0.13f
     const val SHADOW_PX = 2
