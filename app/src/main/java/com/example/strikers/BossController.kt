@@ -32,6 +32,7 @@ class BossController(private val resources: Resources) {
   private var bodySheet: Bitmap? = null
   private var leftWreckSheet: Bitmap? = null
   private var rightWreckSheet: Bitmap? = null
+  private var centerWreckSheet: Bitmap? = null
   private val expFrames = arrayOfNulls<Bitmap>(EXPLODE_FRAME_COUNT)
   private val srcExp = Rect()
   private var screenW = 0f
@@ -203,12 +204,19 @@ class BossController(private val resources: Resources) {
     blitOutlined(canvas, sheet, srcCore, bodyPaint)
     val leftWreck = leftWreckSheet
     val rightWreck = rightWreckSheet
+    val centerWreck = centerWreckSheet
     if (currentStage >= 2) {
       if (leftWreck != null && parts[TYPE_STAGE2_LEFT_TREAD].isDestroyed) {
-        blitOutlined(canvas, leftWreck, srcCore, bodyPaint)
+        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
       }
       if (rightWreck != null && parts[TYPE_STAGE2_RIGHT_TREAD].isDestroyed) {
-        blitOutlined(canvas, rightWreck, srcCore, bodyPaint)
+        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+      }
+      if (
+        centerWreck != null &&
+        (parts[TYPE_STAGE2_MAIN_TURRET].isDestroyed || parts[TYPE_CORE].isDestroyed)
+      ) {
+        canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
       }
     } else {
       if (leftWreck != null && parts[TYPE_LEFT_WING].isDestroyed) {
@@ -216,6 +224,12 @@ class BossController(private val resources: Resources) {
       }
       if (rightWreck != null && parts[TYPE_RIGHT_WING].isDestroyed) {
         blitOutlined(canvas, rightWreck, srcCore, bodyPaint)
+      }
+      if (
+        centerWreck != null &&
+        (parts[TYPE_TURRET].isDestroyed || parts[TYPE_CORE].isDestroyed)
+      ) {
+        canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
       }
     }
     if (isExploding) {
@@ -250,6 +264,7 @@ class BossController(private val resources: Resources) {
     recycle(bodySheet)
     recycle(leftWreckSheet)
     recycle(rightWreckSheet)
+    recycle(centerWreckSheet)
     var ei = 0
     while (ei < EXPLODE_FRAME_COUNT) {
       recycle(expFrames[ei])
@@ -259,6 +274,7 @@ class BossController(private val resources: Resources) {
     bodySheet = null
     leftWreckSheet = null
     rightWreckSheet = null
+    centerWreckSheet = null
     loadedStage = -1
   }
 
@@ -405,10 +421,10 @@ class BossController(private val resources: Resources) {
     disablePart(TYPE_STAGE2_RIGHT_TREAD)
     disablePart(TYPE_STAGE2_MAIN_TURRET)
     if (stage >= 2) {
-      setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.34f, bodyHalfH * 0.40f, S2_CORE_HP)
-      setupPart(TYPE_STAGE2_LEFT_TREAD, -bodyHalfW * 0.58f, 0f, bodyHalfW * 0.22f, bodyHalfH * 0.48f, S2_TREAD_HP)
-      setupPart(TYPE_STAGE2_RIGHT_TREAD, bodyHalfW * 0.58f, 0f, bodyHalfW * 0.22f, bodyHalfH * 0.48f, S2_TREAD_HP)
-      setupPart(TYPE_STAGE2_MAIN_TURRET, 0f, -bodyHalfH * 0.08f, bodyHalfW * 0.18f, bodyHalfH * 0.22f, S2_TURRET_HP)
+      setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S2_CORE_HP)
+      setupPart(TYPE_STAGE2_LEFT_TREAD, -bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
+      setupPart(TYPE_STAGE2_RIGHT_TREAD, bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
+      setupPart(TYPE_STAGE2_MAIN_TURRET, 0f, bodyHalfH * 0.18f, bodyHalfW * 0.16f, bodyHalfH * 0.28f, S2_TURRET_HP)
     } else {
       setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.52f, S1_CORE_HP)
       setupPart(TYPE_LEFT_WING, -bodyHalfW * 0.5f, -bodyHalfH * 0.08f, bodyHalfW * 0.30f, bodyHalfH * 0.20f, S1_WING_HP)
@@ -467,17 +483,21 @@ class BossController(private val resources: Resources) {
     recycle(bodySheet)
     recycle(leftWreckSheet)
     recycle(rightWreckSheet)
+    recycle(centerWreckSheet)
     bodySheet = null
     leftWreckSheet = null
     rightWreckSheet = null
+    centerWreckSheet = null
     if (stage >= 2) {
       bodySheet = decodeKeyed(R.drawable.boss_stage2_tank_full)
       leftWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_left)
       rightWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_right)
+      centerWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_center)
     } else {
       bodySheet = decodeKeyed(R.drawable.boss_stage1_full)
       leftWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_left)
       rightWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_right)
+      centerWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_center)
     }
     loadedStage = stage
   }
