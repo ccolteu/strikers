@@ -19,7 +19,7 @@ class BulletManager {
 
   // Reusable drawing variables to achieve absolute zero allocation in the loop
   private val bulletPaint = Paint().apply {
-    color = Color.YELLOW // Retro arcade bright yellow projectiles
+    color = Color.YELLOW
     style = Paint.Style.FILL
   }
 
@@ -38,14 +38,15 @@ class BulletManager {
       missileCooldown -= dt
     }
 
-    if (player.isFiringHeld() && fireCooldownTimer <= 0f) {
+    val held = player.isFiringHeld()
+    if (held && fireCooldownTimer <= 0f) {
       spawnWeaponStream(player)
       spawnedStream = true
       fireCooldownTimer = fireRateInterval
     }
     if (
       player.getWeaponPower() >= 3 &&
-      player.isFiringHeld() &&
+      held &&
       missileCooldown <= 0f
     ) {
       homingMissiles.fireMissile(player.getHitboxX() - 30f, player.getHitboxY(), -150f, -400f)
@@ -134,7 +135,7 @@ class BulletManager {
           bullet.x - HALF_BULLET_WIDTH,
           bullet.y - HALF_BULLET_HEIGHT,
           bullet.x + HALF_BULLET_WIDTH,
-          bullet.y + HALF_BULLET_HEIGHT
+          bullet.y + HALF_BULLET_HEIGHT,
         )
         canvas.drawRoundRect(drawRect, HALF_BULLET_WIDTH, HALF_BULLET_WIDTH, bulletPaint)
       }

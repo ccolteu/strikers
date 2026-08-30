@@ -1,11 +1,7 @@
 package com.example.strikers
 
 class StageData {
-
-    // To test Stage 3 immediately upon launching the app, change it to:
-    // private val STAGE_SEQUENCE = intArrayOf(3, 1, 2)
-    // To test a single stage on repeat infinitely, change it to:
-    // private val STAGE_SEQUENCE = intArrayOf(3)
+    // Dev playlist: change order to jump into a stage (e.g. intArrayOf(3, 2, 1)).
     private val STAGE_SEQUENCE = intArrayOf(1, 2, 3)
     private var sequenceIndex = 0
 

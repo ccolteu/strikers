@@ -56,7 +56,7 @@ class PowerUpItem {
       val s = pool[i]
       if (!s.isActive) {
         fillSlot(s, startX, startY, type)
-        if (type == ITEM_TYPE_POWERUP) {
+        if (type == ITEM_TYPE_POWERUP || type == ITEM_TYPE_BOMB) {
           syncLegacy(s)
         }
         return
@@ -99,7 +99,7 @@ class PowerUpItem {
           }
         }
         if (s.y > floor) s.isActive = false
-        if (s.isActive && s.itemType == ITEM_TYPE_POWERUP) {
+        if (s.isActive && (s.itemType == ITEM_TYPE_POWERUP || s.itemType == ITEM_TYPE_BOMB)) {
           syncLegacy(s)
         }
       }
@@ -120,7 +120,13 @@ class PowerUpItem {
     isActive = false
   }
 
-  fun draw(canvas: Canvas, powerUpBmp: Bitmap?, medalFrames: Array<Bitmap?>, powerPaint: Paint) {
+  fun draw(
+    canvas: Canvas,
+    powerUpBmp: Bitmap?,
+    bombBmp: Bitmap?,
+    medalFrames: Array<Bitmap?>,
+    powerPaint: Paint,
+  ) {
     var i = 0
     while (i < POOL_SIZE) {
       val s = pool[i]
@@ -131,6 +137,12 @@ class PowerUpItem {
             val hx = MEDAL_HALF
             itemDst.set(s.x - hx, s.y - hx, s.x + hx, s.y + hx)
             blitOutlined(canvas, frame, medalPaint)
+          }
+        } else if (s.itemType == ITEM_TYPE_BOMB) {
+          if (bombBmp != null) {
+            val hx = POWERUP_HALF
+            itemDst.set(s.x - hx, s.y - hx, s.x + hx, s.y + hx)
+            blitOutlined(canvas, bombBmp, powerPaint)
           }
         } else if (powerUpBmp != null) {
           val hx = POWERUP_HALF
@@ -193,10 +205,11 @@ class PowerUpItem {
   companion object {
     const val ITEM_TYPE_POWERUP = 0
     const val ITEM_TYPE_MEDAL = 1
+    const val ITEM_TYPE_BOMB = 2
     const val POOL_SIZE = 16
     const val MEDAL_FRAME_COUNT = 8
     const val MEDAL_FRAME_SEC = 1f / 15f
-    const val POWERUP_HALF = 32f
+    const val POWERUP_HALF = 78f
     const val MEDAL_HALF = 36f
     const val OUTLINE_PX = 3f
     const val SHADOW_PX = 2f

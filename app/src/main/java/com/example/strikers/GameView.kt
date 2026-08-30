@@ -63,6 +63,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var isSettingsMenuOpen = false
   private var logoBmp: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
+  private var bombPickupBmp: Bitmap? = null
   private val medalFrames = arrayOfNulls<Bitmap>(PowerUpItem.MEDAL_FRAME_COUNT)
   private var bgStage2Bmp: Bitmap? = null
   private var bgStage3Bmp: Bitmap? = null
@@ -83,6 +84,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var lastNanos = 0L
   private var screenShakeTrauma = 0f
   private var shakeSeed = 14352451L
+  private var lootSeed = 2463534242L
   private var bossWasExploding = false
   private var screenW = 0
   private var screenH = 0
@@ -713,7 +715,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             if (enemy.health <= 0) {
               enemy.isActive = false
               particles.triggerExplosion(enemy.x, enemy.y, true)
-              dropEnemyLoot(enemy.x, enemy.y)
+              dropEnemyLoot(enemy.x, enemy.y, enemy.type)
             }
           }
         }
@@ -793,6 +795,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (powerUpBmp == null) {
       powerUpBmp = decodeKeyed(R.drawable.item_powerup)
+    }
+    if (bombPickupBmp == null) {
+      bombPickupBmp = decodeKeyed(R.drawable.item_bomb)
     }
     if (medalFrames[0] == null) {
       medalFrames[0] = decodeKeyed(R.drawable.item_medal_0)
@@ -899,7 +904,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               if (enemy.health <= 0) {
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
-                dropEnemyLoot(enemy.x, enemy.y)
+                dropEnemyLoot(enemy.x, enemy.y, enemy.type)
               }
               break
             }
@@ -929,7 +934,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               if (enemy.health <= 0) {
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
-                dropEnemyLoot(enemy.x, enemy.y)
+                dropEnemyLoot(enemy.x, enemy.y, enemy.type)
               }
               break
             }
@@ -1046,7 +1051,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             if ((nx * nx) + (ny * ny) <= 1f) {
               enemy.isActive = false
               particles.triggerExplosion(enemy.x, enemy.y)
-              dropEnemyLoot(enemy.x, enemy.y)
+              dropEnemyLoot(enemy.x, enemy.y, enemy.type)
               if (player.takeDamage()) {
                 particles.triggerExplosion(playerX, playerY)
                 if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
@@ -1093,13 +1098,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         val half = if (item.itemType == PowerUpItem.ITEM_TYPE_MEDAL) {
           PowerUpItem.MEDAL_HALF
         } else {
-          POWERUP_HALF
+          PowerUpItem.POWERUP_HALF
         }
         val pickup = PLAYER_HIT_RADIUS + half
         if ((dx * dx) + (dy * dy) <= pickup * pickup) {
           item.isActive = false
           if (item.itemType == PowerUpItem.ITEM_TYPE_MEDAL) {
             collectMedal(item)
+          } else if (item.itemType == PowerUpItem.ITEM_TYPE_BOMB) {
+            collectBomb(item.x, item.y)
           } else {
             player.upgradeWeapon()
             SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
@@ -1110,11 +1117,39 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
-  private fun dropEnemyLoot(x: Float, y: Float) {
+  private fun dropEnemyLoot(x: Float, y: Float, enemyType: Int) {
     powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_MEDAL)
-    if (Math.random() < 0.15) {
-      powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_POWERUP)
+    val dropChance = if (
+      enemyType == ENEMY_TYPE_HEAVY ||
+      enemyType == ENEMY_TYPE_INTERCEPTOR
+    ) {
+      0.40f
+    } else {
+      0.15f
     }
+    if (nextLootUnit() >= dropChance) return
+    val pickupType = if (nextLootUnit() < 0.2f) {
+      PowerUpItem.ITEM_TYPE_BOMB
+    } else {
+      PowerUpItem.ITEM_TYPE_POWERUP
+    }
+    powerUpItem.spawn(x, y, pickupType)
+  }
+
+  private fun nextLootUnit(): Float {
+    lootSeed = lootSeed * 1664525L + 1013904223L
+    return ((lootSeed ushr 8) and 0xFFFFFFL).toFloat() / 16777215f
+  }
+
+  private fun collectBomb(x: Float, y: Float) {
+    if (availableBombs < MAX_BOMBS) {
+      availableBombs++
+    } else {
+      campaignScore += BOMB_FULL_SCORE
+      if (campaignScore > 99_999_999) campaignScore = 99_999_999
+      triggerFloatingScore(x, y, BOMB_FULL_SCORE)
+    }
+    SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
   }
 
   private fun collectMedal(item: PowerUpSlot) {
@@ -1188,7 +1223,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun drawPowerUpItem(canvas: Canvas) {
-    powerUpItem.draw(canvas, powerUpBmp, medalFrames, bodyPaint)
+    powerUpItem.draw(canvas, powerUpBmp, bombPickupBmp, medalFrames, bodyPaint)
   }
 
   private fun lockGameCanvas(): Canvas? {
@@ -1227,6 +1262,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val powerUp = powerUpBmp
     if (powerUp != null && !powerUp.isRecycled) powerUp.recycle()
     powerUpBmp = null
+    val bombPickup = bombPickupBmp
+    if (bombPickup != null && !bombPickup.isRecycled) bombPickup.recycle()
+    bombPickupBmp = null
     var medalI = 0
     while (medalI < medalFrames.size) {
       val medal = medalFrames[medalI]
@@ -1528,13 +1566,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val BOSS_BULLET_PAD_X = 6f
     const val BOSS_BULLET_PAD_Y = 16f
     const val ENEMY_RAM_BODY_FRAC = 0.45f
-    const val POWERUP_HALF = 32f
     const val MEDAL_SCORE_FACE = 2000
     const val MEDAL_SCORE_EDGE = 200
     const val FLOATING_SPEED = 90f
     const val FLOATING_LIFE = 0.75f
     const val BOMB_ENEMY_DPS = 250f
     const val BOMB_BOSS_DPS = 400f
+    const val ENEMY_TYPE_INTERCEPTOR = 2
+    const val ENEMY_TYPE_HEAVY = 3
+    const val MAX_BOMBS = 3
+    const val BOMB_FULL_SCORE = 5000
     const val DOUBLE_TAP_MS = 280L
     const val TAP_MAX_MS = 220L
     const val TAP_SLOP_SQ = 48f * 48f
