@@ -12,14 +12,12 @@ import android.graphics.Rect
 import android.view.MotionEvent
 
 /**
- * Relative-drag player with a single 7-frame bank strip.
- * Frame 1 = hard left, Frame 4 = idle, Frame 7 = hard right.
- * Source cells are cached [Rect]s; the sheet stays one GPU texture.
+ * Relative-drag player. Seven same-size bank sprites:
+ * 1 = hard left, 4 = idle, 7 = hard right.
  */
 class PlayerShip(private val resources: Resources) {
 
-  private var sheet: Bitmap? = null
-  private val srcFrames = Array(FRAME_COUNT) { Rect() }
+  private val frames = arrayOfNulls<Bitmap>(FRAME_COUNT)
   private val dst = Rect()
   private val paint = Paint().apply { isFilterBitmap = true }
   private val outlinePaint = Paint().apply {
@@ -60,14 +58,10 @@ class PlayerShip(private val resources: Resources) {
     if (width <= 0 || height <= 0) return
     screenW = width
     screenH = height
-    if (sheet == null) {
-      sheet = loadKeyedSheet()
-      mapHardcodedSrcRects()
-    }
-    val cellW = srcFrames[IDLE_INDEX].width()
-    val cellH = srcFrames[IDLE_INDEX].height()
+    if (frames[0] == null) loadFrames()
+    val idle = frames[IDLE_INDEX] ?: return
     val drawW = (width * SHIP_WIDTH_FRAC).toInt().coerceAtLeast(1)
-    val drawH = (drawW * (cellH.toFloat() / cellW.toFloat())).toInt().coerceAtLeast(1)
+    val drawH = (drawW * (idle.height.toFloat() / idle.width.toFloat())).toInt().coerceAtLeast(1)
     halfW = drawW * 0.5f
     halfH = drawH * 0.5f
     x = width * 0.5f
@@ -247,11 +241,10 @@ class PlayerShip(private val resources: Resources) {
   fun draw(canvas: Canvas) {
     if (isGameOverFlag || respawnTimer > 0f) return
     if (isInvulnerable && ((invulnTimer * 20f).toInt() and 1) == 0) return
-    val bmp = sheet ?: return
     val frame = kotlin.math.round(currentFrameIndex).toInt().coerceIn(0, FRAME_COUNT - 1)
-    val src = srcFrames[frame]
+    val bmp = frames[frame] ?: return
     dst.offset(SHADOW_PX, SHADOW_PX)
-    canvas.drawBitmap(bmp, src, dst, shadowPaint)
+    canvas.drawBitmap(bmp, null, dst, shadowPaint)
     dst.offset(-SHADOW_PX, -SHADOW_PX)
     var oy = -OUTLINE_PX
     while (oy <= OUTLINE_PX) {
@@ -259,20 +252,22 @@ class PlayerShip(private val resources: Resources) {
       while (ox <= OUTLINE_PX) {
         if (ox != 0 || oy != 0) {
           dst.offset(ox, oy)
-          canvas.drawBitmap(bmp, src, dst, outlinePaint)
+          canvas.drawBitmap(bmp, null, dst, outlinePaint)
           dst.offset(-ox, -oy)
         }
         ox += OUTLINE_PX
       }
       oy += OUTLINE_PX
     }
-    canvas.drawBitmap(bmp, src, dst, paint)
+    canvas.drawBitmap(bmp, null, dst, paint)
   }
 
   fun release() {
-    val bmp = sheet
-    if (bmp != null && !bmp.isRecycled) bmp.recycle()
-    sheet = null
+    for (i in frames.indices) {
+      val bmp = frames[i]
+      if (bmp != null && !bmp.isRecycled) bmp.recycle()
+      frames[i] = null
+    }
   }
 
   private fun clamp() {
@@ -292,35 +287,29 @@ class PlayerShip(private val resources: Resources) {
     )
   }
 
-  private fun mapHardcodedSrcRects() {
-    val bmp = sheet ?: return
-    val sheetWidth = bmp.width.toFloat()
-
-    val cellWidthFloat = sheetWidth / FRAME_COUNT.toFloat()
-    val topCoord = 400
-    val bottomCoord = 600
-
+  private fun loadFrames() {
+    val ids = intArrayOf(
+      R.drawable.player_ship_1,
+      R.drawable.player_ship_2,
+      R.drawable.player_ship_3,
+      R.drawable.player_ship_4,
+      R.drawable.player_ship_5,
+      R.drawable.player_ship_6,
+      R.drawable.player_ship_7,
+    )
     for (i in 0 until FRAME_COUNT) {
-      val exactLeft = i * cellWidthFloat
-      val exactRight = (i + 1) * cellWidthFloat
-
-      // This adds an 8-pixel horizontal cushion inside each cell,
-      // cleanly separating the wings from neighboring fields.
-      val leftInt = exactLeft.toInt() + 8
-      val rightInt = exactRight.toInt() - 8
-
-      srcFrames[i].set(leftInt, topCoord, rightInt, bottomCoord)
+      frames[i] = loadKeyed(ids[i])
     }
   }
 
-  private fun loadKeyedSheet(): Bitmap {
+  private fun loadKeyed(resId: Int): Bitmap {
     val opts = BitmapFactory.Options().apply {
       inScaled = false
       inPreferredConfig = Bitmap.Config.ARGB_8888
       inMutable = true
     }
-    val src = BitmapFactory.decodeResource(resources, R.drawable.player_sprite_sheet, opts)
-      ?: error("Missing drawable player_sprite_sheet")
+    val src = BitmapFactory.decodeResource(resources, resId, opts)
+      ?: error("Missing drawable $resId")
     val bmp = if (src.isMutable) src else src.copy(Bitmap.Config.ARGB_8888, true).also { src.recycle() }
     keyGreen(bmp)
     return bmp
@@ -350,7 +339,6 @@ class PlayerShip(private val resources: Resources) {
     const val IDLE_INDEX = 3
     const val IDLE_FRAME = 3f
 
-    // Ensure this sits at 0.16f or 0.18f to give your wide-winged plane a crisp arcade presence
     const val SHIP_WIDTH_FRAC = 0.16f
 
     const val MOVE_THRESHOLD = 0.5f
