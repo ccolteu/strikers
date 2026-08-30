@@ -78,47 +78,75 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var lastNanos = 0L
   private var screenW = 0
   private var screenH = 0
+  private var arcadeTypeface: Typeface? = null
   private val uiTextPaint = Paint().apply {
     color = Color.WHITE
     typeface = Typeface.DEFAULT_BOLD
-    textSize = 54f
+    textSize = 32f
     isAntiAlias = true
   }
   private val uiShadowPaint = Paint().apply {
     color = Color.BLACK
     typeface = Typeface.DEFAULT_BOLD
-    textSize = 54f
+    textSize = 32f
     isAntiAlias = true
   }
   private val uiGoldPaint = Paint().apply {
     color = Color.YELLOW
     typeface = Typeface.DEFAULT_BOLD
-    textSize = 68f
+    textSize = 42f
     isAntiAlias = true
   }
   private val uiGoldShadowPaint = Paint().apply {
     color = Color.BLACK
     typeface = Typeface.DEFAULT_BOLD
-    textSize = 68f
+    textSize = 42f
     isAntiAlias = true
   }
   private val uiStringBuilder = StringBuilder(80)
   private val uiSmallPaint = Paint().apply {
     color = Color.WHITE
     typeface = Typeface.DEFAULT_BOLD
-    textSize = 28f
+    textSize = 20f
     isAntiAlias = true
   }
   private val uiSmallShadowPaint = Paint().apply {
     color = Color.BLACK
     typeface = Typeface.DEFAULT_BOLD
-    textSize = 28f
+    textSize = 20f
+    isAntiAlias = true
+  }
+  private val accentShadowPaint = Paint().apply {
+    color = 0xFF3A3A3A.toInt()
+    typeface = Typeface.DEFAULT_BOLD
+    textSize = 32f
     isAntiAlias = true
   }
   private val uiTrackPaint = Paint().apply {
-    color = 0xFF3A3A3A.toInt()
+    color = 0xAA1A1A1A.toInt()
     style = Paint.Style.FILL
     isAntiAlias = true
+  }
+  private val uiTrackStrokePaint = Paint().apply {
+    color = 0xFFFFD54A.toInt()
+    style = Paint.Style.STROKE
+    strokeWidth = 5f
+    isAntiAlias = true
+  }
+  private val uiHitFullPaint = Paint().apply {
+    color = 0xFF3DFF4A.toInt()
+    style = Paint.Style.FILL
+    isAntiAlias = false
+  }
+  private val uiHitMidPaint = Paint().apply {
+    color = 0xFFC9A000.toInt()
+    style = Paint.Style.FILL
+    isAntiAlias = false
+  }
+  private val uiHitWarnPaint = Paint().apply {
+    color = 0xFFE53935.toInt()
+    style = Paint.Style.FILL
+    isAntiAlias = false
   }
 
   init {
@@ -126,6 +154,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     isFocusable = true
     isFocusableInTouchMode = true
     setWillNotDraw(true)
+    try {
+      arcadeTypeface = Typeface.createFromAsset(context.assets, "fonts/arcade_font.ttf")
+    } catch (_: Exception) {
+    }
+    val face = arcadeTypeface ?: Typeface.DEFAULT_BOLD
+    uiTextPaint.typeface = face
+    uiShadowPaint.typeface = face
+    uiGoldPaint.typeface = face
+    uiGoldShadowPaint.typeface = face
+    uiSmallPaint.typeface = face
+    uiSmallShadowPaint.typeface = face
+    accentShadowPaint.typeface = face
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -311,18 +351,60 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         i++
       }
     }
+    if (player.getHealth() > 0) {
+      val currentHits = player.getHitsLeft()
+      val maxHits = player.getMaxHitsPerLife()
+      val barWidth = 240f
+      val barH = 12f
+      val barLeft = (screenW - barWidth) * 0.5f
+      val barTop = lifeStartY + lifeSize + 8f
+      hudIconDst.set(barLeft, barTop, barLeft + barWidth, barTop + barH)
+      canvas.drawRect(hudIconDst, uiShadowPaint)
+      val gap = 2f
+      val segW = (barWidth - gap * (maxHits + 1)) / maxHits
+      val fillPaint = if (currentHits >= 3) {
+        uiHitFullPaint
+      } else if (currentHits == 2) {
+        uiHitMidPaint
+      } else {
+        uiHitWarnPaint
+      }
+      val warnVisible = currentHits > 1 || ((System.currentTimeMillis() / 180L) and 1L) == 0L
+      var seg = 0
+      while (seg < maxHits) {
+        if (seg < currentHits && warnVisible) {
+          val sx = barLeft + gap + seg * (segW + gap)
+          hudIconDst.set(sx, barTop + gap, sx + segW, barTop + barH - gap)
+          canvas.drawRect(hudIconDst, fillPaint)
+        }
+        seg++
+      }
+    }
     val topTextY = 80f
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("1P-START")
+    uiStringBuilder.append("1PADV")
     val startEnd = uiStringBuilder.length
-    canvas.drawText(uiStringBuilder, 0, startEnd, 35f + 4f, topTextY + 4f, uiShadowPaint)
-    canvas.drawText(uiStringBuilder, 0, startEnd, 30f, topTextY, uiTextPaint)
+    drawHudTextAt(canvas, uiStringBuilder, 0, startEnd, 30f, topTextY, uiTextPaint, uiShadowPaint)
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("00")
+    var score = if (gameState == STATE_CLEAR) scorecard.visibleTotalScore else 0
+    if (score < 0) score = 0
+    if (score > 99_999_999) score = 99_999_999
+    var digits = 1
+    var tally = score
+    while (tally >= 10) {
+      tally /= 10
+      digits++
+    }
+    var pad = 8 - digits
+    while (pad > 0) {
+      uiStringBuilder.append('0')
+      pad--
+    }
+    uiStringBuilder.append(score)
     val scoreEnd = uiStringBuilder.length
     val scoreW = uiTextPaint.measureText(uiStringBuilder, 0, scoreEnd)
-    canvas.drawText(uiStringBuilder, 0, scoreEnd, screenW - scoreW - 35f + 4f, topTextY + 4f, uiShadowPaint)
-    canvas.drawText(uiStringBuilder, 0, scoreEnd, screenW - scoreW - 30f, topTextY, uiTextPaint)
+    val scoreX = screenW - scoreW - 30f
+    drawHudTextAt(canvas, uiStringBuilder, 0, scoreEnd, scoreX, topTextY, uiTextPaint, uiShadowPaint)
     if (gameState == STATE_DEMO && (demoT * 2f).toInt() % 2 == 0) {
       uiStringBuilder.setLength(0)
       uiStringBuilder.append("DEMO")
@@ -429,7 +511,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun drawSettingsOverlay(canvas: Canvas) {
-    canvas.drawColor(0xDD000000.toInt())
+    canvas.drawColor(0x88000000.toInt())
     val cx = screenW * 0.5f
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("SOUND CONFIGURATION")
@@ -438,6 +520,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val trackW = screenW * 0.60f
     val trackH = 28f
     val trackLeft = cx - trackW * 0.5f
+    val corner = trackH * 0.45f
 
     val bgmScale = SoundManager.instance.getBgmVolumeScale()
     uiStringBuilder.setLength(0)
@@ -447,11 +530,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.32f, uiTextPaint, uiShadowPaint)
     val bgmTop = screenH * 0.38f - trackH * 0.5f
     bgmSliderRect.set(trackLeft, bgmTop, trackLeft + trackW, bgmTop + trackH)
-    canvas.drawRect(bgmSliderRect, uiTrackPaint)
-    if (bgmScale > 0f) {
-      hudIconDst.set(trackLeft, bgmTop, trackLeft + trackW * bgmScale, bgmTop + trackH)
-      canvas.drawRect(hudIconDst, uiGoldPaint)
-    }
+    drawCabinetSlider(canvas, bgmSliderRect, bgmScale, corner)
 
     val sfxScale = SoundManager.instance.getSfxVolumeScale()
     uiStringBuilder.setLength(0)
@@ -461,11 +540,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.48f, uiTextPaint, uiShadowPaint)
     val sfxTop = screenH * 0.54f - trackH * 0.5f
     sfxSliderRect.set(trackLeft, sfxTop, trackLeft + trackW, sfxTop + trackH)
-    canvas.drawRect(sfxSliderRect, uiTrackPaint)
-    if (sfxScale > 0f) {
-      hudIconDst.set(trackLeft, sfxTop, trackLeft + trackW * sfxScale, sfxTop + trackH)
-      canvas.drawRect(hudIconDst, uiGoldPaint)
-    }
+    drawCabinetSlider(canvas, sfxSliderRect, sfxScale, corner)
 
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ RETURN TO TITLE ]")
@@ -481,6 +556,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     )
   }
 
+  private fun drawCabinetSlider(canvas: Canvas, track: RectF, fill: Float, corner: Float) {
+    canvas.drawRoundRect(track, corner, corner, uiTrackPaint)
+    if (fill > 0f) {
+      val inset = 4f
+      val innerRight = track.left + (track.width() - inset * 2f) * fill + inset
+      hudIconDst.set(track.left + inset, track.top + inset, innerRight, track.bottom - inset)
+      canvas.drawRoundRect(hudIconDst, corner * 0.7f, corner * 0.7f, uiGoldPaint)
+    }
+    canvas.drawRoundRect(track, corner, corner, uiTrackStrokePaint)
+  }
+
   private fun drawCenteredHud(
     canvas: Canvas,
     text: StringBuilder,
@@ -492,8 +578,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val end = text.length
     val w = fill.measureText(text, 0, end)
     val x = centerX - w * 0.5f
-    canvas.drawText(text, 0, end, x + 6f, y + 6f, shadow)
-    canvas.drawText(text, 0, end, x, y, fill)
+    drawHudTextAt(canvas, text, 0, end, x, y, fill, shadow)
+  }
+
+  private fun drawHudTextAt(
+    canvas: Canvas,
+    text: StringBuilder,
+    start: Int,
+    end: Int,
+    x: Float,
+    y: Float,
+    fill: Paint,
+    shadow: Paint,
+  ) {
+    accentShadowPaint.typeface = arcadeTypeface ?: fill.typeface
+    accentShadowPaint.textSize = fill.textSize
+    if (fill === uiGoldPaint) {
+      accentShadowPaint.color = 0xFFB35400.toInt()
+    } else {
+      accentShadowPaint.color = 0xFF3A3A3A.toInt()
+    }
+    canvas.drawText(text, start, end, x + 4f, y + 4f, shadow)
+    canvas.drawText(text, start, end, x + 2f, y + 2f, accentShadowPaint)
+    canvas.drawText(text, start, end, x, y, fill)
   }
 
   private fun updatePanicBomb(dt: Float) {

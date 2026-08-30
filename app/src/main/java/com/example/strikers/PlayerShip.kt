@@ -168,6 +168,10 @@ class PlayerShip(private val resources: Resources) {
 
   fun getHealth(): Int = lives
 
+  fun getHitsLeft(): Int = hitsLeft
+
+  fun getMaxHitsPerLife(): Int = HITS_PER_LIFE
+
   fun getWeaponPower(): Int = weaponPowerLevel
 
   fun upgradeWeapon() {
