@@ -504,18 +504,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (existing != null && !existing.isRecycled) existing.recycle()
     bgStage2Bmp = null
-    val opts = BitmapFactory.Options().apply {
-      inScaled = false
-      inPreferredConfig = Bitmap.Config.ARGB_8888
-    }
-    val src = BitmapFactory.decodeResource(resources, R.drawable.stage2_bg_layer1_ground, opts)
-      ?: error("Missing drawable stage2_bg_layer1_ground")
-    if (src.width == width && src.height == height) {
-      bgStage2Bmp = src
-      return
-    }
-    bgStage2Bmp = Bitmap.createScaledBitmap(src, width, height, true)
-    if (bgStage2Bmp !== src) src.recycle()
+    bgStage2Bmp = decodeCoverScaled(resources, R.drawable.stage2_bg_layer1_ground, width, height)
   }
 
   private fun decodeKeyed(drawableId: Int): Bitmap {

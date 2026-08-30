@@ -7,10 +7,13 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import kotlin.math.ceil
+import kotlin.math.max
 
 /**
- * Three-layer vertical parallax. Bitmaps are decoded and scaled once to the
- * surface size; [update] / [draw] only mutate floats and blit.
+ * Three-layer vertical parallax. Bitmaps are decoded once and **cover-scaled**
+ * (uniform scale, center crop) to the surface so 2:3 art is not stretched on
+ * 9:16 phones. [update] / [draw] only mutate floats and blit.
  *
  * Mid and high layers are authored on black. [PorterDuff.Mode.SCREEN] drops
  * the black and keeps the clouds. High clouds also use a fixed 40% alpha.
@@ -48,9 +51,9 @@ class ParallaxBackground(private val resources: Resources) {
     recycle(ground)
     recycle(mid)
     recycle(high)
-    ground = loadScaled(R.drawable.stage1_bg_layer1_ground, width, height)
-    mid = loadScaled(R.drawable.stage1_bg_layer2_mid, width, height)
-    high = loadScaled(R.drawable.stage1_bg_layer3_high, width, height)
+    ground = decodeCoverScaled(resources, R.drawable.stage1_bg_layer1_ground, width, height)
+    mid = decodeCoverScaled(resources, R.drawable.stage1_bg_layer2_mid, width, height)
+    high = decodeCoverScaled(resources, R.drawable.stage1_bg_layer3_high, width, height)
     yGround = 0f
     yMid = 0f
     yHigh = 0f
@@ -97,19 +100,6 @@ class ParallaxBackground(private val resources: Resources) {
     canvas.drawBitmap(bitmap, 0f, y - h, paint)
   }
 
-  private fun loadScaled(id: Int, width: Int, height: Int): Bitmap {
-    val opts = BitmapFactory.Options().apply {
-      inScaled = false
-      inPreferredConfig = Bitmap.Config.ARGB_8888
-    }
-    val src = BitmapFactory.decodeResource(resources, id, opts)
-      ?: error("Missing drawable $id")
-    if (src.width == width && src.height == height) return src
-    val scaled = Bitmap.createScaledBitmap(src, width, height, true)
-    if (scaled !== src) src.recycle()
-    return scaled
-  }
-
   private fun recycle(bitmap: Bitmap?) {
     if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
   }
@@ -127,4 +117,28 @@ class ParallaxBackground(private val resources: Resources) {
       return v
     }
   }
+}
+
+/** Uniform scale to cover [width]x[height], then center-crop. Does not stretch. */
+internal fun decodeCoverScaled(resources: Resources, id: Int, width: Int, height: Int): Bitmap {
+  val opts = BitmapFactory.Options().apply {
+    inScaled = false
+    inPreferredConfig = Bitmap.Config.ARGB_8888
+  }
+  val src = BitmapFactory.decodeResource(resources, id, opts)
+    ?: error("Missing drawable $id")
+  if (src.width == width && src.height == height) return src
+  val scale = max(width.toFloat() / src.width, height.toFloat() / src.height)
+  val scaledW = ceil(src.width * scale).toInt().coerceAtLeast(width)
+  val scaledH = ceil(src.height * scale).toInt().coerceAtLeast(height)
+  val scaled = Bitmap.createScaledBitmap(src, scaledW, scaledH, true)
+  if (scaled !== src) src.recycle()
+  if (scaled.width == width && scaled.height == height) return scaled
+  val cropX = ((scaled.width - width) / 2).coerceAtLeast(0)
+  val cropY = ((scaled.height - height) / 2).coerceAtLeast(0)
+  val cropW = width.coerceAtMost(scaled.width - cropX)
+  val cropH = height.coerceAtMost(scaled.height - cropY)
+  val cropped = Bitmap.createBitmap(scaled, cropX, cropY, cropW, cropH)
+  if (cropped !== scaled) scaled.recycle()
+  return cropped
 }
