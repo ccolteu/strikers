@@ -508,8 +508,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       inScaled = false
       inPreferredConfig = Bitmap.Config.ARGB_8888
     }
-    val src = BitmapFactory.decodeResource(resources, R.drawable.background_stage2, opts)
-      ?: error("Missing drawable background_stage2")
+    val src = BitmapFactory.decodeResource(resources, R.drawable.stage2_bg_layer1_ground, opts)
+      ?: error("Missing drawable stage2_bg_layer1_ground")
     if (src.width == width && src.height == height) {
       bgStage2Bmp = src
       return

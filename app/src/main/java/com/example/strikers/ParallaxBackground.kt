@@ -48,9 +48,9 @@ class ParallaxBackground(private val resources: Resources) {
     recycle(ground)
     recycle(mid)
     recycle(high)
-    ground = loadScaled(R.drawable.bg_layer1_ground, width, height)
-    mid = loadScaled(R.drawable.bg_layer2_mid, width, height)
-    high = loadScaled(R.drawable.bg_layer3_high, width, height)
+    ground = loadScaled(R.drawable.stage1_bg_layer1_ground, width, height)
+    mid = loadScaled(R.drawable.stage1_bg_layer2_mid, width, height)
+    high = loadScaled(R.drawable.stage1_bg_layer3_high, width, height)
     yGround = 0f
     yMid = 0f
     yHigh = 0f
