@@ -2,7 +2,10 @@ package com.example.strikers
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
 
 class PowerUpSlot {
@@ -31,6 +34,16 @@ class PowerUpItem {
   private val medalPaint = Paint().apply {
     isFilterBitmap = false
     isAntiAlias = false
+  }
+  private val medalOutlinePaint = Paint().apply {
+    isFilterBitmap = false
+    isAntiAlias = false
+    colorFilter = PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.SRC_IN)
+  }
+  private val medalShadowPaint = Paint().apply {
+    isFilterBitmap = false
+    isAntiAlias = false
+    colorFilter = PorterDuffColorFilter(0xCC000000.toInt(), PorterDuff.Mode.SRC_IN)
   }
 
   fun spawn(startX: Float, startY: Float) {
@@ -117,16 +130,36 @@ class PowerUpItem {
           if (frame != null) {
             val hx = MEDAL_HALF
             itemDst.set(s.x - hx, s.y - hx, s.x + hx, s.y + hx)
-            canvas.drawBitmap(frame, null, itemDst, medalPaint)
+            blitOutlined(canvas, frame, medalPaint)
           }
         } else if (powerUpBmp != null) {
           val hx = POWERUP_HALF
           itemDst.set(s.x - hx, s.y - hx, s.x + hx, s.y + hx)
-          canvas.drawBitmap(powerUpBmp, null, itemDst, powerPaint)
+          blitOutlined(canvas, powerUpBmp, powerPaint)
         }
       }
       i++
     }
+  }
+
+  private fun blitOutlined(canvas: Canvas, bmp: Bitmap, bodyPaint: Paint) {
+    itemDst.offset(SHADOW_PX, SHADOW_PX)
+    canvas.drawBitmap(bmp, null, itemDst, medalShadowPaint)
+    itemDst.offset(-SHADOW_PX, -SHADOW_PX)
+    var oy = -OUTLINE_PX
+    while (oy <= OUTLINE_PX) {
+      var ox = -OUTLINE_PX
+      while (ox <= OUTLINE_PX) {
+        if (ox != 0f || oy != 0f) {
+          itemDst.offset(ox, oy)
+          canvas.drawBitmap(bmp, null, itemDst, medalOutlinePaint)
+          itemDst.offset(-ox, -oy)
+        }
+        ox += OUTLINE_PX
+      }
+      oy += OUTLINE_PX
+    }
+    canvas.drawBitmap(bmp, null, itemDst, bodyPaint)
   }
 
   private fun fillSlot(s: PowerUpSlot, startX: Float, startY: Float, type: Int) {
@@ -165,5 +198,7 @@ class PowerUpItem {
     const val MEDAL_FRAME_SEC = 1f / 15f
     const val POWERUP_HALF = 32f
     const val MEDAL_HALF = 36f
+    const val OUTLINE_PX = 3f
+    const val SHADOW_PX = 2f
   }
 }

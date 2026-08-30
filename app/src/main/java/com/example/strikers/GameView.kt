@@ -80,6 +80,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
+  private var screenShakeTrauma = 0f
+  private var shakeSeed = 14352451L
+  private var bossWasExploding = false
   private var screenW = 0
   private var screenH = 0
   private var arcadeTypeface: Typeface? = null
@@ -236,6 +239,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       ((frameTimeNanos - lastNanos).coerceIn(0L, MAX_FRAME_NS) / 1_000_000_000f)
     }
     lastNanos = frameTimeNanos
+    screenShakeTrauma = (screenShakeTrauma - 1.2f * dt).coerceAtLeast(0f)
     when (gameState) {
       STATE_TITLE -> {
         parallax.update(TITLE_SCROLL_PX * dt)
@@ -286,6 +290,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (boss.isActive() || boss.isExploding()) {
           bossFought = true
         }
+        val exploding = boss.isExploding()
+        if (exploding && !bossWasExploding) {
+          addScreenShake(1.0f)
+        }
+        bossWasExploding = exploding
         enemyShots.update(dt)
         updatePanicBomb(dt)
         particles.update(dt)
@@ -318,6 +327,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           stageGroundBitmap(),
           stageManager.currentStage == 1,
         )
+        val shaking = screenShakeTrauma > 0f && gameState != STATE_TITLE
+        if (shaking) {
+          val power = screenShakeTrauma * screenShakeTrauma * 30f
+          canvas.save()
+          canvas.translate(nextShakeUnit() * power, nextShakeUnit() * power)
+        }
         if (gameState != STATE_TITLE) {
           enemies.draw(canvas)
           boss.draw(canvas)
@@ -329,12 +344,24 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           particles.draw(canvas)
           drawPanicBomb(canvas)
         }
+        if (shaking) {
+          canvas.restore()
+        }
         drawArcadeUI(canvas)
       } finally {
         holder.unlockCanvasAndPost(canvas)
       }
     }
     choreographer.postFrameCallback(this)
+  }
+
+  fun addScreenShake(intensity: Float) {
+    screenShakeTrauma = (screenShakeTrauma + intensity).coerceAtMost(1.0f)
+  }
+
+  private fun nextShakeUnit(): Float {
+    shakeSeed = shakeSeed * 1664525L + 1013904223L
+    return (((shakeSeed ushr 8) and 0xFFFFFFL).toFloat() / 16777215f) * 2f - 1f
   }
 
   /**
@@ -1215,6 +1242,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     scorecard.visibleTotalScore = 0
 
     panicBomb.isActive = false
+    bossWasExploding = false
+    screenShakeTrauma = 0f
     bossBombDmgBank = 0f
     awaitingSecondTap = false
     bossFought = false
@@ -1409,6 +1438,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         ) {
           availableBombs--
           panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+          addScreenShake(0.8f)
           SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
           awaitingSecondTap = false
         }
