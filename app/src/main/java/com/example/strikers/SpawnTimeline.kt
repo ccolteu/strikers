@@ -1,83 +1,33 @@
 package com.example.strikers
 
 /**
- * Stage 1 is driven by elapsed-time spawn loops (no per-frame alloc).
- * Stage 2 still uses a pre-ordered [SpawnEvent] cursor.
+ * Stages 1–3 are driven by elapsed-time spawn loops (no per-frame alloc).
  * Stage 3 (Ocean Fleet) uses interval waves, then a 25s boss gate that
  * freezes the timeline cursor until the fight is over.
  */
 class SpawnTimeline {
 
-  private val stage2Events = arrayOf(
-    // =========================================================================
-    // PHASE 1: THE CROSSING FINGER-PINCER SWEEP (0.5s - 5.0s)
-    // Fast scouts rushing from both top corners, staggered to weave between each other
-    // =========================================================================
-    SpawnEvent(0.5f, -0.05f, -0.05f, SWEEP_VX * 1.3f, SWEEP_VY * 1.1f, TYPE_DRONE),
-    SpawnEvent(0.8f, 1.05f, -0.05f, -SWEEP_VX * 1.3f, SWEEP_VY * 1.1f, TYPE_DRONE),
-
-    SpawnEvent(1.4f, -0.05f, -0.05f, SWEEP_VX * 1.3f, SWEEP_VY * 1.1f, TYPE_DRONE),
-    SpawnEvent(1.7f, 1.05f, -0.05f, -SWEEP_VX * 1.3f, SWEEP_VY * 1.1f, TYPE_DRONE),
-
-    SpawnEvent(2.3f, -0.05f, -0.05f, SWEEP_VX * 1.3f, SWEEP_VY * 1.1f, TYPE_DRONE),
-    SpawnEvent(2.6f, 1.05f, -0.05f, -SWEEP_VX * 1.3f, SWEEP_VY * 1.1f, TYPE_DRONE),
-
-    SpawnEvent(3.2f, -0.05f, -0.05f, SWEEP_VX * 1.3f, SWEEP_VY * 1.1f, TYPE_DRONE),
-    SpawnEvent(3.5f, 1.05f, -0.05f, -SWEEP_VX * 1.3f, SWEEP_VY * 1.1f, TYPE_DRONE),
-
-    // =========================================================================
-    // PHASE 2: LOW-ALTITUDE ARMORED BOMBER ENTRANCE (6.5s - 11.0s)
-    // Dual heavy bullet-vanguard ships drop down the outer flanks, while
-    // fast weavers cross down the center line to split player focus
-    // =========================================================================
-    SpawnEvent(6.5f, 0.20f, -0.12f, 0f, HEAVY_VY * 1.2f, TYPE_HEAVY, 0, SpawnEvent.CUE_DEATH_CLEAR),
-    SpawnEvent(6.5f, 0.80f, -0.12f, 0f, HEAVY_VY * 1.2f, TYPE_HEAVY, 0, SpawnEvent.CUE_DEATH_CLEAR),
-
-    SpawnEvent(8.0f, 0.50f, -0.05f, 0f, WEAVE_VY * 1.4f, TYPE_DRONE, PATTERN_WEAVE),
-    SpawnEvent(9.0f, 0.50f, -0.05f, 0f, WEAVE_VY * 1.4f, TYPE_DRONE, PATTERN_WEAVE),
-    SpawnEvent(10.0f, 0.50f, -0.05f, 0f, WEAVE_VY * 1.4f, TYPE_DRONE, PATTERN_WEAVE),
-
-    // =========================================================================
-    // PHASE 3: SUICIDE DIAMOND BREAKTHROUGH (13.0s - 17.5s)
-    // Interceptors holding in position at the top to fire area-denial spreads,
-    // shielding a high-speed diamond of Kamikaze fighters bursting through the center
-    // =========================================================================
-    SpawnEvent(13.0f, 0.15f, -0.08f, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD), // Left Turret Guard
-    SpawnEvent(13.0f, 0.85f, -0.08f, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD), // Right Turret Guard
-
-    SpawnEvent(14.0f, 0.50f, -0.05f, 0f, KAMI_VY_FAST, TYPE_KAMIKAZE, 0, SpawnEvent.CUE_DIAMOND_LEADER),
-    SpawnEvent(14.5f, 0.28f, -0.05f, KAMI_VX, KAMI_VY, TYPE_KAMIKAZE, 0, SpawnEvent.CUE_DIAMOND_WING_L),
-    SpawnEvent(14.5f, 0.72f, -0.05f, -KAMI_VX, KAMI_VY, TYPE_KAMIKAZE, 0, SpawnEvent.CUE_DIAMOND_WING_R),
-    SpawnEvent(15.0f, 0.50f, -0.05f, 0f, KAMI_VY_FAST, TYPE_KAMIKAZE),
-
-    // =========================================================================
-    // PHASE 4: REAR-GUARD AMBUSH & STRIKE FORCES (20.0s - 25.5s)
-    // Quick vertical drop walls from alternating sides to force fast horizontal movement,
-    // ending with dual interlocking cross-weaving units right before the boss
-    // =========================================================================
-    SpawnEvent(20.0f, 0.14f, -0.05f, 0f, BASE_STAGE2_SPEED * 1.15f, TYPE_DRONE),
-    SpawnEvent(20.3f, 0.42f, -0.05f, 0f, BASE_STAGE2_SPEED * 0.90f, TYPE_DRONE),
-    SpawnEvent(20.6f, 0.70f, -0.05f, 0f, BASE_STAGE2_SPEED * 1.30f, TYPE_DRONE),
-
-    SpawnEvent(22.0f, 0.86f, -0.05f, 0f, BASE_STAGE2_SPEED * 1.30f, TYPE_DRONE),
-    SpawnEvent(22.3f, 0.58f, -0.05f, 0f, BASE_STAGE2_SPEED * 0.90f, TYPE_DRONE),
-    SpawnEvent(22.6f, 0.30f, -0.05f, 0f, BASE_STAGE2_SPEED * 1.15f, TYPE_DRONE),
-
-    // Final pre-boss crossing waves
-    SpawnEvent(24.5f, 0.25f, -0.05f, 0f, WEAVE_VY * 1.5f, TYPE_DRONE, PATTERN_WEAVE),
-    SpawnEvent(24.5f, 0.75f, -0.05f, 0f, WEAVE_VY * 1.5f, TYPE_DRONE, PATTERN_WEAVE),
-
-    SpawnEvent(25.5f, 0.50f, -0.08f, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD) // Final heavy center guard
-  )
-
   private var elapsedTime = 0f
   private var bossCueFired = false
-  private var nextIndex = 0
   private var flankGap = 0f
   private var weaveGap = 0f
   private var vFormSpawned = false
   private var wallSpawned = false
   private var weaveStarted = false
+  private var s2FingerPincerCount = 0
+  private var s2FingerPincerTimer = -1f
+  private var s2FlankHeaviesSpawned = false
+  private var s2CenterWeaveCount = 0
+  private var s2CenterWeaveTimer = 0f
+  private var s2TurretGuardsSpawned = false
+  private var s2KamiDiamondSpawned = false
+  private var s2KamiDiamondStep = 0
+  private var s2LeftWallSpawned = false
+  private var s2LeftWallCount = 0
+  private var s2RightWallSpawned = false
+  private var s2RightWallCount = 0
+  private var s2PreBossWeavesSpawned = false
+  private var s2CenterInterceptSpawned = false
   private var s3ScoutGap = 0f
   private var s3FlankGap = 0f
   private var s3CruiserSpawned = false
@@ -112,22 +62,7 @@ class SpawnTimeline {
     if (currentStage < 2) {
       updateStage1(dt, enemyManager, w, h)
     } else if (currentStage == 2) {
-      val events = stage2Events
-      while (nextIndex < events.size) {
-        val cue = events[nextIndex]
-        if (cue.timestampSeconds > elapsedTime) break
-        enemyManager.spawnEnemy(
-          cue.spawnXFraction * w,
-          cue.spawnYFraction * h,
-          cue.velocityX,
-          cue.velocityY,
-          cue.enemyType,
-          cue.pattern,
-          hpFor(cue.enemyType),
-          spawnCue = cue.spawnCue,
-        )
-        nextIndex++
-      }
+      updateStage2(dt, enemyManager, w, h)
     } else if (currentStage == 3) {
       updateStage3(dt, enemyManager, w, h)
     }
@@ -136,7 +71,6 @@ class SpawnTimeline {
       if (elapsedTime >= bossAt) {
         boss.beginEntranceForStage(currentStage)
         bossCueFired = true
-        nextIndex = stage2Events.size
       }
     }
   }
@@ -144,12 +78,25 @@ class SpawnTimeline {
   fun reset() {
     elapsedTime = 0f
     bossCueFired = false
-    nextIndex = 0
     flankGap = FLANK_SPACING
     weaveGap = 0f
     vFormSpawned = false
     wallSpawned = false
     weaveStarted = false
+    s2FingerPincerCount = 0
+    s2FingerPincerTimer = -1f
+    s2FlankHeaviesSpawned = false
+    s2CenterWeaveCount = 0
+    s2CenterWeaveTimer = 0f
+    s2TurretGuardsSpawned = false
+    s2KamiDiamondSpawned = false
+    s2KamiDiamondStep = 0
+    s2LeftWallSpawned = false
+    s2LeftWallCount = 0
+    s2RightWallSpawned = false
+    s2RightWallCount = 0
+    s2PreBossWeavesSpawned = false
+    s2CenterInterceptSpawned = false
     s3ScoutGap = S3_SCOUT_SPACING
     s3FlankGap = S3_FLANK_SPACING
     s3CruiserSpawned = false
@@ -203,6 +150,142 @@ class SpawnTimeline {
         enemies.spawnEnemy(0.30f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP)
         enemies.spawnEnemy(0.70f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP)
       }
+    }
+  }
+
+  private fun updateStage2(
+    dt: Float,
+    enemies: EnemyPoolManager,
+    w: Float,
+    h: Float,
+  ) {
+    if (elapsedTime >= S2_PINCER_AT && elapsedTime <= S2_PINCER_END && s2FingerPincerCount < S2_PINCER_PAIRS) {
+      var safeguard = 0
+      while (s2FingerPincerCount < S2_PINCER_PAIRS && safeguard < 4) {
+        val pairAt = S2_PINCER_AT + s2FingerPincerCount * S2_PINCER_PAIR_GAP
+        if (elapsedTime < pairAt) break
+        if (s2FingerPincerTimer < 0f) {
+          spawnS2Pincer(enemies, w, h, true)
+          s2FingerPincerTimer = 0f
+        }
+        if (elapsedTime < pairAt + S2_PINCER_STAGGER) break
+        spawnS2Pincer(enemies, w, h, false)
+        s2FingerPincerCount++
+        s2FingerPincerTimer = -1f
+        safeguard++
+      }
+    }
+    if (!s2FlankHeaviesSpawned && elapsedTime >= S2_HEAVIES_AT) {
+      s2FlankHeaviesSpawned = true
+      enemies.spawnEnemy(
+        0.20f * w, -0.12f * h, 0f, HEAVY_VY * 1.2f, TYPE_HEAVY, 0, HEAVY_HP,
+        spawnCue = SpawnEvent.CUE_DEATH_CLEAR,
+      )
+      enemies.spawnEnemy(
+        0.80f * w, -0.12f * h, 0f, HEAVY_VY * 1.2f, TYPE_HEAVY, 0, HEAVY_HP,
+        spawnCue = SpawnEvent.CUE_DEATH_CLEAR,
+      )
+    }
+    if (elapsedTime >= S2_WEAVE_AT && s2CenterWeaveCount < S2_WEAVE_COUNT) {
+      s2CenterWeaveTimer += dt
+      var safeguard = 0
+      while (s2CenterWeaveCount < S2_WEAVE_COUNT && safeguard < 3) {
+        val at = S2_WEAVE_AT + s2CenterWeaveCount * S2_WEAVE_GAP
+        if (elapsedTime < at) break
+        enemies.spawnEnemy(0.50f * w, -0.05f * h, 0f, WEAVE_VY * 1.4f, TYPE_DRONE, PATTERN_WEAVE)
+        s2CenterWeaveCount++
+        s2CenterWeaveTimer = 0f
+        safeguard++
+      }
+    }
+    if (!s2TurretGuardsSpawned && elapsedTime >= S2_TURRETS_AT) {
+      s2TurretGuardsSpawned = true
+      enemies.spawnEnemy(
+        0.15f * w, -0.08f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, INTERCEPT_HP,
+      )
+      enemies.spawnEnemy(
+        0.85f * w, -0.08f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, INTERCEPT_HP,
+      )
+    }
+    if (!s2KamiDiamondSpawned) {
+      if (s2KamiDiamondStep == 0 && elapsedTime >= S2_KAMI_LEADER_AT) {
+        enemies.spawnEnemy(
+          0.50f * w, -0.05f * h, 0f, KAMI_VY_FAST, TYPE_KAMIKAZE, 0, KAMI_HP,
+          spawnCue = SpawnEvent.CUE_DIAMOND_LEADER,
+        )
+        s2KamiDiamondStep = 1
+      }
+      if (s2KamiDiamondStep == 1 && elapsedTime >= S2_KAMI_WINGS_AT) {
+        enemies.spawnEnemy(
+          0.28f * w, -0.05f * h, KAMI_VX, KAMI_VY, TYPE_KAMIKAZE, 0, KAMI_HP,
+          spawnCue = SpawnEvent.CUE_DIAMOND_WING_L,
+        )
+        enemies.spawnEnemy(
+          0.72f * w, -0.05f * h, -KAMI_VX, KAMI_VY, TYPE_KAMIKAZE, 0, KAMI_HP,
+          spawnCue = SpawnEvent.CUE_DIAMOND_WING_R,
+        )
+        s2KamiDiamondStep = 2
+      }
+      if (s2KamiDiamondStep == 2 && elapsedTime >= S2_KAMI_TAIL_AT) {
+        enemies.spawnEnemy(0.50f * w, -0.05f * h, 0f, KAMI_VY_FAST, TYPE_KAMIKAZE, 0, KAMI_HP)
+        s2KamiDiamondStep = 3
+        s2KamiDiamondSpawned = true
+      }
+    }
+    if (!s2LeftWallSpawned && elapsedTime >= S2_LEFT_WALL_AT) {
+      var safeguard = 0
+      while (s2LeftWallCount < 3 && safeguard < 3) {
+        val at = S2_LEFT_WALL_AT + s2LeftWallCount * S2_WALL_STAGGER
+        if (elapsedTime < at) break
+        if (s2LeftWallCount == 0) {
+          enemies.spawnEnemy(0.14f * w, -0.05f * h, 0f, BASE_STAGE2_SPEED * 1.15f, TYPE_DRONE)
+        } else if (s2LeftWallCount == 1) {
+          enemies.spawnEnemy(0.42f * w, -0.05f * h, 0f, BASE_STAGE2_SPEED * 0.90f, TYPE_DRONE)
+        } else {
+          enemies.spawnEnemy(0.70f * w, -0.05f * h, 0f, BASE_STAGE2_SPEED * 1.30f, TYPE_DRONE)
+        }
+        s2LeftWallCount++
+        safeguard++
+      }
+      if (s2LeftWallCount >= 3) s2LeftWallSpawned = true
+    }
+    if (!s2RightWallSpawned && elapsedTime >= S2_RIGHT_WALL_AT) {
+      var safeguard = 0
+      while (s2RightWallCount < 3 && safeguard < 3) {
+        val at = S2_RIGHT_WALL_AT + s2RightWallCount * S2_WALL_STAGGER
+        if (elapsedTime < at) break
+        if (s2RightWallCount == 0) {
+          enemies.spawnEnemy(0.86f * w, -0.05f * h, 0f, BASE_STAGE2_SPEED * 1.30f, TYPE_DRONE)
+        } else if (s2RightWallCount == 1) {
+          enemies.spawnEnemy(0.58f * w, -0.05f * h, 0f, BASE_STAGE2_SPEED * 0.90f, TYPE_DRONE)
+        } else {
+          enemies.spawnEnemy(0.30f * w, -0.05f * h, 0f, BASE_STAGE2_SPEED * 1.15f, TYPE_DRONE)
+        }
+        s2RightWallCount++
+        safeguard++
+      }
+      if (s2RightWallCount >= 3) s2RightWallSpawned = true
+    }
+    if (!s2PreBossWeavesSpawned && elapsedTime >= S2_PRE_BOSS_AT) {
+      s2PreBossWeavesSpawned = true
+      enemies.spawnEnemy(0.25f * w, -0.05f * h, 0f, WEAVE_VY * 1.5f, TYPE_DRONE, PATTERN_WEAVE)
+      enemies.spawnEnemy(0.75f * w, -0.05f * h, 0f, WEAVE_VY * 1.5f, TYPE_DRONE, PATTERN_WEAVE)
+    }
+    if (!s2CenterInterceptSpawned && elapsedTime >= S2_CENTER_INTERCEPT_AT) {
+      s2CenterInterceptSpawned = true
+      enemies.spawnEnemy(
+        0.50f * w, -0.08f * h, 0f, INTERCEPT_VY, TYPE_INTERCEPTOR, PATTERN_V_HOLD, INTERCEPT_HP,
+      )
+    }
+  }
+
+  private fun spawnS2Pincer(enemies: EnemyPoolManager, w: Float, h: Float, fromLeft: Boolean) {
+    val vx = SWEEP_VX * 1.3f
+    val vy = SWEEP_VY * 1.1f
+    if (fromLeft) {
+      enemies.spawnEnemy(-0.05f * w, -0.05f * h, vx, vy, TYPE_DRONE)
+    } else {
+      enemies.spawnEnemy(1.05f * w, -0.05f * h, -vx, vy, TYPE_DRONE)
     }
   }
 
@@ -404,6 +487,24 @@ class SpawnTimeline {
     const val MAX_ACTIVE = 10
     const val OPENING_END = 5f
     const val POWER_WAVE_DELAY = 3.0f
+    const val S2_PINCER_AT = 0.5f
+    const val S2_PINCER_END = 3.5f
+    const val S2_PINCER_PAIRS = 4
+    const val S2_PINCER_PAIR_GAP = 0.6f
+    const val S2_PINCER_STAGGER = 0.3f
+    const val S2_HEAVIES_AT = 6.5f
+    const val S2_WEAVE_AT = 8.0f
+    const val S2_WEAVE_GAP = 1.0f
+    const val S2_WEAVE_COUNT = 3
+    const val S2_TURRETS_AT = 13.0f
+    const val S2_KAMI_LEADER_AT = 14.0f
+    const val S2_KAMI_WINGS_AT = 14.5f
+    const val S2_KAMI_TAIL_AT = 15.0f
+    const val S2_LEFT_WALL_AT = 20.0f
+    const val S2_RIGHT_WALL_AT = 22.0f
+    const val S2_WALL_STAGGER = 0.3f
+    const val S2_PRE_BOSS_AT = 24.5f
+    const val S2_CENTER_INTERCEPT_AT = 25.5f
     const val S3_SCOUT_START = 1.5f
     const val S3_SCOUT_END = 5.5f
     const val S3_SCOUT_SPACING = 1.65f
@@ -414,12 +515,5 @@ class SpawnTimeline {
     const val S3_FLANK_SPACING = 0.95f
     const val S3_BOSS_AT = 25.0f
     const val FORM_CLEAR = 2.4f
-  }
-
-  private fun hpFor(enemyType: Int): Int {
-    if (enemyType == TYPE_HEAVY) return HEAVY_HP
-    if (enemyType == TYPE_INTERCEPTOR) return INTERCEPT_HP
-    if (enemyType == TYPE_KAMIKAZE) return KAMI_HP
-    return 1
   }
 }
