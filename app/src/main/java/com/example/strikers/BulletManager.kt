@@ -13,7 +13,9 @@ class BulletManager {
 
   // Automatic machine gun firing timer parameters
   private var fireCooldownTimer = 0f
-  private val fireRateInterval = 0.120f // 120ms delay between shots (Strikers classic speed)
+  private val fireRateInterval = 0.120f
+  private var missileCooldown = 0f
+  private var spawnedStream = false
 
   // Reusable drawing variables to achieve absolute zero allocation in the loop
   private val bulletPaint = Paint().apply {
@@ -25,17 +27,30 @@ class BulletManager {
   private val drawRect = RectF()
 
   /**
-   * Updates the firing cooldown, spawns the current power-level stream if held,
-   * moves projectiles, and recycles off-screen bullets.
+   * Updates vulcan cooldown independently of the homing-missile cadence.
    */
-  fun update(dt: Float, player: PlayerShip, screenW: Int) {
+  fun update(dt: Float, player: PlayerShip, screenW: Int, homingMissiles: HomingMissileManager) {
+    spawnedStream = false
     if (fireCooldownTimer > 0f) {
       fireCooldownTimer -= dt
+    }
+    if (missileCooldown > 0f) {
+      missileCooldown -= dt
     }
 
     if (player.isFiringHeld() && fireCooldownTimer <= 0f) {
       spawnWeaponStream(player)
+      spawnedStream = true
       fireCooldownTimer = fireRateInterval
+    }
+    if (
+      player.getWeaponPower() >= 3 &&
+      player.isFiringHeld() &&
+      missileCooldown <= 0f
+    ) {
+      homingMissiles.fireMissile(player.getHitboxX() - 30f, player.getHitboxY(), -150f, -400f)
+      homingMissiles.fireMissile(player.getHitboxX() + 30f, player.getHitboxY(), 150f, -400f)
+      missileCooldown = MISSILE_INTERVAL
     }
 
     val maxX = screenW + 40f
@@ -55,7 +70,9 @@ class BulletManager {
 
   private fun spawnWeaponStream(player: PlayerShip) {
     val my = player.muzzleY()
-    when (player.getWeaponPower()) {
+    val powerLevel = player.getWeaponPower()
+
+    when (powerLevel) {
       2 -> {
         spawnBullet(player.getHitboxX(), my, 0f)
         spawnBullet(player.leftMuzzleX(), my, LEVEL2_SPREAD_VX)
@@ -94,6 +111,8 @@ class BulletManager {
 
   fun getPoolSize(): Int = poolSize
 
+  fun didSpawnStream(): Boolean = spawnedStream
+
   fun deactivateAll() {
     var i = 0
     while (i < poolSize) {
@@ -130,5 +149,6 @@ class BulletManager {
     const val LEVEL2_SPREAD_VX = -150f
     const val LANE3_OUTER = 0.72f
     const val LANE3_INNER = 0.28f
+    const val MISSILE_INTERVAL = 0.480f
   }
 }

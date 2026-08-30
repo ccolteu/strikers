@@ -26,6 +26,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val parallax = ParallaxBackground(resources)
   private val player = PlayerShip(resources)
   private val bullets = BulletManager()
+  private val homingMissiles = HomingMissileManager(resources)
   private val enemies = EnemyPoolManager(resources)
   private val enemyShots = EnemyWeaponSystem()
   private val timeline = SpawnTimeline()
@@ -120,6 +121,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.onSizeChanged(w, h)
     enemies.onSizeChanged(w, h)
     enemyShots.onSizeChanged(w, h)
+    homingMissiles.onSizeChanged(w, h)
     particles.onSizeChanged(w, h)
     boss.onSizeChanged(w, h)
     screenW = w
@@ -140,6 +142,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.onSizeChanged(width, height)
     enemies.onSizeChanged(width, height)
     enemyShots.onSizeChanged(width, height)
+    homingMissiles.onSizeChanged(width, height)
     particles.onSizeChanged(width, height)
     boss.onSizeChanged(width, height)
     screenW = width
@@ -177,7 +180,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         parallax.update(stageManager.scrollSpeedY * dt)
         scorecard.update(dt)
         player.update(dt)
-        bullets.update(dt, player, screenW)
+        bullets.update(dt, player, screenW, homingMissiles)
+        homingMissiles.update(dt, enemies.getEnemyPool(), enemies.getPoolSize(), boss)
         powerUpItem.update(dt, screenW)
         timeline.update(
           dt,
@@ -219,6 +223,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           player.draw(canvas)
           drawPowerUpItem(canvas)
           bullets.draw(canvas)
+          homingMissiles.draw(canvas)
           enemyShots.draw(canvas)
           particles.draw(canvas)
           drawPanicBomb(canvas)
@@ -585,6 +590,38 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       bi++
     }
 
+    val missilePool = homingMissiles.getPool()
+    val missileCount = homingMissiles.getPoolSize()
+    var mi = 0
+    while (mi < missileCount) {
+      val missile = missilePool[mi]
+      if (missile.isActive) {
+        var ei = 0
+        while (ei < enemyCount) {
+          val enemy = enemyPool[ei]
+          if (enemy.isActive) {
+            val dx = missile.x - enemy.x
+            val dy = missile.y - enemy.y
+            val distanceSquared = (dx * dx) + (dy * dy)
+            if (distanceSquared <= radiusSq) {
+              missile.isActive = false
+              enemy.health -= 1
+              if (enemy.health <= 0) {
+                enemy.isActive = false
+                particles.triggerExplosion(enemy.x, enemy.y, true)
+                if (Math.random() < 0.15 && !powerUpItem.isActive) {
+                  powerUpItem.spawn(enemy.x, enemy.y)
+                }
+              }
+              break
+            }
+          }
+          ei++
+        }
+      }
+      mi++
+    }
+
     if (boss.isActive()) {
       val parts = boss.getComponents()
       val partCount = boss.getComponentCount()
@@ -615,6 +652,34 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           }
         }
         bi++
+      }
+      mi = 0
+      while (mi < missileCount) {
+        val missile = missilePool[mi]
+        if (missile.isActive) {
+          var pi = partCount - 1
+          while (pi >= 0) {
+            val part = parts[pi]
+            if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
+              val hw = part.halfW + BOSS_BULLET_PAD_X
+              val hh = part.halfH + BOSS_BULLET_PAD_Y
+              val dx = (missile.x - part.x) / hw
+              val dy = (missile.y - part.y) / hh
+              if ((dx * dx) + (dy * dy) <= 1f) {
+                missile.isActive = false
+                part.health -= 1
+                if (part.health <= 0) {
+                  part.health = 0
+                  part.isDestroyed = true
+                  particles.triggerExplosion(part.x, part.y, false)
+                }
+                break
+              }
+            }
+            pi--
+          }
+        }
+        mi++
       }
     }
 
@@ -738,6 +803,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     enemies.release()
     particles.release()
     boss.release()
+    homingMissiles.release()
     var i = 0
     while (i < bombSheets.size) {
       val bmp = bombSheets[i]
@@ -774,6 +840,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.resetForStage()
     powerUpItem.isActive = false
     bullets.deactivateAll()
+    homingMissiles.deactivateAll()
     enemies.deactivateAll()
     enemyShots.deactivateAll()
     SoundManager.instance.stopAlarm()
