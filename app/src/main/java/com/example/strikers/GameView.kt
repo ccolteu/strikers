@@ -6,6 +6,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -38,6 +40,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val hudIconDst = RectF()
   private val powerUpDst = RectF()
   private val bodyPaint = Paint().apply { isFilterBitmap = true }
+  private val hudOutlinePaint = Paint().apply {
+    isFilterBitmap = true
+    colorFilter = PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.SRC_IN)
+  }
+  private val hudShadowPaint = Paint().apply {
+    isFilterBitmap = true
+    colorFilter = PorterDuffColorFilter(0xCC000000.toInt(), PorterDuff.Mode.SRC_IN)
+  }
   private val bombSheets = arrayOfNulls<Bitmap>(6)
   private var lifeIconBmp: Bitmap? = null
   private var bombIconBmp: Bitmap? = null
@@ -244,7 +254,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       while (i < currentLives) {
         val posX = marginLeft + i * (lifeSize + spacing)
         hudIconDst.set(posX, lifeStartY, posX + lifeSize, lifeStartY + lifeSize)
-        canvas.drawBitmap(lifeBmp, null, hudIconDst, bodyPaint)
+        blitHudIcon(canvas, lifeBmp)
         i++
       }
     }
@@ -256,7 +266,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       while (i < availableBombs) {
         val posX = screenW - marginRight - bombWidth - (i * (bombWidth + spacing))
         hudIconDst.set(posX, bombStartY, posX + bombWidth, bombStartY + bombHeight)
-        canvas.drawBitmap(bombBmp, null, hudIconDst, bodyPaint)
+        blitHudIcon(canvas, bombBmp)
         i++
       }
     }
@@ -839,6 +849,26 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     return player.onTouch(event)
   }
 
+  private fun blitHudIcon(canvas: Canvas, bmp: Bitmap) {
+    hudIconDst.offset(HUD_SHADOW_PX, HUD_SHADOW_PX)
+    canvas.drawBitmap(bmp, null, hudIconDst, hudShadowPaint)
+    hudIconDst.offset(-HUD_SHADOW_PX, -HUD_SHADOW_PX)
+    var oy = -HUD_OUTLINE_PX
+    while (oy <= HUD_OUTLINE_PX) {
+      var ox = -HUD_OUTLINE_PX
+      while (ox <= HUD_OUTLINE_PX) {
+        if (ox != 0f || oy != 0f) {
+          hudIconDst.offset(ox, oy)
+          canvas.drawBitmap(bmp, null, hudIconDst, hudOutlinePaint)
+          hudIconDst.offset(-ox, -oy)
+        }
+        ox += HUD_OUTLINE_PX
+      }
+      oy += HUD_OUTLINE_PX
+    }
+    canvas.drawBitmap(bmp, null, hudIconDst, bodyPaint)
+  }
+
   private companion object {
     const val STATE_TITLE = 0
     const val STATE_PLAYING = 1
@@ -856,5 +886,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val DOUBLE_TAP_MS = 280L
     const val TAP_MAX_MS = 220L
     const val TAP_SLOP_SQ = 48f * 48f
+    const val HUD_SHADOW_PX = 2f
+    const val HUD_OUTLINE_PX = 3f
   }
 }

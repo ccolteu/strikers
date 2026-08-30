@@ -4,7 +4,10 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.Rect
 import android.graphics.RectF
 import kotlin.math.atan2
@@ -18,6 +21,14 @@ class BossController(private val resources: Resources) {
   private val dstRect = RectF()
   private val srcCore = Rect()
   private val bodyPaint = Paint().apply { isFilterBitmap = true }
+  private val outlinePaint = Paint().apply {
+    isFilterBitmap = true
+    colorFilter = PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.SRC_IN)
+  }
+  private val shadowPaint = Paint().apply {
+    isFilterBitmap = true
+    colorFilter = PorterDuffColorFilter(0xCC000000.toInt(), PorterDuff.Mode.SRC_IN)
+  }
   private var bodySheet: Bitmap? = null
   private var leftWreckSheet: Bitmap? = null
   private var rightWreckSheet: Bitmap? = null
@@ -173,22 +184,22 @@ class BossController(private val resources: Resources) {
     if (!active) return
     val sheet = bodySheet ?: return
     dstRect.set(coreX - bodyHalfW, coreY - bodyHalfH, coreX + bodyHalfW, coreY + bodyHalfH)
-    canvas.drawBitmap(sheet, srcCore, dstRect, bodyPaint)
+    blitOutlined(canvas, sheet, srcCore, bodyPaint)
     val leftWreck = leftWreckSheet
     val rightWreck = rightWreckSheet
     if (currentStage >= 2) {
       if (leftWreck != null && parts[TYPE_STAGE2_LEFT_TREAD].isDestroyed) {
-        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+        blitOutlined(canvas, leftWreck, srcCore, bodyPaint)
       }
       if (rightWreck != null && parts[TYPE_STAGE2_RIGHT_TREAD].isDestroyed) {
-        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+        blitOutlined(canvas, rightWreck, srcCore, bodyPaint)
       }
     } else {
       if (leftWreck != null && parts[TYPE_LEFT_WING].isDestroyed) {
-        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+        blitOutlined(canvas, leftWreck, srcCore, bodyPaint)
       }
       if (rightWreck != null && parts[TYPE_RIGHT_WING].isDestroyed) {
-        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+        blitOutlined(canvas, rightWreck, srcCore, bodyPaint)
       }
     }
     if (isExploding) {
@@ -203,6 +214,26 @@ class BossController(private val resources: Resources) {
         canvas.drawBitmap(exp, srcExp, dstRect, bodyPaint)
       }
     }
+  }
+
+  private fun blitOutlined(canvas: Canvas, bmp: Bitmap, src: Rect, paint: Paint) {
+    dstRect.offset(SHADOW_PX.toFloat(), SHADOW_PX.toFloat())
+    canvas.drawBitmap(bmp, src, dstRect, shadowPaint)
+    dstRect.offset(-SHADOW_PX.toFloat(), -SHADOW_PX.toFloat())
+    var oy = -OUTLINE_PX
+    while (oy <= OUTLINE_PX) {
+      var ox = -OUTLINE_PX
+      while (ox <= OUTLINE_PX) {
+        if (ox != 0 || oy != 0) {
+          dstRect.offset(ox.toFloat(), oy.toFloat())
+          canvas.drawBitmap(bmp, src, dstRect, outlinePaint)
+          dstRect.offset(-ox.toFloat(), -oy.toFloat())
+        }
+        ox += OUTLINE_PX
+      }
+      oy += OUTLINE_PX
+    }
+    canvas.drawBitmap(bmp, src, dstRect, paint)
   }
 
   fun release() {
@@ -489,5 +520,7 @@ class BossController(private val resources: Resources) {
     const val S2_TREAD_HP = 35
     const val S2_TURRET_HP = 30
     const val EXPLODE_FRAME_SEC = 0.35f
+    const val SHADOW_PX = 2
+    const val OUTLINE_PX = 3
   }
 }

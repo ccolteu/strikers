@@ -4,6 +4,7 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
@@ -21,6 +22,16 @@ class EnemyPoolManager(private val resources: Resources) {
     isFilterBitmap = true
     isAntiAlias = false
     colorFilter = PorterDuffColorFilter(0xFFFFCC33.toInt(), PorterDuff.Mode.MULTIPLY)
+  }
+  private val outlinePaint = Paint().apply {
+    isFilterBitmap = true
+    isAntiAlias = false
+    colorFilter = PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.SRC_IN)
+  }
+  private val shadowPaint = Paint().apply {
+    isFilterBitmap = true
+    isAntiAlias = false
+    colorFilter = PorterDuffColorFilter(0xCC000000.toInt(), PorterDuff.Mode.SRC_IN)
   }
   private val drawRect = RectF()
   private var droneSheet: Bitmap? = null
@@ -128,6 +139,23 @@ class EnemyPoolManager(private val resources: Resources) {
         canvas.translate(e.x, e.y)
         canvas.rotate(180f)
         drawRect.set(-hw, -hh, hw, hh)
+        // Local +x/+y is screen up-left after 180°, so negate for a screen down-right shadow.
+        drawRect.offset(-SHADOW_PX.toFloat(), -SHADOW_PX.toFloat())
+        canvas.drawBitmap(sheet, null, drawRect, shadowPaint)
+        drawRect.offset(SHADOW_PX.toFloat(), SHADOW_PX.toFloat())
+        var oy = -OUTLINE_PX
+        while (oy <= OUTLINE_PX) {
+          var ox = -OUTLINE_PX
+          while (ox <= OUTLINE_PX) {
+            if (ox != 0 || oy != 0) {
+              drawRect.offset(ox.toFloat(), oy.toFloat())
+              canvas.drawBitmap(sheet, null, drawRect, outlinePaint)
+              drawRect.offset(-ox.toFloat(), -oy.toFloat())
+            }
+            ox += OUTLINE_PX
+          }
+          oy += OUTLINE_PX
+        }
         val bodyPaint = if (e.type == TYPE_KAMIKAZE) kamikazePaint else paint
         canvas.drawBitmap(sheet, null, drawRect, bodyPaint)
         canvas.restore()
@@ -181,5 +209,7 @@ class EnemyPoolManager(private val resources: Resources) {
     const val FIRE_DELAY_MAX = 1.5f
     const val FIRE_ONCE_LOCK = 999f
     const val AIMED_SHOT_SPEED = 550f
+    const val SHADOW_PX = 2
+    const val OUTLINE_PX = 3
   }
 }
