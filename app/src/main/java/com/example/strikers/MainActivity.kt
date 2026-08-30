@@ -1,6 +1,7 @@
 package com.example.strikers
 
 import android.app.Activity
+import android.media.AudioManager
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
@@ -8,12 +9,35 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 class MainActivity : Activity() {
+
+  private var gameView: GameView? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     WindowCompat.setDecorFitsSystemWindows(window, false)
+    volumeControlStream = AudioManager.STREAM_MUSIC
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     hideSystemBars()
-    setContentView(GameView(this))
+    SoundManager.instance.initialize(this)
+    val view = GameView(this)
+    gameView = view
+    setContentView(view)
+  }
+
+  override fun onPause() {
+    SoundManager.instance.pauseAll()
+    super.onPause()
+  }
+
+  override fun onResume() {
+    super.onResume()
+    SoundManager.instance.resumeAll()
+  }
+
+  override fun onDestroy() {
+    // Graceful hardware state destruction
+    SoundManager.instance.release()
+    super.onDestroy()
   }
 
   override fun onWindowFocusChanged(hasFocus: Boolean) {

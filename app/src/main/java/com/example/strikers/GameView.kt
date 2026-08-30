@@ -63,6 +63,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var awaitingSecondTap = false
   private var bossBombDmgBank = 0f
   private var bossFought = false
+  private var lastBgmRes = 0
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
@@ -207,6 +208,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
       }
     }
+    syncBgm()
     val canvas = lockGameCanvas()
     if (canvas != null) {
       try {
@@ -567,7 +569,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             if (distanceSquared <= radiusSq) {
               bullet.isActive = false
               enemy.isActive = false
-              particles.triggerExplosion(enemy.x, enemy.y)
+              particles.triggerExplosion(enemy.x, enemy.y, true)
               if (Math.random() < 0.15 && !powerUpItem.isActive) {
                 powerUpItem.spawn(enemy.x, enemy.y)
               }
@@ -601,7 +603,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 if (part.health <= 0) {
                   part.health = 0
                   part.isDestroyed = true
-                  particles.triggerExplosion(part.x, part.y)
+                  particles.triggerExplosion(part.x, part.y, false)
                 }
                 break
               }
@@ -697,6 +699,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       if ((dx * dx) + (dy * dy) <= pickup * pickup) {
         powerUpItem.isActive = false
         player.upgradeWeapon()
+        SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
       }
     }
   }
@@ -768,6 +771,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     bullets.deactivateAll()
     enemies.deactivateAll()
     enemyShots.deactivateAll()
+    SoundManager.instance.stopAlarm()
     boss.deactivate()
     boss.bindStage(stageManager.currentStage)
     timeline.reset()
@@ -821,6 +825,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         ) {
           availableBombs--
           panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+          SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
           awaitingSecondTap = false
         }
         touchDownMs = now
@@ -836,6 +841,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
     }
     return player.onTouch(event)
+  }
+
+  private fun syncBgm() {
+    val want = when (gameState) {
+      STATE_TITLE -> R.raw.bgm_title
+      STATE_CLEAR -> R.raw.bgm_victory
+      STATE_PLAYING -> {
+        if (boss.isActive()) {
+          R.raw.bgm_boss
+        } else if (stageManager.currentStage >= 2) {
+          R.raw.bgm_stage2
+        } else {
+          R.raw.bgm_stage1
+        }
+      }
+      else -> 0
+    }
+    if (want != 0 && want != lastBgmRes) {
+      if (SoundManager.instance.switchBGM(want)) {
+        lastBgmRes = want
+      }
+    }
   }
 
   private fun blitHudIcon(canvas: Canvas, bmp: Bitmap) {

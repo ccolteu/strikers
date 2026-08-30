@@ -72,6 +72,7 @@ class BulletManager {
         spawnBullet(player.rightMuzzleX(), my, 0f)
       }
     }
+    SoundManager.instance.playSFX(SoundManager.SFX_VULCAN)
   }
 
   private fun spawnBullet(x: Float, y: Float, vx: Float) {

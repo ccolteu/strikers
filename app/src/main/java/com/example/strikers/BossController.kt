@@ -56,6 +56,7 @@ class BossController(private val resources: Resources) {
   private var activeExpFrame = 0
   private var currentStage = 1
   private var loadedStage = -1
+  private val partSfxPlayed = BooleanArray(MAX_PART_COUNT)
   private var bodyHalfW = 0f
   private var bodyHalfH = 0f
 
@@ -112,6 +113,12 @@ class BossController(private val resources: Resources) {
       }
       i++
     }
+    var si = 0
+    while (si < MAX_PART_COUNT) {
+      partSfxPlayed[si] = false
+      si++
+    }
+    SoundManager.instance.playSFX(SoundManager.SFX_ALARM)
   }
 
   fun isActive(): Boolean = active
@@ -124,6 +131,7 @@ class BossController(private val resources: Resources) {
     isExploding = false
     explosionTimer = 0f
     activeExpFrame = 0
+    SoundManager.instance.stopAlarm()
   }
 
   fun getComponents(): Array<BossComponent> = parts
@@ -144,6 +152,8 @@ class BossController(private val resources: Resources) {
       return
     }
     if (parts[TYPE_CORE].isDestroyed) {
+      SoundManager.instance.stopAlarm()
+      SoundManager.instance.playSFX(SoundManager.SFX_HEAVY_EXPLOSION)
       isExploding = true
       explosionTimer = 0f
       activeExpFrame = 0
@@ -154,6 +164,7 @@ class BossController(private val resources: Resources) {
       if (coreY >= hoverY) {
         coreY = hoverY
         entering = false
+        SoundManager.instance.stopAlarm()
       }
     } else if (currentStage < 2) {
       sweepPhase += dt * SWEEP_RATE
@@ -242,6 +253,7 @@ class BossController(private val resources: Resources) {
   }
 
   private fun updatePlaneCombat(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
+    playNewModuleSfx()
     if (entering) return
     val turret = parts[TYPE_STAGE1_TURRET]
     if (turret.isDestroyed) {
@@ -286,7 +298,29 @@ class BossController(private val resources: Resources) {
     weapons.fireBullet(originX, originY, cos(ang) * speed, sin(ang) * speed)
   }
 
+  private fun playNewModuleSfx() {
+    var i = 0
+    while (i < MAX_PART_COUNT) {
+      if (i != TYPE_CORE && parts[i].isDestroyed && parts[i].halfW > 0f && !partSfxPlayed[i]) {
+        partSfxPlayed[i] = true
+        if (
+          i == TYPE_STAGE1_LEFT_WING ||
+          i == TYPE_STAGE1_RIGHT_WING ||
+          i == TYPE_STAGE2_LEFT_TREAD ||
+          i == TYPE_STAGE2_RIGHT_TREAD
+        ) {
+          // Play the punchy boss segment destruction clip instead of stack tracking
+          SoundManager.instance.playSFX(SoundManager.SFX_HEAVY_EXPLOSION)
+        } else {
+          SoundManager.instance.playSFX(SoundManager.SFX_SMALL_EXPLOSION)
+        }
+      }
+      i++
+    }
+  }
+
   private fun updateTankCombat(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
+    playNewModuleSfx()
     if (entering) return
     tankBarrelTimer -= dt
     if (tankBarrelTimer <= 0f) {

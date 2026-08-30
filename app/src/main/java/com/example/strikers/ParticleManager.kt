@@ -37,8 +37,11 @@ class ParticleManager(private val resources: Resources) {
     halfH = targetDrawH * 0.5f
   }
 
-  fun triggerExplosion(centerX: Float, centerY: Float) {
+  fun triggerExplosion(centerX: Float, centerY: Float, playSound: Boolean = true) {
     synchronized(lock) {
+      if (playSound) {
+        SoundManager.instance.playSFX(SoundManager.SFX_SMALL_EXPLOSION)
+      }
       var i = 0
       while (i < POOL_SIZE) {
         val e = pool[i]
