@@ -25,6 +25,7 @@ class MainActivity : Activity() {
   }
 
   override fun onPause() {
+    SoundManager.instance.saveAudioSettings()
     SoundManager.instance.pauseAll()
     super.onPause()
   }

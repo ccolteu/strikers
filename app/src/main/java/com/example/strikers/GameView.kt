@@ -40,6 +40,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val bombDstRect = RectF()
   private val hudIconDst = RectF()
   private val powerUpDst = RectF()
+  private val bgmSliderRect = RectF()
+  private val sfxSliderRect = RectF()
+  private val backButtonRect = RectF()
+  private val openSettingsButtonRect = RectF()
   private val bodyPaint = Paint().apply { isFilterBitmap = true }
   private val hudOutlinePaint = Paint().apply {
     isFilterBitmap = true
@@ -54,6 +58,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var bombIconBmp: Bitmap? = null
   private var availableBombs = 3
   private var gameState = STATE_TITLE
+  private var isSettingsMenuOpen = false
   private var logoBmp: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
   private var bgStage2Bmp: Bitmap? = null
@@ -108,6 +113,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     color = Color.BLACK
     typeface = Typeface.DEFAULT_BOLD
     textSize = 28f
+    isAntiAlias = true
+  }
+  private val uiTrackPaint = Paint().apply {
+    color = 0xFF3A3A3A.toInt()
+    style = Paint.Style.FILL
     isAntiAlias = true
   }
 
@@ -169,9 +179,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     when (gameState) {
       STATE_TITLE -> {
         parallax.update(TITLE_SCROLL_PX * dt)
-        idleT += dt
-        if (idleT >= IDLE_SECS && screenW > 0 && screenH > 0) {
-          beginDemo()
+        if (!isSettingsMenuOpen) {
+          idleT += dt
+          if (idleT >= IDLE_SECS && screenW > 0 && screenH > 0) {
+            beginDemo()
+          }
         }
       }
       STATE_CLEAR -> {
@@ -373,6 +385,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun drawTitleScreen(canvas: Canvas) {
+    if (isSettingsMenuOpen) {
+      drawSettingsOverlay(canvas)
+      return
+    }
     val logo = logoBmp
     if (logo != null && screenW > 0 && screenH > 0) {
       val maxH = screenH * 0.35f
@@ -398,6 +414,71 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("CREDIT 00")
     drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, screenH - 88f, uiSmallPaint, uiSmallShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ AUDIO SETTINGS ]")
+    val settingsY = screenH * 0.68f
+    drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, settingsY, uiTextPaint, uiShadowPaint)
+    val settingsW = uiTextPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    val settingsX = screenW * 0.5f - settingsW * 0.5f
+    openSettingsButtonRect.set(
+      settingsX,
+      settingsY + uiTextPaint.ascent(),
+      settingsX + settingsW,
+      settingsY + uiTextPaint.descent(),
+    )
+  }
+
+  private fun drawSettingsOverlay(canvas: Canvas) {
+    canvas.drawColor(0xDD000000.toInt())
+    val cx = screenW * 0.5f
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("SOUND CONFIGURATION")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
+
+    val trackW = screenW * 0.60f
+    val trackH = 28f
+    val trackLeft = cx - trackW * 0.5f
+
+    val bgmScale = SoundManager.instance.getBgmVolumeScale()
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("BGM ")
+    uiStringBuilder.append((bgmScale * 100f).toInt())
+    uiStringBuilder.append('%')
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.32f, uiTextPaint, uiShadowPaint)
+    val bgmTop = screenH * 0.38f - trackH * 0.5f
+    bgmSliderRect.set(trackLeft, bgmTop, trackLeft + trackW, bgmTop + trackH)
+    canvas.drawRect(bgmSliderRect, uiTrackPaint)
+    if (bgmScale > 0f) {
+      hudIconDst.set(trackLeft, bgmTop, trackLeft + trackW * bgmScale, bgmTop + trackH)
+      canvas.drawRect(hudIconDst, uiGoldPaint)
+    }
+
+    val sfxScale = SoundManager.instance.getSfxVolumeScale()
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("SFX ")
+    uiStringBuilder.append((sfxScale * 100f).toInt())
+    uiStringBuilder.append('%')
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.48f, uiTextPaint, uiShadowPaint)
+    val sfxTop = screenH * 0.54f - trackH * 0.5f
+    sfxSliderRect.set(trackLeft, sfxTop, trackLeft + trackW, sfxTop + trackH)
+    canvas.drawRect(sfxSliderRect, uiTrackPaint)
+    if (sfxScale > 0f) {
+      hudIconDst.set(trackLeft, sfxTop, trackLeft + trackW * sfxScale, sfxTop + trackH)
+      canvas.drawRect(hudIconDst, uiGoldPaint)
+    }
+
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ RETURN TO TITLE ]")
+    val backY = screenH * 0.74f
+    drawCenteredHud(canvas, uiStringBuilder, cx, backY, uiGoldPaint, uiGoldShadowPaint)
+    val backW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    val backX = cx - backW * 0.5f
+    backButtonRect.set(
+      backX,
+      backY + uiGoldPaint.ascent(),
+      backX + backW,
+      backY + uiGoldPaint.descent(),
+    )
   }
 
   private fun drawCenteredHud(
@@ -875,9 +956,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun resetStage() {
+    // FORCE-CLEAR SCORING FLAGS TO PREVENT INSTANT TICKER SKIPPING ON NEXT LEVELS
     scorecard.isActive = false
     scorecard.isCountingDone = false
     scorecard.currentDisplayLine = 0
+    scorecard.elapsedTime = 0f
+    scorecard.visibleLifeBonus = 0
+    scorecard.visibleBombBonus = 0
+    scorecard.visibleTotalScore = 0
+
     panicBomb.isActive = false
     bossBombDmgBank = 0f
     awaitingSecondTap = false
@@ -930,6 +1017,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     demoT = 0f
     gameOverT = 0f
     lastBgmRes = 0
+    isSettingsMenuOpen = false
     gameState = STATE_TITLE
   }
 
@@ -1000,14 +1088,44 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
     when (gameState) {
       STATE_TITLE -> {
-        if (down) {
+        if (down || event.actionMasked == MotionEvent.ACTION_MOVE) {
           idleT = 0f
-          stageManager.resetToStart()
-          player.resetWeaponPower()
-          player.restoreLives()
-          availableBombs = 3
-          resetStage()
-          gameState = STATE_PLAYING
+          val x = event.x
+          val y = event.y
+          if (isSettingsMenuOpen) {
+            val pad = 40f
+            if (
+              x >= bgmSliderRect.left && x <= bgmSliderRect.right &&
+              y >= bgmSliderRect.top - pad && y <= bgmSliderRect.bottom + pad
+            ) {
+              val trackW = bgmSliderRect.width().coerceAtLeast(1f)
+              val pct = ((x - bgmSliderRect.left) / trackW).coerceIn(0f, 1f)
+              SoundManager.instance.setBgmVolumeScale(pct)
+            } else if (
+              x >= sfxSliderRect.left && x <= sfxSliderRect.right &&
+              y >= sfxSliderRect.top - pad && y <= sfxSliderRect.bottom + pad
+            ) {
+              val trackW = sfxSliderRect.width().coerceAtLeast(1f)
+              val pct = ((x - sfxSliderRect.left) / trackW).coerceIn(0f, 1f)
+              SoundManager.instance.setSfxVolumeScale(pct)
+              if (down || ((event.eventTime.toInt() * 1103515245 + 12345) ushr 16 and 7) == 0) {
+                SoundManager.instance.playSFX(SoundManager.SFX_VULCAN)
+              }
+            } else if (down && backButtonRect.contains(x, y)) {
+              isSettingsMenuOpen = false
+              SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+            }
+          } else if (down && openSettingsButtonRect.contains(x, y)) {
+            isSettingsMenuOpen = true
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          } else if (down) {
+            stageManager.resetToStart()
+            player.resetWeaponPower()
+            player.restoreLives()
+            availableBombs = 3
+            resetStage()
+            gameState = STATE_PLAYING
+          }
         }
         return true
       }

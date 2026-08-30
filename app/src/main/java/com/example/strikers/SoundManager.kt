@@ -33,6 +33,8 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
   private var paused = false
   private var muted = false
   private var ducking = false
+  private var bgmVolumeScale = 0.50f
+  private var sfxVolumeScale = 0.65f
   private var initialized = false
   private var bgmCompleting = false
   private var pendingChainRes = 0
@@ -87,6 +89,8 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
       activeBgmPlayer = createBgmPlayerLocked(musicAttrs)
       nextBgmPlayer = createBgmPlayerLocked(musicAttrs)
       requestFocusLocked()
+      loadAudioSettings()
+      applyBgmVolumeLocked()
       initialized = true
     }
   }
@@ -99,7 +103,7 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
       val sid = loadedIds[id]
       if (sid == 0 || !sfxReady[id]) return
 
-      val vol = if (ducking) DUCK_VOLUME else 1f
+      val vol = if (ducking) DUCK_VOLUME * sfxVolumeScale else sfxVolumeScale
 
       // Determine the structural stream priority value based on arcade gameplay weights
       val priority = when (id) {
@@ -163,6 +167,51 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
         return false
       }
     }
+  }
+
+  fun setBgmVolumeScale(volume: Float) {
+    synchronized(lock) {
+      bgmVolumeScale = volume.coerceIn(0f, 1f)
+      applyBgmVolumeLocked()
+      saveAudioSettings()
+    }
+  }
+
+  fun setSfxVolumeScale(volume: Float) {
+    synchronized(lock) {
+      sfxVolumeScale = volume.coerceIn(0f, 1f)
+      saveAudioSettings()
+    }
+  }
+
+  fun getBgmVolumeScale(): Float {
+    synchronized(lock) {
+      return bgmVolumeScale
+    }
+  }
+
+  fun getSfxVolumeScale(): Float {
+    synchronized(lock) {
+      return sfxVolumeScale
+    }
+  }
+
+  fun saveAudioSettings() {
+    synchronized(lock) {
+      val ctx = appContext ?: return
+      ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        .edit()
+        .putFloat(KEY_BGM_VOLUME, bgmVolumeScale)
+        .putFloat(KEY_SFX_VOLUME, sfxVolumeScale)
+        .apply()
+    }
+  }
+
+  private fun loadAudioSettings() {
+    val ctx = appContext ?: return
+    val prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    bgmVolumeScale = prefs.getFloat(KEY_BGM_VOLUME, 0.50f)
+    sfxVolumeScale = prefs.getFloat(KEY_SFX_VOLUME, 0.65f)
   }
 
   fun setMuted(mute: Boolean) {
@@ -253,7 +302,7 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
     val player = MediaPlayer()
     player.setAudioAttributes(musicAttrs)
     player.isLooping = false
-    player.setVolume(BGM_VOLUME, BGM_VOLUME)
+    applyVolumeToPlayerLocked(player)
     player.setOnCompletionListener(onBgmComplete)
     player.setOnErrorListener { _, _, _ ->
       synchronized(lock) { currentBgmRes = 0 }
@@ -382,7 +431,8 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
 
   private fun applyVolumeToPlayerLocked(player: MediaPlayer?) {
     if (player == null) return
-    val v = if (muted) 0f else if (ducking) DUCK_VOLUME * BGM_VOLUME else BGM_VOLUME
+    val baseVol = bgmVolumeScale
+    val v = if (muted) 0f else if (ducking) DUCK_VOLUME * baseVol else baseVol
     try {
       player.setVolume(v, v)
     } catch (_: Exception) {
@@ -467,9 +517,11 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
 
     private const val SFX_COUNT = 7
     private const val MAX_STREAMS = 16
-    private const val BGM_VOLUME = 0.55f
     private const val DUCK_VOLUME = 0.35f
     private const val CHAIN_PREPARE_DELAY_MS = 16L
+    private const val PREFS_NAME = "StrikersAudioPrefs"
+    private const val KEY_BGM_VOLUME = "KEY_BGM_VOLUME"
+    private const val KEY_SFX_VOLUME = "KEY_SFX_VOLUME"
 
     private val SFX_RAW = intArrayOf(
       R.raw.sfx_vulcan,
