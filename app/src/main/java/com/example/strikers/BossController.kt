@@ -54,6 +54,10 @@ class BossController(private val resources: Resources) {
   private var s3CannonTimer = 0f
   private var s3SpiralTimer = 0f
   private var s3SpiralSweep = 0f
+  private var s4MortarTimer = 0f
+  private var s4GatlingTimer = 0f
+  private var s4SpiralTimer = 0f
+  private var s4SpiralAng = 0f
   private var entering = false
   private var active = false
   private var isExploding = false
@@ -80,7 +84,7 @@ class BossController(private val resources: Resources) {
   }
 
   fun bindStage(stage: Int) {
-    currentStage = if (stage >= 3) 3 else if (stage >= 2) 2 else 1
+    currentStage = if (stage >= 4) 4 else if (stage >= 3) 3 else if (stage >= 2) 2 else 1
     if (screenW <= 0f) return
     loadKeyedSheet(currentStage)
     cacheSrcRects()
@@ -109,6 +113,10 @@ class BossController(private val resources: Resources) {
     s3CannonTimer = S3_CANNON_CHARGE
     s3SpiralTimer = 0f
     s3SpiralSweep = 0f
+    s4MortarTimer = S4_MORTAR_INTERVAL
+    s4GatlingTimer = S4_GATLING_INTERVAL
+    s4SpiralTimer = 0f
+    s4SpiralAng = 0f
     turretAngle = 1.5707964f
     coreX = screenW * 0.5f
     coreY = -bodyHalfH - 24f
@@ -200,7 +208,9 @@ class BossController(private val resources: Resources) {
       p.y = coreY + p.relOffsetY
       i++
     }
-    if (currentStage == 3) {
+    if (currentStage == 4) {
+      updateJungleFortressCombat(dt, playerX, playerY, weapons)
+    } else if (currentStage == 3) {
       updateStage3BossWeapons(dt, playerX, playerY, weapons)
     } else if (currentStage == 2) {
       updateTankCombat(dt, playerX, playerY, weapons)
@@ -232,7 +242,20 @@ class BossController(private val resources: Resources) {
     val leftWreck = leftWreckSheet
     val rightWreck = rightWreckSheet
     val centerWreck = centerWreckSheet
-    if (currentStage == 3) {
+    if (currentStage == 4) {
+      if (leftWreck != null && parts[TYPE_STAGE4_LEFT_MORTAR].isDestroyed) {
+        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+      }
+      if (rightWreck != null && parts[TYPE_STAGE4_RIGHT_MORTAR].isDestroyed) {
+        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+      }
+      if (
+        centerWreck != null &&
+        (parts[TYPE_STAGE4_HEAVY_GATLING].isDestroyed || parts[TYPE_CORE].isDestroyed)
+      ) {
+        canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+      }
+    } else if (currentStage == 3) {
       if (leftWreck != null && parts[TYPE_STAGE3_LEFT_FLAK].isDestroyed) {
         canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
       }
@@ -371,7 +394,10 @@ class BossController(private val resources: Resources) {
           i == TYPE_STAGE2_RIGHT_TREAD ||
           i == TYPE_STAGE3_LEFT_FLAK ||
           i == TYPE_STAGE3_RIGHT_FLAK ||
-          i == TYPE_STAGE3_MEGA_CANNON
+          i == TYPE_STAGE3_MEGA_CANNON ||
+          i == TYPE_STAGE4_LEFT_MORTAR ||
+          i == TYPE_STAGE4_RIGHT_MORTAR ||
+          i == TYPE_STAGE4_HEAVY_GATLING
         ) {
           // Play the punchy boss segment destruction clip instead of stack tracking
           SoundManager.instance.playSFX(SoundManager.SFX_HEAVY_EXPLOSION)
@@ -433,6 +459,82 @@ class BossController(private val resources: Resources) {
         fireAtPlayer(weapons, core.x, core.y, targetX, targetY, S3_SPIRAL_SPEED)
       }
     }
+  }
+
+  private fun updateJungleFortressCombat(
+    dt: Float,
+    playerX: Float,
+    playerY: Float,
+    weapons: EnemyWeaponSystem,
+  ) {
+    playNewModuleSfx()
+    if (entering) return
+    val leftMortar = parts[TYPE_STAGE4_LEFT_MORTAR]
+    val rightMortar = parts[TYPE_STAGE4_RIGHT_MORTAR]
+    val gatling = parts[TYPE_STAGE4_HEAVY_GATLING]
+    val leftLive = !leftMortar.isDestroyed && leftMortar.halfW > 0f
+    val rightLive = !rightMortar.isDestroyed && rightMortar.halfW > 0f
+    if (leftLive || rightLive) {
+      s4MortarTimer -= dt
+      if (s4MortarTimer <= 0f) {
+        s4MortarTimer = S4_MORTAR_INTERVAL
+        if (fireLeftBarrel && leftLive) {
+          fireMortarFlakPair(weapons, leftMortar.x, leftMortar.y, playerX, playerY)
+        } else if (!fireLeftBarrel && rightLive) {
+          fireMortarFlakPair(weapons, rightMortar.x, rightMortar.y, playerX, playerY)
+        } else if (leftLive) {
+          fireMortarFlakPair(weapons, leftMortar.x, leftMortar.y, playerX, playerY)
+        } else {
+          fireMortarFlakPair(weapons, rightMortar.x, rightMortar.y, playerX, playerY)
+        }
+        fireLeftBarrel = !fireLeftBarrel
+      }
+    }
+    if (!gatling.isDestroyed && gatling.halfW > 0f) {
+      s4GatlingTimer -= dt
+      if (s4GatlingTimer <= 0f) {
+        s4GatlingTimer = S4_GATLING_INTERVAL
+        val mx = gatling.x
+        val my = gatling.y + gatling.halfH
+        val vx = 0f
+        val vy = S4_GATLING_SPEED
+        val spread = S4_GATLING_SPEED * S4_GATLING_SPREAD
+        weapons.fireBullet(mx, my, vx, vy)
+        weapons.fireBullet(mx, my, -spread, vy)
+        weapons.fireBullet(mx, my, spread, vy)
+      }
+    }
+    if (isCoreVulnerable()) {
+      val core = parts[TYPE_CORE]
+      s4SpiralTimer += dt * S4_SPIRAL_RATE
+      s4SpiralAng -= dt
+      if (s4SpiralAng <= 0f) {
+        s4SpiralAng = S4_SPIRAL_INTERVAL
+        val ox = core.x
+        val oy = core.y
+        val spd = S4_SPIRAL_SPEED
+        var k = 0
+        while (k < S4_SPIRAL_ARMS) {
+          val offset = k * S4_SPIRAL_STEP
+          val aCw = s4SpiralTimer + offset
+          val aCcw = -s4SpiralTimer + offset
+          weapons.fireBullet(ox, oy, cos(aCw) * spd, sin(aCw) * spd)
+          weapons.fireBullet(ox, oy, cos(aCcw) * spd, sin(aCcw) * spd)
+          k++
+        }
+      }
+    }
+  }
+
+  private fun fireMortarFlakPair(
+    weapons: EnemyWeaponSystem,
+    originX: Float,
+    originY: Float,
+    playerX: Float,
+    playerY: Float,
+  ) {
+    fireAtPlayer(weapons, originX, originY, playerX - S4_FLAK_PAD, playerY, S4_FLAK_SPEED)
+    fireAtPlayer(weapons, originX, originY, playerX + S4_FLAK_PAD, playerY, S4_FLAK_SPEED)
   }
 
   private fun firePlasmaRing(weapons: EnemyWeaponSystem, originX: Float, originY: Float) {
@@ -542,7 +644,36 @@ class BossController(private val resources: Resources) {
     disablePart(TYPE_STAGE3_LEFT_FLAK)
     disablePart(TYPE_STAGE3_RIGHT_FLAK)
     disablePart(TYPE_STAGE3_MEGA_CANNON)
-    if (stage >= 3) {
+    disablePart(TYPE_STAGE4_LEFT_MORTAR)
+    disablePart(TYPE_STAGE4_RIGHT_MORTAR)
+    disablePart(TYPE_STAGE4_HEAVY_GATLING)
+    if (stage >= 4) {
+      setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.30f, bodyHalfH * 0.40f, S4_CORE_HP)
+      setupPart(
+        TYPE_STAGE4_LEFT_MORTAR,
+        -bodyHalfW * 0.75f,
+        -bodyHalfH * 0.10f,
+        bodyHalfW * 0.18f,
+        bodyHalfH * 0.22f,
+        S4_MORTAR_HP,
+      )
+      setupPart(
+        TYPE_STAGE4_RIGHT_MORTAR,
+        bodyHalfW * 0.75f,
+        -bodyHalfH * 0.10f,
+        bodyHalfW * 0.18f,
+        bodyHalfH * 0.22f,
+        S4_MORTAR_HP,
+      )
+      setupPart(
+        TYPE_STAGE4_HEAVY_GATLING,
+        0f,
+        bodyHalfH * 0.48f,
+        bodyHalfW * 0.22f,
+        bodyHalfH * 0.26f,
+        S4_GATLING_HP,
+      )
+    } else if (stage >= 3) {
       setupPart(TYPE_CORE, 0f, -bodyHalfH * 0.1f, bodyHalfW * 0.35f, bodyHalfH * 0.40f, S3_CORE_HP)
       setupPart(TYPE_STAGE3_LEFT_FLAK, -bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
       setupPart(TYPE_STAGE3_RIGHT_FLAK, bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
@@ -627,7 +758,12 @@ class BossController(private val resources: Resources) {
     leftWreckSheet = null
     rightWreckSheet = null
     centerWreckSheet = null
-    if (stage >= 3) {
+    if (stage >= 4) {
+      bodySheet = decodeKeyed(R.drawable.boss_stage4_jungle_full)
+      leftWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_left)
+      rightWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_right)
+      centerWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_center)
+    } else if (stage >= 3) {
       bodySheet = decodeKeyed(R.drawable.boss_stage3_battleship_full)
       leftWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_left)
       rightWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_right)
@@ -709,7 +845,10 @@ class BossController(private val resources: Resources) {
     const val TYPE_STAGE3_LEFT_FLAK = 7
     const val TYPE_STAGE3_RIGHT_FLAK = 8
     const val TYPE_STAGE3_MEGA_CANNON = 9
-    const val MAX_PART_COUNT = 10
+    const val TYPE_STAGE4_LEFT_MORTAR = 10
+    const val TYPE_STAGE4_RIGHT_MORTAR = 11
+    const val TYPE_STAGE4_HEAVY_GATLING = 12
+    const val MAX_PART_COUNT = 14
     const val HOVER_Y_FRAC = 0.25f
     const val CORE_WIDTH_FRAC = 0.85f
     const val ENTER_SPEED = 90f
@@ -752,6 +891,20 @@ class BossController(private val resources: Resources) {
     const val S3_SPIRAL_INTERVAL = 0.08f
     const val S3_SPIRAL_SPEED = 400f
     const val S3_SPIRAL_SWEEP_SEC = 1.5f
+    const val S4_CORE_HP = 600
+    const val S4_MORTAR_HP = 140
+    const val S4_GATLING_HP = 200
+    const val S4_FLAK_SPEED = 580f
+    const val S4_FLAK_PAD = 22f
+    const val S4_GATLING_SPEED = 720f
+    const val S4_GATLING_INTERVAL = 0.90f
+    const val S4_MORTAR_INTERVAL = 1.20f
+    const val S4_GATLING_SPREAD = 0.08f
+    const val S4_SPIRAL_INTERVAL = 0.09f
+    const val S4_SPIRAL_SPEED = 380f
+    const val S4_SPIRAL_RATE = 2.4f
+    const val S4_SPIRAL_ARMS = 4
+    const val S4_SPIRAL_STEP = (Math.PI * 0.5).toFloat()
     const val EXPLODE_FRAME_COUNT = 8
     const val EXPLODE_FRAME_SEC = 0.13f
     const val EXPLODE_HIDE_BODY_FRAME = 3

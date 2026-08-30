@@ -1,9 +1,8 @@
 package com.example.strikers
 
 /**
- * Stages 1–3 are driven by elapsed-time spawn loops (no per-frame alloc).
- * Stage 3 (Ocean Fleet) uses interval waves, then a 25s boss gate that
- * freezes the timeline cursor until the fight is over.
+ * Stages 1–4 are driven by elapsed-time spawn loops (no per-frame alloc).
+ * Stage 3/4 freeze the timeline cursor at the boss gate until the fight ends.
  */
 class SpawnTimeline {
 
@@ -32,6 +31,12 @@ class SpawnTimeline {
   private var s3FlankGap = 0f
   private var s3CruiserSpawned = false
   private var s3FlankFromLeft = true
+  private var s4FlankTimer = 0f
+  private var s4WeaveTimer = 0f
+  private var s4WeaveCount = 0
+  private var s4KamiSpawned = false
+  private var s4WallCount = 0
+  private var s4CruiserSpawned = false
   private var openingPowerVSpawned = false
   private var powerUpWaveQueued = false
   private var powerUpWaveTimer = 0f
@@ -48,8 +53,8 @@ class SpawnTimeline {
     playerWeaponPower: Int,
   ) {
     if (screenWidth <= 0 || screenHeight <= 0) return
-    // Stage 3 locks the cursor at the 25s boss gate until the fight ends.
-    if (!(currentStage == 3 && bossCueFired)) {
+    // Stages 3–4 lock the cursor at the boss gate until the fight ends.
+    if (!((currentStage == 3 || currentStage == 4) && bossCueFired)) {
       elapsedTime += dt
     }
     val w = screenWidth.toFloat()
@@ -65,9 +70,15 @@ class SpawnTimeline {
       updateStage2(dt, enemyManager, w, h)
     } else if (currentStage == 3) {
       updateStage3(dt, enemyManager, w, h)
+    } else if (currentStage == 4) {
+      updateStage4(dt, enemyManager, w, h)
     }
     if (allowBoss && !bossCueFired) {
-      val bossAt = if (currentStage == 3) S3_BOSS_AT else bossEnterSeconds
+      val bossAt = when (currentStage) {
+        4 -> S4_BOSS_AT
+        3 -> S3_BOSS_AT
+        else -> bossEnterSeconds
+      }
       if (elapsedTime >= bossAt) {
         boss.beginEntranceForStage(currentStage)
         bossCueFired = true
@@ -101,6 +112,12 @@ class SpawnTimeline {
     s3FlankGap = S3_FLANK_SPACING
     s3CruiserSpawned = false
     s3FlankFromLeft = true
+    s4FlankTimer = S4_FLANK_SPACING
+    s4WeaveTimer = S4_WEAVE_SPACING
+    s4WeaveCount = 0
+    s4KamiSpawned = false
+    s4WallCount = 0
+    s4CruiserSpawned = false
     openingPowerVSpawned = false
     powerUpWaveQueued = false
     powerUpWaveTimer = 0f
@@ -436,6 +453,80 @@ class SpawnTimeline {
     }
   }
 
+  private fun updateStage4(
+    dt: Float,
+    enemies: EnemyPoolManager,
+    w: Float,
+    h: Float,
+  ) {
+    if (bossCueFired) return
+    if (elapsedTime >= S4_FLANK_START && elapsedTime <= S4_FLANK_END) {
+      s4FlankTimer += dt
+      var safeguard = 0
+      while (s4FlankTimer >= S4_FLANK_SPACING && safeguard < 2) {
+        if (enemies.countActive() >= MAX_ACTIVE) break
+        s4FlankTimer -= S4_FLANK_SPACING
+        safeguard++
+        val y = h * 0.40f
+        enemies.spawnEnemy(-0.08f * w, y, S4_FLANK_VX, 0f, TYPE_DRONE)
+        enemies.spawnEnemy(1.08f * w, y, -S4_FLANK_VX, 0f, TYPE_DRONE)
+      }
+    }
+    if (!s4CruiserSpawned && elapsedTime >= S4_CRUISER_AT) {
+      if (enemies.countActive() < MAX_ACTIVE) {
+        s4CruiserSpawned = true
+        enemies.spawnEnemy(
+          0.50f * w,
+          -0.10f * h,
+          0f,
+          S4_CRUISER_VY,
+          TYPE_HEAVY,
+          PATTERN_V_HOLD,
+          S4_CRUISER_HP,
+        )
+      }
+    }
+    if (
+      elapsedTime >= S4_WEAVE_START &&
+      elapsedTime <= S4_WEAVE_END &&
+      s4WeaveCount < S4_WEAVE_PAIRS
+    ) {
+      s4WeaveTimer += dt
+      var safeguard = 0
+      while (s4WeaveCount < S4_WEAVE_PAIRS && s4WeaveTimer >= S4_WEAVE_SPACING && safeguard < 2) {
+        if (enemies.countActive() >= MAX_ACTIVE) break
+        s4WeaveTimer -= S4_WEAVE_SPACING
+        safeguard++
+        s4WeaveCount++
+        enemies.spawnEnemy(0.25f * w, -0.02f * h, 0f, S4_WEAVE_VY, TYPE_DRONE, PATTERN_WEAVE)
+        enemies.spawnEnemy(0.75f * w, -0.02f * h, 0f, S4_WEAVE_VY, TYPE_DRONE, PATTERN_WEAVE)
+      }
+    }
+    if (!s4KamiSpawned && elapsedTime >= S4_KAMI_AT) {
+      if (enemies.countActive() < MAX_ACTIVE) {
+        s4KamiSpawned = true
+        enemies.spawnEnemy(0.40f * w, -0.08f * h, 0f, S4_KAMI_VY, TYPE_KAMIKAZE)
+        enemies.spawnEnemy(0.60f * w, -0.08f * h, 0f, S4_KAMI_VY, TYPE_KAMIKAZE)
+      }
+    }
+    if (elapsedTime >= S4_WALL_START && elapsedTime <= S4_WALL_END && s4WallCount < S4_WALL_COUNT) {
+      val at = S4_WALL_START + s4WallCount * S4_WALL_SPACING
+      if (elapsedTime >= at && enemies.countActive() < MAX_ACTIVE) {
+        val lane = if (s4WallCount == 0) {
+          0.15f
+        } else if (s4WallCount == 1) {
+          0.40f
+        } else if (s4WallCount == 2) {
+          0.65f
+        } else {
+          0.85f
+        }
+        enemies.spawnEnemy(lane * w, -0.04f * h, 0f, S4_WALL_VY, TYPE_DRONE)
+        s4WallCount++
+      }
+    }
+  }
+
   private fun spawnStage3ScoutV(enemies: EnemyPoolManager, w: Float, h: Float) {
     val vx = 0f
     val vy = WEAVE_VY * 1.7f
@@ -514,6 +605,26 @@ class SpawnTimeline {
     const val S3_FLANK_END = 19.5f
     const val S3_FLANK_SPACING = 0.95f
     const val S3_BOSS_AT = 25.0f
+    const val S4_FLANK_START = 1.0f
+    const val S4_FLANK_END = 6.0f
+    const val S4_FLANK_SPACING = 1.25f
+    const val S4_FLANK_VX = 340f
+    const val S4_CRUISER_AT = 9.0f
+    const val S4_CRUISER_HP = 16
+    const val S4_CRUISER_VY = 80f
+    const val S4_WEAVE_START = 15.0f
+    const val S4_WEAVE_END = 21.0f
+    const val S4_WEAVE_SPACING = 1.5f
+    const val S4_WEAVE_PAIRS = 5
+    const val S4_WEAVE_VY = 160f
+    const val S4_KAMI_AT = 25.0f
+    const val S4_KAMI_VY = 520f
+    const val S4_WALL_START = 29.5f
+    const val S4_WALL_END = 33.5f
+    const val S4_WALL_SPACING = 1.0f
+    const val S4_WALL_COUNT = 4
+    const val S4_WALL_VY = 440f
+    const val S4_BOSS_AT = 45.0f
     const val FORM_CLEAR = 2.4f
   }
 }

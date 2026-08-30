@@ -2,7 +2,7 @@ package com.example.strikers
 
 class StageData {
     // Dev playlist: change order to jump into a stage (e.g. intArrayOf(3, 2, 1)).
-    private val STAGE_SEQUENCE = intArrayOf(1, 2, 3)
+    private val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4)
     private var sequenceIndex = 0
 
     var currentStage = STAGE_SEQUENCE[0]
@@ -37,6 +37,10 @@ class StageData {
             3 -> {
                 scrollSpeedY = 200f
                 targetBossTimelineSeconds = 25f
+            }
+            4 -> {
+                scrollSpeedY = 310f
+                targetBossTimelineSeconds = 45f
             }
             else -> {
                 scrollSpeedY = 180f
