@@ -776,6 +776,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     boss.bindStage(stageManager.currentStage)
     timeline.reset()
     parallax.resetScroll()
+    lastBgmRes = 0
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -808,6 +809,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           player.restoreLives()
           availableBombs = 3
           resetStage()
+          lastBgmRes = 0
           gameState = STATE_TITLE
         }
         return true

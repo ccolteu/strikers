@@ -7,10 +7,13 @@ import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 
 /**
- * Low-latency SFX via [SoundPool] plus one reused [MediaPlayer] for looping BGM.
- * [playSFX] / [switchBGM] do not allocate on the hot path.
+ * Low-latency SFX via [SoundPool]. Gapless BGM via dual [MediaPlayer]
+ * chaining ([MediaPlayer.setNextMediaPlayer]). [playSFX] allocates nothing;
+ * [switchBGM] / loop-complete rebuffer only run off the frame path.
  */
 class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListener {
 
@@ -20,7 +23,9 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
   private var appContext: Context? = null
   private var audioManager: AudioManager? = null
   private var soundPool: SoundPool? = null
-  private var bgmPlayer: MediaPlayer? = null
+  private var activeBgmPlayer: MediaPlayer? = null
+  private var nextBgmPlayer: MediaPlayer? = null
+  private var bgmAttrs: AudioAttributes? = null
   private var focusRequest: AudioFocusRequest? = null
   private var alarmStreamId = 0
   private var currentBgmRes = 0
@@ -29,6 +34,16 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
   private var muted = false
   private var ducking = false
   private var initialized = false
+  private var bgmCompleting = false
+  private var pendingChainRes = 0
+  private val bgmHandler = Handler(Looper.getMainLooper())
+  private val chainNextLoopRunnable = Runnable { runChainNextLoop() }
+
+  private val onBgmComplete = MediaPlayer.OnCompletionListener { mp ->
+    synchronized(lock) {
+      onBgmCompletedLocked(mp)
+    }
+  }
 
   fun initialize(context: Context) {
     synchronized(lock) {
@@ -68,11 +83,9 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
         .setUsage(AudioAttributes.USAGE_GAME)
         .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
         .build()
-      bgmPlayer = MediaPlayer().apply {
-        setAudioAttributes(musicAttrs)
-        isLooping = true
-        setVolume(BGM_VOLUME, BGM_VOLUME)
-      }
+      bgmAttrs = musicAttrs
+      activeBgmPlayer = createBgmPlayerLocked(musicAttrs)
+      nextBgmPlayer = createBgmPlayerLocked(musicAttrs)
       requestFocusLocked()
       initialized = true
     }
@@ -85,12 +98,25 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
       val pool = soundPool ?: return
       val sid = loadedIds[id]
       if (sid == 0 || !sfxReady[id]) return
+
       val vol = if (ducking) DUCK_VOLUME else 1f
+
+      // Determine the structural stream priority value based on arcade gameplay weights
+      val priority = when (id) {
+        SFX_BOMB, SFX_ALARM -> 3          // CRITICAL: Heavy tactical effects / sirens
+        SFX_VULCAN, SFX_LASER -> 2       // HIGH: Instant player weapon audio feedback
+        SFX_PICKUP -> 1                  // NORMAL: Scorecard items and mechanical adjustments
+        SFX_SMALL_EXPLOSION, SFX_HEAVY_EXPLOSION -> 0 // LOW: Ambient environment destruction noise
+        else -> 0
+      }
+
       if (id == SFX_ALARM) {
         if (alarmStreamId != 0) return
-        alarmStreamId = pool.play(sid, vol, vol, 1, -1, 1f)
+        // Pass the fixed priority (3) for the looping alarm sequence
+        alarmStreamId = pool.play(sid, vol, vol, priority, -1, 1f)
       } else {
-        pool.play(sid, vol, vol, 1, 0, 1f)
+        // Pass the dynamically assigned arcade priority level
+        pool.play(sid, vol, vol, priority, 0, 1f)
       }
     }
   }
@@ -108,24 +134,27 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
   fun switchBGM(resId: Int): Boolean {
     synchronized(lock) {
       if (!initialized || resId == 0) return false
-      if (resId == currentBgmRes && bgmPlayer?.isPlaying == true) return true
-      val ctx = appContext ?: return false
-      val player = bgmPlayer ?: return false
+      val active = activeBgmPlayer ?: return false
+      val next = nextBgmPlayer ?: return false
+      if (resId == currentBgmRes && active.isPlaying) return true
       bgmWasPlaying = false
+      cancelChainNextLoopLocked()
       try {
-        player.reset()
-        player.isLooping = true
-        val fd = ctx.resources.openRawResourceFd(resId) ?: return false
-        try {
-          player.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
-        } finally {
-          fd.close()
+        resetPlayerLocked(active)
+        resetPlayerLocked(next)
+        if (!loadBgmSourceLocked(active, resId)) {
+          currentBgmRes = 0
+          return false
         }
-        player.prepare()
+        active.prepare()
         currentBgmRes = resId
         applyBgmVolumeLocked()
+        if (!prepareNextPlayerLocked(resId)) {
+          currentBgmRes = 0
+          return false
+        }
         if (!paused && !muted) {
-          player.start()
+          active.start()
           bgmWasPlaying = true
         }
         return true
@@ -139,13 +168,10 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
   fun setMuted(mute: Boolean) {
     synchronized(lock) {
       muted = mute
+      applyBgmVolumeLocked()
       if (mute) {
         stopAlarmLocked()
-        val player = bgmPlayer
-        if (player != null && player.isPlaying) {
-          player.pause()
-          bgmWasPlaying = true
-        }
+        pauseActiveBgmLocked(remember = true)
       } else if (!paused) {
         resumeBgmLocked()
       }
@@ -157,11 +183,7 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
       paused = true
       stopAlarmLocked()
       soundPool?.autoPause()
-      val player = bgmPlayer
-      if (player != null && player.isPlaying) {
-        bgmWasPlaying = true
-        player.pause()
-      }
+      pauseActiveBgmLocked(remember = true)
     }
   }
 
@@ -187,17 +209,14 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
         sfxReady[i] = false
         i++
       }
-      val player = bgmPlayer
-      if (player != null) {
-        try {
-          player.reset()
-        } catch (_: Exception) {
-        }
-        player.release()
-      }
-      bgmPlayer = null
+      releasePlayerLocked(activeBgmPlayer)
+      releasePlayerLocked(nextBgmPlayer)
+      activeBgmPlayer = null
+      nextBgmPlayer = null
+      bgmAttrs = null
       currentBgmRes = 0
       bgmWasPlaying = false
+      cancelChainNextLoopLocked()
       paused = false
       ducking = false
       initialized = false
@@ -219,11 +238,7 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
         -> {
           ducking = false
-          val player = bgmPlayer
-          if (player != null && player.isPlaying) {
-            bgmWasPlaying = true
-            player.pause()
-          }
+          pauseActiveBgmLocked(remember = true)
           stopAlarmLocked()
         }
         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
@@ -234,21 +249,126 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
     }
   }
 
-  private fun stopAlarmLocked() {
-    val pool = soundPool
-    if (pool != null && alarmStreamId != 0) {
-      pool.stop(alarmStreamId)
+  private fun createBgmPlayerLocked(musicAttrs: AudioAttributes): MediaPlayer {
+    val player = MediaPlayer()
+    player.setAudioAttributes(musicAttrs)
+    player.isLooping = false
+    player.setVolume(BGM_VOLUME, BGM_VOLUME)
+    player.setOnCompletionListener(onBgmComplete)
+    player.setOnErrorListener { _, _, _ ->
+      synchronized(lock) { currentBgmRes = 0 }
+      true
     }
-    alarmStreamId = 0
+    return player
+  }
+
+  private fun onBgmCompletedLocked(mp: MediaPlayer) {
+    if (!initialized) return
+    if (bgmCompleting) return
+    if (mp !== activeBgmPlayer) return
+    val resId = currentBgmRes
+    if (resId == 0) return
+    bgmCompleting = true
+    pendingChainRes = resId
+    val finished = activeBgmPlayer
+    val incoming = nextBgmPlayer
+    activeBgmPlayer = incoming
+    nextBgmPlayer = finished
+    applyBgmVolumeLocked()
+    if (!paused && !muted) {
+      bgmWasPlaying = true
+    }
+    bgmHandler.removeCallbacks(chainNextLoopRunnable)
+    bgmHandler.postDelayed(chainNextLoopRunnable, CHAIN_PREPARE_DELAY_MS)
+  }
+
+  private fun runChainNextLoop() {
+    synchronized(lock) {
+      try {
+        if (!initialized || !bgmCompleting) return
+        val resId = pendingChainRes
+        if (resId == 0 || resId != currentBgmRes) return
+        prepareNextPlayerLocked(resId)
+      } catch (_: Exception) {
+      } finally {
+        bgmCompleting = false
+        pendingChainRes = 0
+      }
+    }
+  }
+
+  private fun cancelChainNextLoopLocked() {
+    bgmHandler.removeCallbacks(chainNextLoopRunnable)
+    bgmCompleting = false
+    pendingChainRes = 0
+  }
+
+  /**
+   * Reset [nextBgmPlayer], load [resId], prepare, and chain it as the gapless
+   * successor of [activeBgmPlayer]. Call only while holding [lock].
+   */
+  private fun prepareNextPlayerLocked(resId: Int): Boolean {
+    val active = activeBgmPlayer ?: return false
+    val next = nextBgmPlayer ?: return false
+    if (resId == 0) return false
+    try {
+      resetPlayerLocked(next)
+      if (!loadBgmSourceLocked(next, resId)) return false
+      next.prepare()
+      applyVolumeToPlayerLocked(next)
+      active.setNextMediaPlayer(next)
+      return true
+    } catch (_: Exception) {
+      return false
+    }
+  }
+
+  private fun loadBgmSourceLocked(player: MediaPlayer, resId: Int): Boolean {
+    val ctx = appContext ?: return false
+    val fd = ctx.resources.openRawResourceFd(resId) ?: return false
+    try {
+      player.setDataSource(fd.fileDescriptor, fd.startOffset, fd.length)
+    } finally {
+      fd.close()
+    }
+    return true
+  }
+
+  private fun resetPlayerLocked(player: MediaPlayer) {
+    try {
+      player.setNextMediaPlayer(null)
+    } catch (_: Exception) {
+    }
+    try {
+      if (player.isPlaying) player.stop()
+    } catch (_: Exception) {
+    }
+    player.reset()
+    val attrs = bgmAttrs
+    if (attrs != null) player.setAudioAttributes(attrs)
+    player.isLooping = false
+    player.setOnCompletionListener(onBgmComplete)
+    applyVolumeToPlayerLocked(player)
+  }
+
+  private fun pauseActiveBgmLocked(remember: Boolean) {
+    val active = activeBgmPlayer ?: return
+    try {
+      if (active.isPlaying) {
+        if (remember) bgmWasPlaying = true
+        active.pause()
+      }
+    } catch (_: Exception) {
+    }
   }
 
   private fun resumeBgmLocked() {
-    val player = bgmPlayer ?: return
+    val active = activeBgmPlayer ?: return
     if (muted || paused || currentBgmRes == 0) return
-    if (bgmWasPlaying || !player.isPlaying) {
+    if (bgmWasPlaying || !active.isPlaying) {
       try {
         applyBgmVolumeLocked()
-        player.start()
+        active.start()
         bgmWasPlaying = true
       } catch (_: Exception) {
       }
@@ -256,11 +376,43 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
   }
 
   private fun applyBgmVolumeLocked() {
+    applyVolumeToPlayerLocked(activeBgmPlayer)
+    applyVolumeToPlayerLocked(nextBgmPlayer)
+  }
+
+  private fun applyVolumeToPlayerLocked(player: MediaPlayer?) {
+    if (player == null) return
     val v = if (muted) 0f else if (ducking) DUCK_VOLUME * BGM_VOLUME else BGM_VOLUME
     try {
-      bgmPlayer?.setVolume(v, v)
+      player.setVolume(v, v)
     } catch (_: Exception) {
     }
+  }
+
+  private fun releasePlayerLocked(player: MediaPlayer?) {
+    if (player == null) return
+    try {
+      player.setOnCompletionListener(null)
+      player.setOnErrorListener(null)
+      player.setNextMediaPlayer(null)
+    } catch (_: Exception) {
+    }
+    try {
+      player.reset()
+    } catch (_: Exception) {
+    }
+    try {
+      player.release()
+    } catch (_: Exception) {
+    }
+  }
+
+  private fun stopAlarmLocked() {
+    val pool = soundPool
+    if (pool != null && alarmStreamId != 0) {
+      pool.stop(alarmStreamId)
+    }
+    alarmStreamId = 0
   }
 
   private fun requestFocusLocked() {
@@ -317,6 +469,7 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
     private const val MAX_STREAMS = 16
     private const val BGM_VOLUME = 0.55f
     private const val DUCK_VOLUME = 0.35f
+    private const val CHAIN_PREPARE_DELAY_MS = 16L
 
     private val SFX_RAW = intArrayOf(
       R.raw.sfx_vulcan,
