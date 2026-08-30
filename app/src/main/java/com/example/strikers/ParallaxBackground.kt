@@ -31,6 +31,7 @@ class ParallaxBackground(private val resources: Resources) {
   private val paintGround = Paint()
   private val paintMid = Paint().apply {
     isFilterBitmap = false
+    alpha = MID_ALPHA
     xfermode = PorterDuffXfermode(PorterDuff.Mode.SCREEN)
   }
   private val paintHigh = Paint().apply {
@@ -77,7 +78,6 @@ class ParallaxBackground(private val resources: Resources) {
     blit(canvas, groundBmp, yGround, h, paintGround)
     if (groundOverride != null) return
     blit(canvas, mid, yMid, h, paintMid)
-    blit(canvas, high, yHigh, h, paintHigh)
   }
 
   fun release() {
@@ -118,7 +118,8 @@ class ParallaxBackground(private val resources: Resources) {
     const val SPEED_GROUND = 1.0f
     const val SPEED_MID = 1.5f
     const val SPEED_HIGH = 2.2f
-    const val HIGH_ALPHA = 102
+    const val MID_ALPHA = 140
+    const val HIGH_ALPHA = 36
 
     fun wrap(y: Float, h: Float): Float {
       var v = y % h

@@ -4,7 +4,10 @@ import android.content.res.Resources
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.Rect
 import android.view.MotionEvent
 
@@ -19,6 +22,14 @@ class PlayerShip(private val resources: Resources) {
   private val srcFrames = Array(FRAME_COUNT) { Rect() }
   private val dst = Rect()
   private val paint = Paint().apply { isFilterBitmap = true }
+  private val outlinePaint = Paint().apply {
+    isFilterBitmap = true
+    colorFilter = PorterDuffColorFilter(Color.BLACK, PorterDuff.Mode.SRC_IN)
+  }
+  private val shadowPaint = Paint().apply {
+    isFilterBitmap = true
+    colorFilter = PorterDuffColorFilter(0xCC000000.toInt(), PorterDuff.Mode.SRC_IN)
+  }
 
   private var screenW = 0
   private var screenH = 0
@@ -238,7 +249,24 @@ class PlayerShip(private val resources: Resources) {
     if (isInvulnerable && ((invulnTimer * 20f).toInt() and 1) == 0) return
     val bmp = sheet ?: return
     val frame = kotlin.math.round(currentFrameIndex).toInt().coerceIn(0, FRAME_COUNT - 1)
-    canvas.drawBitmap(bmp, srcFrames[frame], dst, paint)
+    val src = srcFrames[frame]
+    dst.offset(SHADOW_PX, SHADOW_PX)
+    canvas.drawBitmap(bmp, src, dst, shadowPaint)
+    dst.offset(-SHADOW_PX, -SHADOW_PX)
+    var oy = -OUTLINE_PX
+    while (oy <= OUTLINE_PX) {
+      var ox = -OUTLINE_PX
+      while (ox <= OUTLINE_PX) {
+        if (ox != 0 || oy != 0) {
+          dst.offset(ox, oy)
+          canvas.drawBitmap(bmp, src, dst, outlinePaint)
+          dst.offset(-ox, -oy)
+        }
+        ox += OUTLINE_PX
+      }
+      oy += OUTLINE_PX
+    }
+    canvas.drawBitmap(bmp, src, dst, paint)
   }
 
   fun release() {
@@ -333,5 +361,7 @@ class PlayerShip(private val resources: Resources) {
     const val START_LIVES = 3
     const val HITS_PER_LIFE = 3
     const val RESPAWN_SEC = 0.4f
+    const val SHADOW_PX = 2
+    const val OUTLINE_PX = 3
   }
 }
