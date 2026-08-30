@@ -84,6 +84,7 @@ class SpawnTimeline {
     boss: BossController,
     currentStage: Int,
     bossEnterSeconds: Float,
+    allowBoss: Boolean,
   ) {
     if (screenWidth <= 0 || screenHeight <= 0) return
     elapsedTime += dt
@@ -102,11 +103,12 @@ class SpawnTimeline {
           cue.velocityX,
           cue.velocityY,
           cue.enemyType,
+          cue.pattern,
         )
         nextIndex++
       }
     }
-    if (!bossCueFired && elapsedTime >= bossEnterSeconds) {
+    if (allowBoss && !bossCueFired && elapsedTime >= bossEnterSeconds) {
       boss.beginEntranceForStage(currentStage)
       bossCueFired = true
     }

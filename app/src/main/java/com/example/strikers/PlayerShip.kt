@@ -50,6 +50,7 @@ class PlayerShip(private val resources: Resources) {
   private var targetVelocityX = 0f
   private var isDragging = false
   private var isMovingHorizontal = false
+  private var autoFire = false
 
   private var currentFrameIndex = IDLE_FRAME
   private var targetFrameIndex = IDLE_FRAME
@@ -130,7 +131,7 @@ class PlayerShip(private val resources: Resources) {
   }
 
   fun update(dt: Float) {
-    if (!isDragging || !isMovingHorizontal) {
+    if (!isMovingHorizontal) {
       targetFrameIndex = IDLE_FRAME
     } else {
       targetFrameIndex = if (targetVelocityX < 0f) 6f else 0f
@@ -193,6 +194,7 @@ class PlayerShip(private val resources: Resources) {
     isGameOverFlag = false
     isDragging = false
     isMovingHorizontal = false
+    autoFire = false
     pointerId = MotionEvent.INVALID_POINTER_ID
     currentFrameIndex = IDLE_FRAME
     targetFrameIndex = IDLE_FRAME
@@ -228,7 +230,31 @@ class PlayerShip(private val resources: Resources) {
   }
 
   fun isFiringHeld(): Boolean =
-    isDragging && !isGameOverFlag && lives > 0 && respawnTimer <= 0f
+    (isDragging || autoFire) && !isGameOverFlag && lives > 0 && respawnTimer <= 0f
+
+  fun setAutoFire(on: Boolean) {
+    autoFire = on
+  }
+
+  fun steerToward(targetX: Float, targetY: Float, dt: Float) {
+    if (isGameOverFlag || lives <= 0 || respawnTimer > 0f) return
+    val dx = targetX - x
+    val dy = targetY - y
+    val maxStep = DEMO_SPEED * dt
+    val lenSq = dx * dx + dy * dy
+    if (lenSq > maxStep * maxStep && lenSq > 0.0001f) {
+      val inv = maxStep / kotlin.math.sqrt(lenSq)
+      x += dx * inv
+      y += dy * inv
+    } else {
+      x = targetX
+      y = targetY
+    }
+    targetVelocityX = dx
+    isMovingHorizontal = kotlin.math.abs(dx) > MOVE_THRESHOLD
+    clamp()
+    writeDst()
+  }
 
   fun leftMuzzleX(): Float = x - halfW * MUZZLE_X_FRAC
 
@@ -349,6 +375,7 @@ class PlayerShip(private val resources: Resources) {
     const val START_LIVES = 3
     const val HITS_PER_LIFE = 3
     const val RESPAWN_SEC = 0.4f
+    const val DEMO_SPEED = 920f
     const val SHADOW_PX = 2
     const val OUTLINE_PX = 3
   }

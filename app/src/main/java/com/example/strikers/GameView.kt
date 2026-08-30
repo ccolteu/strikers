@@ -65,6 +65,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var bossBombDmgBank = 0f
   private var bossFought = false
   private var lastBgmRes = 0
+  private var idleT = 0f
+  private var demoT = 0f
+  private var gameOverT = 0f
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
@@ -166,6 +169,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     when (gameState) {
       STATE_TITLE -> {
         parallax.update(TITLE_SCROLL_PX * dt)
+        idleT += dt
+        if (idleT >= IDLE_SECS && screenW > 0 && screenH > 0) {
+          beginDemo()
+        }
       }
       STATE_CLEAR -> {
         parallax.update(0f)
@@ -175,10 +182,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       STATE_GAMEOVER -> {
         parallax.update(0f)
         particles.update(dt)
+        gameOverT += dt
+        if (gameOverT >= GAMEOVER_SECS) {
+          returnToTitle()
+        }
       }
       else -> {
         parallax.update(stageManager.scrollSpeedY * dt)
         scorecard.update(dt)
+        if (gameState == STATE_DEMO) {
+          demoPilot(dt)
+        }
         player.update(dt)
         bullets.update(dt, player, screenW, homingMissiles)
         homingMissiles.update(dt, enemies.getEnemyPool(), enemies.getPoolSize(), boss)
@@ -191,6 +205,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           boss,
           stageManager.currentStage,
           stageManager.targetBossTimelineSeconds,
+          true,
         )
         enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
         boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
@@ -209,6 +224,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         ) {
           scorecard.trigger(player.getHealth(), availableBombs)
           gameState = STATE_CLEAR
+        }
+        if (gameState == STATE_DEMO) {
+          demoT += dt
+          val demoBossDone = bossFought && !boss.isActive() && !boss.isExploding()
+          if (player.isGameOver() || demoBossDone || demoT >= DEMO_SECS) {
+            exitDemo()
+          }
         }
       }
     }
@@ -289,15 +311,30 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val scoreW = uiTextPaint.measureText(uiStringBuilder, 0, scoreEnd)
     canvas.drawText(uiStringBuilder, 0, scoreEnd, screenW - scoreW - 35f + 4f, topTextY + 4f, uiShadowPaint)
     canvas.drawText(uiStringBuilder, 0, scoreEnd, screenW - scoreW - 30f, topTextY, uiTextPaint)
-    if (gameState == STATE_GAMEOVER) {
-      val goCx = screenW * 0.5f
+    if (gameState == STATE_DEMO && (demoT * 2f).toInt() % 2 == 0) {
       uiStringBuilder.setLength(0)
-      uiStringBuilder.append("GAME OVER")
-      drawCenteredHud(canvas, uiStringBuilder, goCx, screenH * 0.45f, uiGoldPaint, uiGoldShadowPaint)
-      if ((System.currentTimeMillis() / 500L) % 2L == 0L) {
+      uiStringBuilder.append("DEMO")
+      drawCenteredHud(
+        canvas,
+        uiStringBuilder,
+        screenW * 0.5f,
+        screenH * 0.16f,
+        uiGoldPaint,
+        uiGoldShadowPaint,
+      )
+    }
+    if (gameState == STATE_GAMEOVER) {
+      if ((gameOverT * 2f).toInt() % 2 == 0) {
         uiStringBuilder.setLength(0)
-        uiStringBuilder.append("TAP SCREEN TO RESTART")
-        drawCenteredHud(canvas, uiStringBuilder, goCx, screenH * 0.55f, uiTextPaint, uiShadowPaint)
+        uiStringBuilder.append("GAME OVER")
+        drawCenteredHud(
+          canvas,
+          uiStringBuilder,
+          screenW * 0.5f,
+          screenH * 0.45f,
+          uiGoldPaint,
+          uiGoldShadowPaint,
+        )
       }
       return
     }
@@ -552,7 +589,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun resolveCollisions() {
     if (player.getHealth() <= 0) {
-      gameState = STATE_GAMEOVER
+      if (gameState == STATE_PLAYING) enterGameOver()
       return
     }
     val bulletPool = bullets.getBulletPool()
@@ -701,7 +738,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           b.isActive = false
           if (player.takeDamage()) {
             particles.triggerExplosion(playerX, playerY)
-            if (player.isGameOver()) gameState = STATE_GAMEOVER
+            if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
           }
           break
         }
@@ -730,7 +767,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             }
             if (player.takeDamage()) {
               particles.triggerExplosion(playerX, playerY)
-              if (player.isGameOver()) gameState = STATE_GAMEOVER
+              if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
             }
             break
           }
@@ -753,7 +790,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           if ((nx * nx) + (ny * ny) <= 1f) {
             if (player.takeDamage()) {
               particles.triggerExplosion(playerX, playerY)
-              if (player.isGameOver()) gameState = STATE_GAMEOVER
+              if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
             }
             break
           }
@@ -851,12 +888,112 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     lastBgmRes = 0
   }
 
+  private fun beginDemo() {
+    idleT = 0f
+    demoT = 0f
+    stageManager.resetToStart()
+    if ((System.nanoTime() and 1L) != 0L) {
+      stageManager.advanceToNextStage()
+    }
+    player.resetWeaponPower()
+    player.restoreLives()
+    availableBombs = 3
+    resetStage()
+    player.upgradeWeapon()
+    player.upgradeWeapon()
+    player.setAutoFire(true)
+    lastBgmRes = 0
+    gameState = STATE_DEMO
+  }
+
+  private fun enterGameOver() {
+    gameOverT = 0f
+    gameState = STATE_GAMEOVER
+  }
+
+  private fun returnToTitle() {
+    player.setAutoFire(false)
+    stageManager.resetToStart()
+    player.resetWeaponPower()
+    player.restoreLives()
+    availableBombs = 3
+    resetStage()
+    idleT = 0f
+    demoT = 0f
+    gameOverT = 0f
+    lastBgmRes = 0
+    gameState = STATE_TITLE
+  }
+
+  private fun exitDemo() {
+    returnToTitle()
+  }
+
+  private fun demoPilot(dt: Float) {
+    val px = player.getHitboxX()
+    val py = player.getHitboxY()
+    val w = screenW.toFloat()
+    val h = screenH.toFloat()
+    var huntX = w * 0.5f + kotlin.math.sin(demoT * 1.15f) * (w * 0.16f)
+    val huntY = h * 0.78f
+    var bestY = -1f
+    val enemyPool = enemies.getEnemyPool()
+    val enemyCount = enemies.getPoolSize()
+    var ei = 0
+    while (ei < enemyCount) {
+      val e = enemyPool[ei]
+      if (e.isActive && e.y > 48f && e.y < py - 56f) {
+        if (e.y > bestY) {
+          bestY = e.y
+          huntX = e.x
+        }
+      }
+      ei++
+    }
+    if (boss.isActive()) {
+      val parts = boss.getComponents()
+      val partCount = boss.getComponentCount()
+      var pi = 0
+      while (pi < partCount) {
+        val part = parts[pi]
+        if (!part.isDestroyed && part.halfW > 0f && part.y < py - 40f) {
+          if (part.y > bestY) {
+            bestY = part.y
+            huntX = part.x
+          }
+        }
+        pi++
+      }
+    }
+    val shots = enemyShots.getBulletPool()
+    val shotCount = enemyShots.getPoolSize()
+    val dodgeMargin = 78f
+    var si = 0
+    while (si < shotCount) {
+      val b = shots[si]
+      if (b.isActive && b.vy > 0f && b.y < py && b.y > py - 240f) {
+        val dx = b.x - px
+        if (dx * dx < dodgeMargin * dodgeMargin) {
+          huntX += if (b.x >= px) -120f else 120f
+          break
+        }
+      }
+      si++
+    }
+    val minX = w * 0.12f
+    val maxX = w * 0.88f
+    if (huntX < minX) huntX = minX
+    if (huntX > maxX) huntX = maxX
+    player.steerToward(huntX, huntY, dt)
+  }
+
   override fun onTouchEvent(event: MotionEvent): Boolean {
     val down = event.actionMasked == MotionEvent.ACTION_DOWN ||
       event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
     when (gameState) {
       STATE_TITLE -> {
         if (down) {
+          idleT = 0f
           stageManager.resetToStart()
           player.resetWeaponPower()
           player.restoreLives()
@@ -864,6 +1001,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           resetStage()
           gameState = STATE_PLAYING
         }
+        return true
+      }
+      STATE_DEMO -> {
+        if (down) exitDemo()
         return true
       }
       STATE_CLEAR -> {
@@ -875,15 +1016,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         return true
       }
       STATE_GAMEOVER -> {
-        if (down) {
-          stageManager.resetToStart()
-          player.resetWeaponPower()
-          player.restoreLives()
-          availableBombs = 3
-          resetStage()
-          lastBgmRes = 0
-          gameState = STATE_TITLE
-        }
         return true
       }
     }
@@ -921,7 +1053,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val want = when (gameState) {
       STATE_TITLE -> R.raw.bgm_title
       STATE_CLEAR -> R.raw.bgm_victory
-      STATE_PLAYING -> {
+      STATE_PLAYING, STATE_DEMO -> {
         if (boss.isActive()) {
           R.raw.bgm_boss
         } else if (stageManager.currentStage >= 2) {
@@ -964,6 +1096,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val STATE_PLAYING = 1
     const val STATE_CLEAR = 2
     const val STATE_GAMEOVER = 3
+    const val STATE_DEMO = 4
+    const val IDLE_SECS = 10f
+    const val DEMO_SECS = 30f
+    const val GAMEOVER_SECS = 5f
     const val TITLE_SCROLL_PX = 50f
     const val MAX_FRAME_NS = 50_000_000L
     const val RADIUS_SUM_THRESHOLD = 28f
