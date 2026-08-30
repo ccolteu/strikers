@@ -36,6 +36,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var campaignScore = 0
   private val panicBomb = PanicBomb()
   private val powerUpItem = PowerUpItem()
+  private val scorePool = Array(12) { FloatingScore() }
   private val stageManager = StageData()
   private val srcCore = Rect()
   private val bombDstRect = RectF()
@@ -62,6 +63,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var isSettingsMenuOpen = false
   private var logoBmp: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
+  private val medalFrames = arrayOfNulls<Bitmap>(PowerUpItem.MEDAL_FRAME_COUNT)
   private var bgStage2Bmp: Bitmap? = null
   private var bgStage3Bmp: Bitmap? = null
   private var lastTapUpMs = 0L
@@ -124,6 +126,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     textSize = 32f
     isAntiAlias = true
   }
+  private val popupPaint = Paint().apply {
+    color = Color.YELLOW
+    typeface = Typeface.DEFAULT_BOLD
+    textSize = 28f
+    isAntiAlias = true
+  }
+  private val popupShadowPaint = Paint().apply {
+    color = Color.BLACK
+    typeface = Typeface.DEFAULT_BOLD
+    textSize = 28f
+    isAntiAlias = true
+  }
   private val uiTrackPaint = Paint().apply {
     color = 0xAA1A1A1A.toInt()
     style = Paint.Style.FILL
@@ -168,6 +182,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiSmallPaint.typeface = face
     uiSmallShadowPaint.typeface = face
     accentShadowPaint.typeface = face
+    popupPaint.typeface = face
+    popupShadowPaint.typeface = face
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -233,6 +249,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       STATE_CLEAR -> {
         parallax.update(0f)
         scorecard.update(dt)
+        updateFloatingScores(dt)
         particles.update(dt)
       }
       STATE_GAMEOVER -> {
@@ -252,7 +269,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         player.update(dt)
         bullets.update(dt, player, screenW, homingMissiles)
         homingMissiles.update(dt, enemies.getEnemyPool(), enemies.getPoolSize(), boss)
-        powerUpItem.update(dt, screenW)
+        powerUpItem.update(dt, screenW, screenH)
+        updateFloatingScores(dt)
         timeline.update(
           dt,
           enemies,
@@ -414,6 +432,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val scoreW = uiTextPaint.measureText(uiStringBuilder, 0, scoreEnd)
     val scoreX = screenW - scoreW - 30f
     drawHudTextAt(canvas, uiStringBuilder, 0, scoreEnd, scoreX, topTextY, uiTextPaint, uiShadowPaint)
+    drawFloatingScores(canvas)
     if (gameState == STATE_DEMO && (demoT * 2f).toInt() % 2 == 0) {
       uiStringBuilder.setLength(0)
       uiStringBuilder.append("DEMO")
@@ -656,6 +675,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if ((dx * dx) + (dy * dy) <= rSq) {
           enemy.isActive = false
           particles.triggerExplosion(enemy.x, enemy.y)
+          dropEnemyLoot(enemy.x, enemy.y)
         }
       }
       ei++
@@ -734,6 +754,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (powerUpBmp == null) {
       powerUpBmp = decodeKeyed(R.drawable.item_powerup)
+    }
+    if (medalFrames[0] == null) {
+      medalFrames[0] = decodeKeyed(R.drawable.item_medal_0)
+      medalFrames[1] = decodeKeyed(R.drawable.item_medal_1)
+      medalFrames[2] = decodeKeyed(R.drawable.item_medal_2)
+      medalFrames[3] = decodeKeyed(R.drawable.item_medal_3)
+      medalFrames[4] = decodeKeyed(R.drawable.item_medal_4)
+      medalFrames[5] = decodeKeyed(R.drawable.item_medal_5)
+      medalFrames[6] = decodeKeyed(R.drawable.item_medal_6)
+      medalFrames[7] = decodeKeyed(R.drawable.item_medal_7)
     }
   }
 
@@ -830,9 +860,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               if (enemy.health <= 0) {
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
-                if (Math.random() < 0.15 && !powerUpItem.isActive) {
-                  powerUpItem.spawn(enemy.x, enemy.y)
-                }
+                dropEnemyLoot(enemy.x, enemy.y)
               }
               break
             }
@@ -862,9 +890,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               if (enemy.health <= 0) {
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
-                if (Math.random() < 0.15 && !powerUpItem.isActive) {
-                  powerUpItem.spawn(enemy.x, enemy.y)
-                }
+                dropEnemyLoot(enemy.x, enemy.y)
               }
               break
             }
@@ -981,9 +1007,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             if ((nx * nx) + (ny * ny) <= 1f) {
               enemy.isActive = false
               particles.triggerExplosion(enemy.x, enemy.y)
-              if (Math.random() < 0.15 && !powerUpItem.isActive) {
-                powerUpItem.spawn(enemy.x, enemy.y)
-              }
+              dropEnemyLoot(enemy.x, enemy.y)
               if (player.takeDamage()) {
                 particles.triggerExplosion(playerX, playerY)
                 if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
@@ -1019,29 +1043,113 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
     }
 
-    if (powerUpItem.isActive) {
-      val dx = playerX - powerUpItem.x
-      val dy = playerY - powerUpItem.y
-      val pickup = PLAYER_HIT_RADIUS + POWERUP_HALF
-      if ((dx * dx) + (dy * dy) <= pickup * pickup) {
-        powerUpItem.isActive = false
-        player.upgradeWeapon()
-        SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+    val itemPool = powerUpItem.getPool()
+    val itemCount = powerUpItem.getPoolSize()
+    var ii = 0
+    while (ii < itemCount) {
+      val item = itemPool[ii]
+      if (item.isActive) {
+        val dx = playerX - item.x
+        val dy = playerY - item.y
+        val half = if (item.itemType == PowerUpItem.ITEM_TYPE_MEDAL) {
+          PowerUpItem.MEDAL_HALF
+        } else {
+          POWERUP_HALF
+        }
+        val pickup = PLAYER_HIT_RADIUS + half
+        if ((dx * dx) + (dy * dy) <= pickup * pickup) {
+          item.isActive = false
+          if (item.itemType == PowerUpItem.ITEM_TYPE_MEDAL) {
+            collectMedal(item)
+          } else {
+            player.upgradeWeapon()
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          }
+        }
       }
+      ii++
     }
   }
 
+  private fun dropEnemyLoot(x: Float, y: Float) {
+    powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_MEDAL)
+    if (Math.random() < 0.15) {
+      powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_POWERUP)
+    }
+  }
+
+  private fun collectMedal(item: PowerUpSlot) {
+    val points = if (item.medalFrameIndex == 0) MEDAL_SCORE_FACE else MEDAL_SCORE_EDGE
+    campaignScore += points
+    if (campaignScore > 99_999_999) campaignScore = 99_999_999
+    triggerFloatingScore(item.x, item.y, points)
+    if (item.medalFrameIndex == 0) {
+      particles.triggerExplosion(item.x, item.y, false)
+    }
+    SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+  }
+
+  private fun triggerFloatingScore(startX: Float, startY: Float, value: Int) {
+    var i = 0
+    while (i < 12) {
+      val p = scorePool[i]
+      if (!p.isActive) {
+        p.x = startX
+        p.y = startY
+        p.scoreValue = value
+        p.age = 0f
+        p.isActive = true
+        return
+      }
+      i++
+    }
+  }
+
+  private fun updateFloatingScores(dt: Float) {
+    var i = 0
+    while (i < 12) {
+      val p = scorePool[i]
+      if (p.isActive) {
+        p.y -= FLOATING_SPEED * dt
+        p.age += dt
+        if (p.age >= FLOATING_LIFE) p.isActive = false
+      }
+      i++
+    }
+  }
+
+  private fun deactivateScorePopups() {
+    var i = 0
+    while (i < 12) {
+      scorePool[i].isActive = false
+      i++
+    }
+  }
+
+  private fun drawFloatingScores(canvas: Canvas) {
+    var i = 0
+    while (i < 12) {
+      val p = scorePool[i]
+      if (p.isActive) {
+        val fade = (1f - p.age / FLOATING_LIFE).coerceIn(0f, 1f)
+        val alpha = (255f * fade).toInt()
+        popupPaint.alpha = alpha
+        popupShadowPaint.alpha = alpha
+        uiStringBuilder.setLength(0)
+        uiStringBuilder.append(p.scoreValue)
+        val end = uiStringBuilder.length
+        val w = popupPaint.measureText(uiStringBuilder, 0, end)
+        canvas.drawText(uiStringBuilder, 0, end, p.x - w * 0.5f + 2f, p.y + 2f, popupShadowPaint)
+        canvas.drawText(uiStringBuilder, 0, end, p.x - w * 0.5f, p.y, popupPaint)
+      }
+      i++
+    }
+    popupPaint.alpha = 255
+    popupShadowPaint.alpha = 255
+  }
+
   private fun drawPowerUpItem(canvas: Canvas) {
-    if (!powerUpItem.isActive) return
-    val bmp = powerUpBmp ?: return
-    val hx = POWERUP_HALF
-    powerUpDst.set(
-      powerUpItem.x - hx,
-      powerUpItem.y - hx,
-      powerUpItem.x + hx,
-      powerUpItem.y + hx,
-    )
-    canvas.drawBitmap(bmp, null, powerUpDst, bodyPaint)
+    powerUpItem.draw(canvas, powerUpBmp, medalFrames, bodyPaint)
   }
 
   private fun lockGameCanvas(): Canvas? {
@@ -1080,6 +1188,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val powerUp = powerUpBmp
     if (powerUp != null && !powerUp.isRecycled) powerUp.recycle()
     powerUpBmp = null
+    var medalI = 0
+    while (medalI < medalFrames.size) {
+      val medal = medalFrames[medalI]
+      if (medal != null && !medal.isRecycled) medal.recycle()
+      medalFrames[medalI] = null
+      medalI++
+    }
     val stage2 = bgStage2Bmp
     if (stage2 != null && !stage2.isRecycled) stage2.recycle()
     bgStage2Bmp = null
@@ -1104,7 +1219,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     awaitingSecondTap = false
     bossFought = false
     player.resetForStage()
-    powerUpItem.isActive = false
+    powerUpItem.deactivateAll()
+    deactivateScorePopups()
     bullets.deactivateAll()
     homingMissiles.deactivateAll()
     enemies.deactivateAll()
@@ -1370,6 +1486,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val BOSS_BULLET_PAD_Y = 16f
     const val ENEMY_RAM_BODY_FRAC = 0.45f
     const val POWERUP_HALF = 32f
+    const val MEDAL_SCORE_FACE = 2000
+    const val MEDAL_SCORE_EDGE = 200
+    const val FLOATING_SPEED = 90f
+    const val FLOATING_LIFE = 0.75f
     const val BOSS_BOMB_DPS = 16f
     const val DOUBLE_TAP_MS = 280L
     const val TAP_MAX_MS = 220L
@@ -1377,4 +1497,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val HUD_SHADOW_PX = 2f
     const val HUD_OUTLINE_PX = 3f
   }
+}
+
+private class FloatingScore {
+  var x = 0f
+  var y = 0f
+  var scoreValue = 0
+  var age = 0f
+  var isActive = false
 }
