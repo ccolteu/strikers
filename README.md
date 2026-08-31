@@ -1,141 +1,246 @@
 # WW2 Blitz
 
-Portrait Android shoot-’em-up. You fly a fighter up a scrolling WWII theater, punch through scripted waves, strip a multi-part boss, and carry score across four stages.
+WW2 Blitz is a **portrait shoot-’em-up** for Android. You fly one fighter up a scrolling WWII landscape, shoot waves of planes, peel a multi-part boss, and carry your score through four stages.
 
-The codebase is a **Choreographer-driven `SurfaceView` loop** in Kotlin (`com.cc.ww2blitz`). The hot path is built to allocate **nothing per frame**: fixed object pools, primitive timers, `while` loops, and a recycled `StringBuilder` for HUD text.
+If you have played *1942*, *Strikers 1945*, or a Psikyo cabinet: that is the genre. The phone is held upright. Enemies come from the top. You stay near the bottom.
+
+The software is a small Kotlin engine (`com.cc.ww2blitz`). It does **not** use Jetpack Compose for gameplay. One `SurfaceView` draws every pixel. A vsync callback (`Choreographer`) is the clock. The combat loop is written so it **does not allocate memory every frame**, which keeps Android’s garbage collector from hitching the action.
 
 ---
 
 ## What you play
 
-You are a single plane at the bottom of a portrait screen. Enemies come from the top in formations. You shoot automatically while you hold the screen, dodge green bullets, grab power-ups, and bomb when a wave is about to eat you.
+### The fantasy, in one paragraph
 
-There are **four stages**. Each one is a timed script that ends in a boss. Beat the boss, take the stage-clear bonus, and the next map loads. Beat stage 4 and the campaign is over—it does not wrap back to stage 1.
+You are a lone interceptor. The ground scrolls toward you like a map on a conveyor. Flights of enemy aircraft enter in recognizable **formations**—Vs, side sweeps, weaving pairs, walls of heavies. You hold the glass to fire, drag to dodge green bullets, grab a **P** to make the gun wider, and double-tap a **bomb** when a wall is about to crush you. After a few dozen seconds a **boss** fills the top of the screen. You shoot off its guns first; only then will the core take damage. Survive four of those maps and the war is over.
 
-### Controls
+### Why it feels like an arcade, not a “level select” app
 
-| Input | Effect |
-| --- | --- |
-| Drag | The ship follows your finger (relative drag, not absolute snap). Banking sprites change with horizontal speed. |
-| Hold | Auto-fire. Weapon shape depends on power level (vulcan stream, then extra shots, then homing missiles). |
-| Double-tap | Panic bomb if you have one. Screen-filling blast, extra shake, heavy damage to waves and exposed boss parts. |
-| Tap on title | Starts a real campaign from stage 1. |
-| Tap **[ AUDIO SETTINGS ]** | BGM / SFX sliders. |
+A real cabinet in 1996 did three things while nobody was playing: show the logo, play a **demo** with the CPU flying, then show the **high score table**. WW2 Blitz does the same. You do not pick a stage from a menu. You either tap **1P START** and play the campaign, or you watch the machine sell itself.
 
-You begin with **3 lives**, **3 hits per life**, and **3 bombs**. Hits are shown as a small bar. Invulnerability after a hit/respawn is a timer, not a special object.
+### Controls (what your thumb does)
+
+**Relative drag** means the ship moves *by how much your finger moved*, not “the ship jumps under your finger.” If you put your thumb on the right side of the screen and slide left a centimeter, the plane moves left a centimeter. That keeps the plane readable and keeps your thumb off the sprite.
+
+**Hold to fire** means you do not tap for every bullet. While the finger is down, a vulcan fires on a timer. Stronger **weapon power** adds extra streams, then **homing missiles**.
+
+**Double-tap** is a separate gesture (short taps close together, little movement). That spends one bomb. A bomb is a short, huge blast used as a panic button, not as your main gun.
+
+**Audio settings** on the title are real sliders for BGM and SFX. They do not start a game.
+
+You start with **3 lives**, **3 hits per life** (a small bar), and **3 bombs**. After a hit you are briefly invincible so a bullet cloud cannot delete three lives in one frame.
 
 ### Power-ups and score
 
-Waves drop:
+Drops are items that fall after certain kills:
 
-- **P** — weapon power (caps internally; extra drops become medals).
-- **B** — extra bomb (capped at 3; extras become medals).
-- **Medals** — face-up 2000, edge-on 200. They are score, not lives.
+- **P (power)** — your shot pattern gets denser. When power is already maxed, extra P becomes a medal (score only).
+- **B (bomb)** — another bomb, up to 3. Extra B becomes a medal.
+- **Medal** — score. Face-up is worth more (2000) than edge-on (200).
 
-Destroying enemies and collecting medals add to `campaignScore` (clamped at 99,999,999). Stage clear adds **10,000 per remaining life** and **5,000 per remaining bomb**, ticker-animated like a 90s arcade cabinet.
+Your running total is `campaignScore`, capped at 99,999,999. When a stage is cleared you also get a **life bonus** (10,000 × lives left) and a **bomb bonus** (5,000 × bombs left). Those numbers tick up on screen like a 1990s scorecard, then you tap to go to the next stage.
 
 ### Bosses
 
-Each boss is one sprite sheet cut into **parts** (wings, guns, core). You must destroy the outer modules first. The **core is immune** until every other part is gone (`isCoreVulnerable()`). Dead modules leave wreck overlays. When the core dies, an explode sequence runs, then stage clear.
+A boss is one big illustration, but the engine treats it as **several hitboxes**: left gun, right gun, core, and so on. If you could dump all damage into the core immediately, the fight would be a sponge. Instead you **peel** the modules. Destroyed modules show wreck art. The core only becomes vulnerable when every other part is gone. When the core dies, a short explode animation plays, then stage clear.
 
-| Stage | Feel | Scroll | Boss gate |
+| Stage | Theater | How fast the ground moves | When the boss is cued |
 | --- | --- | --- | --- |
-| 1 | Canyon airfield | 180 px/s | ~38 s |
-| 2 | Super-tank ground | 260 px/s | ~30 s |
-| 3 | Ocean / carrier | 200 px/s | ~25 s |
-| 4 | Jungle air fortress | 310 px/s | ~45 s |
+| 1 | Canyon / airfield | slower | ~38 seconds |
+| 2 | Super-tank country | faster | ~30 seconds |
+| 3 | Ocean / carrier | medium | ~25 seconds |
+| 4 | Jungle air fortress | fastest | ~45 seconds |
 
-Enemy archetypes: **drone**, **kamikaze**, **interceptor**, **heavy**. Patterns include V-hold, weave, walls, diamonds, and pincers—authored as elapsed-time cues, not entity graphs.
+The four **grunt types** you see before the boss: **drone** (fodder), **kamikaze** (dives, little shooting), **interceptor** (holds and aims), **heavy** (tanky, slow fire). How they are *arranged* is a design topic of its own—see [Enemy formation design](#enemy-formation-design) below.
 
-### Attract mode (idle cabinet)
+### Attract mode (the machine playing itself)
 
-If you leave the title alone:
+Leave the title untouched:
 
-1. **Title** (~4 s) — logo, blinking **1P START**.
-2. **CPU demo** (~30 s) — AI flies a **random stage 1–4**, never the same stage twice in a row. Score from demo is **not** saved.
-3. **Top 10** (~4 s) — ranks, 8-digit scores, 3-letter names, max stage.
+1. **Title (~4 s)** — logo and blinking **1P START**.
+2. **CPU demo (~30 s)** — an AI flies a **random stage 1–4**, never the same map twice in a row. That demo score is **not** a high score.
+3. **Top 10 (~4 s)** — rank, 8-digit score, three letters, highest stage reached.
 
-Touch during demo or ranking snaps back to the title.
+Touch during demo or ranking returns you to the interactive title so you can start.
 
-### Game over and names
+### Game over, campaign complete, names
 
-On a real death you get a **GAME OVER** hold (~9 s, or tap to skip). If the score beats 10th place, **REGISTRATION**: tap left/right of the active letter to cycle A–Z, lock with the bottom prompt, three initials. Then the ranking page. If you do not qualify, you go straight to ranking.
+If you lose all lives: **GAME OVER** for about 9 seconds (tap to skip). If your score beats 10th place, **REGISTRATION**: tap the left half of the letter row to go backward through A–Z, right half to go forward, bottom prompt to lock a letter. Three letters, then the ranking list. If you do not beat 10th, you skip naming and see the list.
 
-Campaign complete (stage 4 clear) is its own screen: congratulations, final score, then the same qualify → register or ranking path.
+If you **clear stage 4**, you do not go back to stage 1. You get **CONGRATULATIONS / ALL STAGES CLEAR / FINAL SCORE**, then the same “do I qualify?” path.
 
-High scores persist in `SharedPreferences` (`arcade_leaderboard`): 10 slots of score, packed 3-char names, max stage cleared.
+The table is stored on the phone (`SharedPreferences` name `arcade_leaderboard`): ten rows of score, initials, and max stage.
 
 ---
 
 ## Design choices
 
-These are the product rules that drove the architecture. They are not incidental style.
+Each choice is stated first as a player-facing idea, then as an engineering rule.
 
 ### 1. Arcade cabinet, not a mobile “session”
 
-Title → demo → ranking is the same loop as a 1990s PCB left on in a dark arcade. Demo length is long enough to show formations and a boss cue (~30 s). Attract never writes the leaderboard.
+**Plain:** A good shmup in an arcade *looks busy while it waits*. People walking by see a demo, then names of people who were good. You should not be dumped into a stage-select grid.
+
+**Engine:** Title, demo, and ranking are a timer cycle (`ATTRACT_TITLE` → `ATTRACT_CPU_DEMO` → `ATTRACT_HIGH_SCORE`). Demo uses the *same* spawn and combat code as a real game, with auto-fire and a cheap steering AI. Inserting into the leaderboard is forbidden on that path.
 
 ### 2. Zero allocation on the frame
 
-Android GC hitching is death for a shmup. The contract is: **`doFrame` must not allocate**. That forbids `ArrayList`, iterators, string concat, boxing, and per-shot `new`. Pools, `IntArray`/`CharArray`, `while (i < n)`, and one `StringBuilder` for all HUD.
+**Plain:** If the phone pauses for garbage collection in the middle of a bullet-hell, it feels like the game lagged. Players blame “bad performance.” We blame `new` on the hot path.
 
-### 3. Time-scripted stages, not a level editor graph
+**Engine:** `doFrame` must not allocate. No `ArrayList`, no `for (x in list)`, no `"score_$i"` string building, no boxing. Combat objects live in **fixed arrays** created at startup. HUD text is one reused `StringBuilder`. Loops are `while (i < n) { ...; i++ }`.
 
-Waves are functions of `elapsedTime` plus a handful of boolean “already spawned” flags. That matches Psikyo-style density control and keeps spawn logic off the heap. Stages 3–4 **freeze the timeline clock** at the boss gate so leftover fodder does not keep spawning behind the fortress.
+### 3. Time-scripted stages, not a level-editor graph
+
+**Plain:** Classic cabinets did not load a JSON graph of 200 enemy nodes. A designer said “at 8 seconds, a V of interceptors; at 12 seconds, weavers from 30% and 70% width.” Density is a function of **clock time**.
+
+**Engine:** `SpawnTimeline` holds `elapsedTime` and booleans like `vFormSpawned`. When the clock crosses a constant (`V_FORM_AT`), it calls `spawnVFormation` once. Stages 3 and 4 **stop incrementing the clock** after the boss is cued, so the director cannot keep pouring fodder behind an already-entering fortress.
 
 ### 4. Multi-hitbox bosses, peel then core
 
-A single AABB would feel cheap. Parts have their own HP and wreck art. Core vulnerability is a derived boolean, not a second boss type. Combat patterns are per-stage timers (chin guns, sponsons, flak, gatling, desperation rings).
+**Plain:** Shooting a giant until a single HP bar dies feels like a damage sponge. Shooting *guns off a plane* feels like a machine coming apart.
 
-### 5. Relative drag + auto-fire
+**Engine:** `BossComponent` slots with their own HP. `isCoreVulnerable()` is derived: all non-core parts destroyed. Wreck bitmaps overlay dead modules. Per-stage fire is more timers (chin, sponson, flak, gatling, desperation rings)—still no per-bullet objects beyond the shared enemy-bullet pool.
 
-Absolute “finger = ship” fights the HUD and thumbs. Relative drag plus hold-to-fire is how 1942-style phone ports stay readable. Double-tap bomb is a discrete gesture so bombs are not spent on ordinary movement.
+### 5. Relative drag + auto-fire + discrete bomb
 
-### 6. Green chroma, not PNG alpha from the pipeline
+**Plain:** Putting the plane under your thumb hides the plane. Tapping for every shot is exhausting. Using the same tap for bombs would spend bombs by accident.
 
-Sprites are authored on neon green. At load, pixels matching `g > 160 && g > r + 40 && g > b + 40` go to alpha 0. Art can stay simple 32-bit sheets; the engine keys them once.
+**Engine:** `PlayerShip` tracks `pointerId` and last XY. `BulletManager` fires on a cooldown while `isFiringHeld()`. Bombs require a double-tap window (`DOUBLE_TAP_MS`, slop in pixels) in `GameView.onTouchEvent`.
+
+### 6. Green chroma at load, not authored alpha
+
+**Plain:** Pixel artists often paint on screaming green. The engine should punch that green out once when the bitmap loads, not require a Photoshop export dance for every ship.
+
+**Engine:** Mutable `ARGB_8888` decode, then pixels with `g > 160 && g > r + 40 && g > b + 40` become 0. Same helper on player, enemies, bosses, missiles, explosions.
 
 ### 7. Cover-scaled parallax, not stretched 9:16
 
-Ground/mid/high layers are 2:3-ish and **cover-scaled** (uniform scale, center crop) so phones do not squash hangars and ships. Mid/high clouds are black-keyed with `PorterDuff.Mode.SCREEN`.
+**Plain:** Background paintings are closer to 2:3. Stretching them to a tall phone makes hangars look like they melted. Cropping the sides (cover) keeps proportions.
+
+**Engine:** `ParallaxBackground` cover-scales three layers. Mid/high clouds sit on black and composite with `PorterDuff.Mode.SCREEN`. Stages 2–4 swap only the **ground** bitmap; cloud layers stay.
 
 ### 8. Hardware canvas, vsync clock
 
-`Choreographer.FrameCallback` is the clock (`dt` clamped to 50 ms). On API 26+ the surface is `lockHardwareCanvas()`. This is a game loop, not Compose recomposition.
+**Plain:** The game should tick with the screen refresh, not with Compose “recompose this tree.” One canvas, one frame.
+
+**Engine:** `Choreographer.FrameCallback`. `dt` is nanoseconds converted to seconds, clamped to 50 ms so a debugger pause does not teleport every bullet. API 26+ uses `lockHardwareCanvas()`.
 
 ### 9. Audio off the frame
 
-SFX: `SoundPool`, preloaded IDs, no alloc in `playSFX`. BGM: dual `MediaPlayer` gapless chain, switch on the main looper, not inside `doFrame`. Volumes persist. Title sliders write scales only.
+**Plain:** Gunshots must be immediate. Music must loop without a gap. Neither should create objects while you are dodging.
 
-### 10. Persistence is primitives + `apply()`
+**Engine:** `SoundPool` for SFX (`playSFX` is lock + play). Dual `MediaPlayer` for BGM with `setNextMediaPlayer`. Track changes happen on the main looper. Volumes live in prefs.
 
-Leaderboard is three parallel arrays, in-place insert, `editor.apply()`. Load once at boot (`hydrated` flag). No JSON, no Room on the attract path.
+### 10. Persistence is primitives
+
+**Plain:** The high score table is ten rows you can draw with a `while` loop. It should survive app restart. It should not parse JSON during attract.
+
+**Engine:** `IntArray` / `CharArray`, in-place insertion, `SharedPreferences.edit().apply()`. Load once (`hydrated`).
+
+---
+
+## Enemy formation design
+
+This is the part that makes the game *read* as a shmup instead of “random sprites from the top.”
+
+### What a formation is, plainly
+
+A **formation** is a group of ships that enter with a **shared shape and a shared job**. Players learn the shape: “that V will stop and shoot,” “those two lanes will snake,” “that wall is for the bomb.” If every enemy were an independent random spawn, the screen would be noisy but not readable. Psikyo and Toaplan games teach you *patterns*, then mix them.
+
+WW2 Blitz does **not** spawn a “Formation” object. It spawns several `Enemy` slots at related positions and gives them the same **pattern id** (or a special cue like diamond leader/wings). The *look* of a formation is emergent from those slots.
+
+### Vocabulary of jobs
+
+| Job | What the player should feel | How we approximate it |
+| --- | --- | --- |
+| **Teach the gun** | First seconds must feed a **P** so you are not stuck at power 1 | Opening **sweep-arc squadron** (a small V that flies a curve) |
+| **Flank pressure** | Do not camp a corner | Drones from **off the left and right edges**, crossing inward |
+| **Readable hold** | A V that **stops mid-screen** and aims is a shooting gallery | Interceptors + `PATTERN_V_HOLD` |
+| **Lane dodge** | Two columns that **weave** force you to pick a gap | Drones + `PATTERN_WEAVE` at 30%/70% (or 25%/75%) width |
+| **Bomb bait** | Two chunky ships that refuse to die quickly | Twin **heavies** as a “wall” |
+| **Pincer** | Threat from both sides with a stagger so it is fair | Stage 2 pairs: left then right a beat later |
+| **Diamond dive** | A kamikaze pack with a leader | Cues `DIAMOND_LEADER` / `WING_L` / `WING_R` |
+| **Charge wall** | A row of bodies, not a row of bullets | Stage 4 drones in lanes, faster vy |
+| **Cruiser** | One fat mid-boss grunt before the real boss | High-HP interceptor/heavy with hold |
+
+Types are few (**four**) so silhouettes stay readable at phone size. Complexity lives in **when** they appear and **which pattern** they run, not in a dozen enemy classes.
+
+### Why time, not “when the last wave dies”
+
+If the next wave waited until the screen was empty, a skilled player would skip content and a struggling player would stall forever. A **clock** guarantees the stage has a rhythm: pressure, pause, V, weaves, wall, boss. `MAX_ACTIVE` is a safety valve so a slow device or a huge overlap cannot exceed the pool.
+
+One-shot flags (`vFormSpawned`, `wallSpawned`) mean a wave cannot double-fire if a hitch makes `elapsedTime` jump across the threshold twice in spirit—the flag is the latch.
+
+### Stage 1 — teach, then stack
+
+1. **Opening sweep V** — small, curved entry, power-up duty.  
+2. **Flank drones** — left/right crossers on a spacing timer (`FLANK_SPACING`). Teaches you the whole width of the screen.  
+3. **Interceptor V-hold** — three ships in a V that descend and **hold**. This is the first “aim at me” exam.  
+4. **Weave pairs** — two drones on sine paths. Teaches dodging without filling the sky.  
+5. **Twin heavies** — slow, high HP. Teaches bombs and focus fire before the B-17-style boss.
+
+Scroll is the **slowest** of the four so new players can read the canyon and the shapes.
+
+### Stage 2 — pincer and geometry
+
+Stage 2 is **faster scroll** and meaner geometry:
+
+- **Finger pincers** — pairs from left then right so you cannot hug one edge.  
+- **Flank heavies** with a **death-clear** cue: killing them eats nearby enemy bullets (a small “cancel” reward).  
+- **Center weaves**, **turret-guard interceptors** on V-hold at the sides.  
+- **Kamikaze diamond** — leader plus wings, then a fast solo kami.  
+- **Left/right walls** of drones at slightly different speeds so the wall is not a flat line (easier to thread, still threatening).  
+- Pre-boss weaves and a center interceptor as a “last quiz” before the tank.
+
+The design thesis: **deny camping**, then **test tracking** (diamond), then **test bombing** (walls).
+
+### Stage 3 — ocean scouts and a cruiser
+
+Shorter clock to boss (~25 s). **Scout Vs** of weaving drones keep the water busy without heavies every second. **Alternating flanks** (`s3FlankFromLeft` toggles) so the threat side swaps. One **cruiser** (fat interceptor, V-hold, high HP) is a mid-stage “mini-peel” before the carrier boss. Timeline **freezes** once the boss is cued so the carrier does not share the screen with an infinite scout pump.
+
+### Stage 4 — width and panic
+
+Fastest scroll. **Horizontal flankers** (vx from the sides, not just vy from the top) use the whole width. A **cruiser**, **weaves**, **paired kamikazes**, then **charge walls** (drones in lanes). The jungle boss is long (~45 s gate) and dense; freezing the timeline at the gate is mandatory or the fortress would drown in leftover walls.
+
+### What we deliberately did *not* do
+
+- **No steering groups.** There is no “formation leader” object that children follow, except diamond cues that set flags on the `Enemy` slot. Follow-the-leader graphs allocate and desync.  
+- **No 12 enemy classes.** Four types × two main patterns (hold, weave) plus kamikaze dive is enough contrast.  
+- **No random within a wave’s shape.** Random is for *which attract stage* to demo, not for scattering a V. Random scatter looks like bugs.  
+- **No spawn when pool is full.** `countActive() >= MAX_ACTIVE` skips; better to drop a ship than to overwrite a live one.
+
+Those choices map directly to `SpawnTimeline` + `Enemy.pattern` + a 48-slot pool.
 
 ---
 
 ## From design to components
 
-| Design rule | What it became in code |
-| --- | --- |
-| Cabinet attract | `GameView` states `STATE_TITLE` / `STATE_DEMO` plus `ATTRACT_*` cycle timers; `demoPilot()`; `HighScoreManager` draw page |
-| No GC in combat | Every combat type is a **fixed `Array` pool** (`Enemy`, `PlayerBullet`, `EnemyBullet`, missiles, explosions, pickups) |
-| Scripted waves | `SpawnTimeline` + primitive flags; `StageData` holds scroll speed and boss-at seconds |
-| Peel bosses | `BossController` + `BossComponent[14]`; wreck bitmaps; `isCoreVulnerable()` |
-| Relative flight | `PlayerShip.onTouch` pointer id + last XY; bank frames 1–7 |
-| Auto-fire / bombs | `BulletManager` cooldown; `PanicBomb` 6-frame sheet; `GameView` double-tap window |
-| Green key | `keyGreen` / loadKeyed on player, enemies, boss, particles, missiles, pickups |
-| Parallax | `ParallaxBackground` three bitmaps + optional stage 2–4 ground override from `GameView` |
-| Vsync + GPU blit | `GameView.doFrame` → update all systems → `lockHardwareCanvas` → draw |
-| SFX/BGM | `SoundManager` singleton; `GameView.syncBgm()` picks raw by state |
-| High scores | `HighScoreManager` object; `STATE_REGISTRATION`; SharedPreferences |
-| Campaign end | `STATE_CAMPAIGN_COMPLETE` instead of `advanceToNextStage()` wrapping to 1 |
-| Score ticker | `VictoryScorecard` visible* integers ramping; no format objects |
+**Plain:** Each product rule above has a “home” class so the rule cannot dissolve into `GameView` spaghetti. `GameView` still **calls** everyone, but it does not *simulate* bullets itself.
 
-`GameView` is the **orchestrator**: it owns the state machine, collision, attract, UI, and the call order. Subsystems do not know about screens.
+| Design rule | Home in code |
+| --- | --- |
+| Cabinet attract | `GameView` attract timers, `STATE_DEMO`, `demoPilot()`, ranking draw |
+| No GC in combat | Pools: `Enemy`, `PlayerBullet`, `EnemyBullet`, missiles, explosions, pickups |
+| Scripted waves | `SpawnTimeline` + flags; `StageData` for scroll and boss-at time |
+| Formation shapes | `spawnVFormation`, weaves, pincers, walls, diamond cues in `SpawnTimeline`; motion in `EnemyPoolManager` |
+| Peel bosses | `BossController` + `BossComponent[14]`; wreck sheets |
+| Relative flight | `PlayerShip` pointer tracking; frames 1–7 |
+| Auto-fire / bombs | `BulletManager` cooldown; `PanicBomb`; double-tap in `GameView` |
+| Green key | loadKeyed / `keyGreen` at bitmap load |
+| Parallax | `ParallaxBackground` + optional ground override |
+| Vsync + GPU blit | `GameView.doFrame` → `lockHardwareCanvas` |
+| SFX/BGM | `SoundManager`; `syncBgm()` |
+| High scores | `HighScoreManager`; `STATE_REGISTRATION` |
+| Campaign end | `STATE_CAMPAIGN_COMPLETE` (do not wrap playlist) |
+| Score ticker | `VictoryScorecard` ramping ints |
 
 ---
 
 ## Architecture (high level)
+
+**Plain:** Think of the app as a **theater**. `MainActivity` is the building (window, audio life). `GameView` is the stage manager: it decides which *scene* is on (title, play, game over). Every vsync it tells each **department** (enemies, bullets, boss, sound) to take one small step, then paints the frame from back to front.
+
+Departments do not talk to the title screen. They only expose “turn a slot on,” “step time `dt`,” “draw on this canvas,” “turn everything off.”
 
 ```mermaid
 flowchart TB
@@ -183,136 +288,168 @@ flowchart TB
   GV --> HS
 ```
 
-**Boot:** `MainActivity` hides system bars, inits `SoundManager`, constructs `GameView`. `GameView.init` calls `HighScoreManager.loadHighScores` once. `surfaceCreated` posts the Choreographer callback.
+**Boot:** hide system bars → init `SoundManager` → construct `GameView` → load high scores once → when the surface exists, post a Choreographer callback.
 
-**Frame:** `doFrame` computes `dt`, branches on `gameState`, updates only the systems that screen needs, then draws parallax → sprites → HUD. Unlock/post, then post the next callback.
+**One frame:** measure `dt` → update only what the current scene needs → draw sky/ground → draw sprites → draw HUD → unlock the canvas → ask for the next vsync.
 
-**Play interaction (simplified):**
+**A real play second, in order:**
 
-1. `SpawnTimeline` activates `Enemy` slots and, at the gate, `BossController.beginEntranceForStage`.
-2. Enemies and boss fire through `EnemyWeaponSystem.fireBullet`.
-3. Player drag updates `PlayerShip`; hold feeds `BulletManager` / `HomingMissileManager`.
-4. `GameView.resolveCollisions` walks pools with radius/AABB tests, awards score, triggers particles, peel-damages boss parts.
-5. Boss core dead + explosion finished → `VictoryScorecard.trigger` → `STATE_CLEAR`.
-6. Player lives exhausted → `STATE_GAMEOVER` → qualify → `STATE_REGISTRATION` or attract ranking.
-
-Subsystems expose **activate / update / draw / deactivateAll**. They do not hold `Canvas` across frames; they blit with preallocated `RectF`s.
+1. Timeline may activate enemy slots or start a boss entrance.  
+2. Enemies and boss may call `EnemyWeaponSystem.fireBullet`.  
+3. Your drag moves `PlayerShip`; hold feeds `BulletManager` (and missiles at high power).  
+4. `resolveCollisions` in `GameView` compares pools: tiny player hurtbox vs shots, body vs rams, padded boxes vs boss parts. Score, particles, peel damage.  
+5. Core dead and explode finished → scorecard → `STATE_CLEAR`.  
+6. Lives gone → game over → maybe registration.
 
 ---
 
 ## Component chapters
 
+Each chapter starts with the idea, then the mechanism.
+
 ### `MainActivity`
 
-Thin `Activity` shell. Immersive window, keep-screen-on, music stream for volume keys. Lifecycle: init audio on create, pause/save volumes on pause, resume audio, `SoundManager.release()` on destroy. The only view is `GameView`—no XML layout, no Compose.
+**Idea:** The OS needs one screen. That screen should be full-bleed, stay awake, and own music volume keys. Gameplay is not a stack of XML buttons.
+
+**Mechanism:** Immersive `Activity`, `FLAG_KEEP_SCREEN_ON`, `STREAM_MUSIC`. `onCreate` initializes audio then `setContentView(GameView)`. Pause saves volumes; destroy releases the pool and players. No Compose, no fragment.
 
 ### `GameView`
 
-The engine. Implements `SurfaceHolder.Callback` and `Choreographer.FrameCallback`.
+**Idea:** One object is allowed to know *what screen we are on* and *in what order to tick the world*. If every class knew about “title vs play,” you could not reuse the demo path.
 
-**State integers** (not enums, so no extra objects on the machine):
+**Mechanism:** `SurfaceHolder.Callback` + `Choreographer.FrameCallback`. State is an `Int`, not an enum (no extra objects, easy `when`).
 
-| Constant | Role |
+| Constant | Scene |
 | --- | --- |
-| `STATE_TITLE` | Attract title / ranking overlay / settings |
-| `STATE_PLAYING` | Real campaign |
-| `STATE_CLEAR` | Scorecard after a boss |
-| `STATE_GAMEOVER` | Death hold |
-| `STATE_DEMO` | CPU attract play |
-| `STATE_REGISTRATION` | Three-initial entry |
-| `STATE_CAMPAIGN_COMPLETE` | After stage 4 clear |
+| `STATE_TITLE` | Logo, settings, or ranking overlay |
+| `STATE_PLAYING` | Your campaign |
+| `STATE_CLEAR` | Bonus ticker after a boss |
+| `STATE_GAMEOVER` | Death pause |
+| `STATE_DEMO` | CPU attract |
+| `STATE_REGISTRATION` | Three initials |
+| `STATE_CAMPAIGN_COMPLETE` | After stage 4 |
 
-Attract overlay: `ATTRACT_TITLE` / `ATTRACT_CPU_DEMO` / `ATTRACT_HIGH_SCORE` with `attractCycleTimer`.
+Attract uses a second int (`ATTRACT_*`) and one float timer so title/demo/ranking can share `STATE_TITLE` / `STATE_DEMO` without a third activity.
 
-**Update order in play/demo:** parallax scroll → demo AI if needed → player → player bullets/missiles → pickups → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → stage-clear / demo-timeout checks.
+**Play/demo tick order:** parallax → optional `demoPilot` → player → player bullets/missiles → pickups → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → clear/demo-timeout.
 
-**Draw order:** parallax (stage ground bitmap override for 2–4; forced canyon on registration; stage 4 sheet on campaign complete) → shake translate → enemies, boss, player, pickups, bullets, missiles, enemy shots, particles, bomb → HUD.
+**Paint order:** background → optional screen shake → world sprites → HUD. Registration and campaign-complete skip world sprites and draw a 40% dim wash plus text.
 
-**Collisions** live here on purpose: they need every pool at once. Hits use small player radius vs enemy bullets, body fractions vs rams, padded AABBs vs boss parts. Bombs accumulate DPS banks so a 0.5 s anim does not one-shot or starve the core rules.
+**Why collisions live here:** they need *every* pool. Splitting them would create a mediator that is `GameView` anyway. Player vs bullets uses a **small radius** (fair shmup). Rams use a **fraction of body size**. Boss shots use padded AABBs. Bomb damage is **DPS with a per-frame cap** so a 0.5 s animation neither deletes the core through armor nor does nothing.
 
-**UI:** one `StringBuilder`, shared `Paint`s. Registration, ranking, campaign-complete, and settings are draw functions plus hit `RectF`s—not Views.
+**HUD:** one `StringBuilder`, shared paints. Hit testing is `RectF.contains`, not Android widgets.
 
-**Demo AI (`demoPilot`):** steer toward lowest on-screen threat / boss part, dodge nearby downward shots, sine wander when idle. Auto-fire on. `lastDemoStage` plus LCG rejects a repeat stage.
+**Demo AI:** aim at the lowest on-screen enemy or boss part, sidestep nearby downward bullets, sine-wander if idle. `lastDemoStage` + LCG avoids repeating the showcase map.
 
 ### `StageData`
 
-Playlist (`STAGE_SEQUENCE` 1–4), current id, `scrollSpeedY`, `targetBossTimelineSeconds`. `currentStage` is a getter over private `stageId` so `setCurrentStage(Int)` does not clash with a Kotlin property setter on the JVM. `advanceToNextStage` wraps the playlist (campaign complete **intercepts** wrap after stage 4 in `GameView`). `applyStageMetrics()` is the only place those two floats change.
+**Idea:** “Which war theater is this, how fast does it scroll, when does the boss show up?” should be one place, not magic numbers in four files.
+
+**Mechanism:** Playlist array `1,2,3,4`. Private `stageId` with public getter `currentStage` so `setCurrentStage(Int)` is a real method (Kotlin would otherwise generate a setter with the same JVM name). `applyStageMetrics()` writes `scrollSpeedY` and `targetBossTimelineSeconds`. Wrapping the playlist is intercepted after stage 4 by `GameView` (campaign complete).
 
 ### `SpawnTimeline`
 
-Elapsed-time director. `update(...)` increments `elapsedTime` (except 3/4 after the boss cue), runs a stage-specific `updateStageN`, then maybe `boss.beginEntranceForStage`. Flags like `vFormSpawned` ensure a wave fires once. Opening V and a power-up safeguard keep the player from sitting at power 1. `reset()` zeros every cursor. No event queue objects—`SpawnEvent` exists as a leftover data shape; the live director is this class’s timers.
+**Idea:** A stage is a **clock with latch flags**, not a list of entity instances in memory.
+
+**Mechanism:** `elapsedTime += dt` (unless 3/4 have already cued the boss). `updateStage1`…`updateStage4` compare time to constants and spawn. `MAX_ACTIVE` + inner `safeguard` counters prevent a spiral if `dt` is large. Opening V + `updatePowerSafeguard` keep weapon power from staying at 1. `reset()` clears every flag so stage 2 cannot inherit a “wall already spawned” bit from stage 1.
+
+See [Enemy formation design](#enemy-formation-design) for *why* each wave exists.
 
 ### `Enemy` and `EnemyPoolManager`
 
-`Enemy` is a **plain data slot**: position, velocity, type, pattern, HP, fire timers, formation flags. Inactive slots are recycled.
+**Idea:** An enemy is a **row in a table**, not a Java object graph. Forty-eight rows is enough for the densest wall. When a ship dies, its row is marked inactive and can be reused.
 
-`EnemyPoolManager` owns `Enemy[48]`, four keyed sprite sheets, optional red-drone sheet, half-extents, and a sine LUT for sweep-arc flight. `spawn*` methods find a free slot. `update` integrates motion and calls into `EnemyWeaponSystem` for aimed/burst fire. Draw: shadow, black outline, body. Types: drone 0, kamikaze 1, interceptor 2, heavy 3.
+**Mechanism:** `Enemy` holds x/y/vx/vy, type, pattern, HP, fire timers, weave phase, diamond flags, etc. `EnemyPoolManager` owns the array, four keyed sheets, sizes, and a sine LUT for sweep-arc flight (`FLIGHT_PROFILE_SWEEP_ARC`). `spawnEnemy` finds `!isActive`. `update` integrates, runs hold/weave/kamikaze logic, and may fire. Draw is shadow, black outline, body—same recipe as the player so everything sits on the same “arcade sticker” look.
 
 ### `EnemyBullet` and `EnemyWeaponSystem`
 
-Bullet pool (fixed size) of `{x,y,vx,vy,isActive}`. `fireBullet` is O(n) first-free. `beginDeathClear` expands a short-lived clear radius so some deaths eat nearby enemy shots (classic “cancel” feel) without allocating a new system. Draw is two rects (green shell, white core).
+**Idea:** Every green shot is the same physical thing: a point with a velocity. Bosses and grunts share one pool so a dense boss pattern cannot allocate.
+
+**Mechanism:** First-free `fireBullet`. `beginDeathClear` records a short-lived circle that deactivates nearby enemy shots (the “cancel” when a cued heavy dies). Draw: green rect + white core, no bitmaps.
 
 ### `BossComponent` and `BossController`
 
-`BossComponent`: offset from core, world xy, half extents, HP, type, destroyed flag.
+**Idea:** A boss is a **constellation of parts** welded to a core position. Art is one sheet; gameplay is many HP bars.
 
-`BossController`: up to 14 parts, stage-keyed body + wreck sheets, explode frames. Entrance, hover, sweep. Per-stage fire: e.g. stage 1 chin/wing/dorsal, stage 2 barrels/sponsons/rings, stage 3 flak/mega/spiral, stage 4 mortar/gatling/desperation. `isCoreVulnerable()` is true only when all non-core parts are destroyed. `deactivate` / `bindStage` swap art without leaking bitmaps (reload when `loadedStage` changes).
+**Mechanism:** Up to 14 `BossComponent`s. Entrance moves the constellation on; then hover/sweep. Stage-specific timers fire into `EnemyWeaponSystem`. `isCoreVulnerable()` walks non-core parts. Wreck overlays for left/right/center. Explode frames on core death. Bitmaps reload when `bindStage` sees a new `loadedStage`.
 
 ### `PlayerShip`
 
-Seven bank frames, relative drag, clamp to screen, lives/hits, invuln and respawn timers, weapon power, auto-fire flag (demo). Hitbox is smaller than the sprite. `steerToward` is for the CPU. Draw uses the same shadow/outline/body stack as enemies.
+**Idea:** The player is the only thing that should feel *sticky* and *readable*. Bank art (seven frames) telegraphs horizontal speed. The hurtbox is stingy so weaving between bullets is possible.
+
+**Mechanism:** Relative drag, clamp, lives/hits, invuln/respawn timers, `weaponPowerLevel`, `autoFire` for demo. `steerToward` is a simple arrive used by `demoPilot`. Same chroma-keyed blit stack.
 
 ### `PlayerBullet` and `BulletManager`
 
-Pool of 100 player shots. Cooldown ~0.12 s for vulcan; separate missile cadence at power ≥ 3. `spawnWeaponStream` fans extra bullets by power. Yellow filled rects, reused `RectF`.
+**Idea:** Your gun is a **metronome**, not a spray of new objects. Power only changes *how many* slots you activate per tick.
+
+**Mechanism:** Pool of 100. ~0.12 s vulcan cooldown. Separate missile cooldown at power ≥ 3. Yellow `RectF`s. `spawnWeaponStream` fans extra bullets.
 
 ### `HomingMissileManager`
 
-Small missile pool, keyed sprite, seeks nearest living enemy or vulnerable boss part. Same blit stack. Spawned from `BulletManager` when power and cooldown allow.
+**Idea:** Missiles are a *reward* for powering up, not a second stick. They should look like sprites, not yellow dots, and they should prefer a real target.
+
+**Mechanism:** Small pool, keyed bitmap, seek nearest living enemy or vulnerable part. Spawned from `BulletManager`.
 
 ### `PanicBomb`
 
-Not a pool: one bomb instance. `activate` sets origin and frame 0. `GameView` advances frames (~12 fps sheet), scales the blast, and applies DPS to enemies/boss with a per-frame cap. Double-tap detection (time + slop) lives in `GameView.onTouchEvent`.
+**Idea:** One bomb at a time, big and readable, ~half a second. It is a resource, not a laser you hold.
+
+**Mechanism:** Single instance, 6 frames at ~12 fps, scale-up. `GameView` applies DPS with banks and a frame cap so peel rules still apply (core stays safe until modules are gone, unless already vulnerable).
 
 ### `PowerUpItem` / `PowerUpSlot`
 
-Pickup pool: power-up, bomb, medal. Medals animate frame index. Magnet / fall in `update`. `GameView` maps pickup type to score or `player.upgradeWeapon()` / bomb increment.
+**Idea:** Drops are few, must never allocate, medals should flicker frames like real arcade items.
+
+**Mechanism:** Slot pool with type enum (power / bomb / medal). `GameView` converts extras to medals and applies upgrades.
 
 ### `ParticleManager` and `ActiveExplosion`
 
-Explosion pool + one sprite sheet sliced into frames. `triggerExplosion` finds a free slot. Optional SFX. Used for enemy deaths and boss module pops.
+**Idea:** Explosions are decoration with a cap. If ten ships die in one frame, we still only have N explosion slots.
+
+**Mechanism:** Sheet sliced into frames, pool of `ActiveExplosion`, optional SFX.
 
 ### `ParallaxBackground`
 
-Three cover-scaled bitmaps (stage 1 default). `update(dy)` wraps `yGround/yMid/yHigh` at different rates. `draw` can take an override ground bitmap (jungle, ocean, tank) from `GameView`. SCREEN blend on cloud layers.
+**Idea:** The world should move at three speeds so your eye gets depth: dirt/water fast, haze slower, high clouds slowest.
+
+**Mechanism:** Three cover-scaled bitmaps, wrapping Y. `GameView` can pass stage 2–4 ground. SCREEN blend on black-authored cloud layers. Registration forces stage 1 ground; campaign complete forces stage 4 ground.
 
 ### `VictoryScorecard`
 
-No strings stored for totals—only ints. `trigger` computes bonuses. `update` reveals lines on a clock and ramps `visible*` toward targets. `GameView` draws when `STATE_CLEAR`. Touch when `isCountingDone` advances the campaign (or campaign complete).
+**Idea:** Players should *see* the bonus count, not jump to a new total. That is the “thank you for not dying” beat.
+
+**Mechanism:** `trigger` computes bonuses. `update` reveals lines on a wall-clock and ramps `visibleLifeBonus` / `visibleBombBonus` / `visibleTotalScore`. No formatted `String` objects stored.
 
 ### `HighScoreManager`
 
-Kotlin `object`. `IntArray(10)` scores and stages, `CharArray(30)` names. Fallback Psikyo-flavored table (PSK, STK, …). `loadHighScores` once. `checkIfQualifies` is 10th-place compare. `checkAndInsertNewScore` in-place shift with bounds on name triplets, then `apply()`. Accessors `scoreAt` / `nameChar` / `stageAt` for draw.
+**Idea:** Ten rows you can draw in a `while`. Insert is a shift, like inserting into a sorted array in a CS 101 textbook.
+
+**Mechanism:** Kotlin `object`. Parallel arrays. `checkIfQualifies` vs 10th. `checkAndInsertNewScore` shifts with bounds on the 3-char stride (indices 0–29). `apply()` off the frame. Accessors for draw.
 
 ### `SoundManager`
 
-Process singleton. SoundPool for vulcan, laser, explosions, alarm, pickup, bomb. Dual MediaPlayer BGM with `setNextMediaPlayer`. `switchBGM` from `GameView.syncBgm()` by state (title, stage1/2, boss, victory). Alarm can loop as a stream id. Volumes in prefs. `playSFX` is lock + `play()`, no allocations.
+**Idea:** Shots click now; music does not hiccup at loop; nothing in `doFrame` builds a `MediaPlayer`.
+
+**Mechanism:** Singleton, SoundPool, dual MediaPlayer chain, audio focus, prefs for two volume floats. `GameView.syncBgm()` maps state → raw resource.
 
 ### `FloatingScore` (private in `GameView.kt`)
 
-Tiny pool of rising point popups. Age, fade, draw via the same `StringBuilder`.
+**Idea:** “+2000” should float up and vanish. Twelve is enough.
+
+**Mechanism:** Pool of `{x,y,value,age,active}`. Drawn with the same `StringBuilder`.
 
 ---
 
 ## Repo layout
 
 ```
-app/src/main/java/com/cc/ww2blitz/   # all engine sources
+app/src/main/java/com/cc/ww2blitz/   # engine sources
 app/src/main/res/drawable/            # keyed sprites, logos, stage grounds
 app/src/main/res/raw/                 # BGM / SFX
 app/src/main/AndroidManifest.xml      # MainActivity, portrait, applicationId com.cc.ww2blitz
 ```
 
-Package / Play id: **`com.cc.ww2blitz`**. Gradle project name: `WW2Blitz` (no space—Android Studio module names break on spaces). Launcher label: **WW2 Blitz**.
+Application id: **`com.cc.ww2blitz`**. Gradle project name: `WW2Blitz` (no space; Studio run configs break on spaces). Launcher label: **WW2 Blitz**.
 
-Open the project in Android Studio, sync Gradle, run the **app** configuration on a device/emulator (minSdk 26).
+Open in Android Studio, sync Gradle, run **app** (minSdk 26).
