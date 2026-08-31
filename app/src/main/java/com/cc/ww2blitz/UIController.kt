@@ -1,8 +1,12 @@
 package com.cc.ww2blitz
 
+import android.content.res.Resources
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 
 /**
@@ -47,6 +51,12 @@ class UIController {
     isAntiAlias = true
   }
   private val creditBreakWidth = FloatArray(1)
+  private val interstitialCards = arrayOfNulls<Bitmap>(6)
+  private val interstitialDst = RectF()
+  private val interstitialCardPaint = Paint().apply {
+    isFilterBitmap = true
+    isAntiAlias = false
+  }
 
   fun bindTypeface(face: Typeface) {
     fillPaint.typeface = face
@@ -54,6 +64,90 @@ class UIController {
     goldPaint.typeface = face
     goldShadowPaint.typeface = face
     accentPaint.typeface = face
+  }
+
+  fun loadInterstitials(resources: Resources, width: Int, height: Int) {
+    if (width <= 0 || height <= 0) return
+    if (interstitialCards[0] != null && interstitialCards[0]?.isRecycled == false) {
+      return
+    }
+    releaseInterstitials()
+    var i = 0
+    while (i < 6) {
+      interstitialCards[i] = decodeNativeAspect(resources, INTERSTITIAL_IDS[i])
+      i++
+    }
+  }
+
+  fun releaseInterstitials() {
+    var i = 0
+    while (i < 6) {
+      val bmp = interstitialCards[i]
+      if (bmp != null && !bmp.isRecycled) bmp.recycle()
+      interstitialCards[i] = null
+      i++
+    }
+  }
+
+  fun drawStageInterstitial(
+    canvas: Canvas,
+    screenW: Float,
+    screenH: Float,
+    timer: Float,
+    stageId: Int,
+  ) {
+    var elapsed = INTERSTITIAL_DURATION - timer
+    if (elapsed < 0f) elapsed = 0f
+    var fade = 1f
+    if (elapsed < INTERSTITIAL_FADE_IN) {
+      fade = elapsed / INTERSTITIAL_FADE_IN
+      if (fade < 0f) fade = 0f
+      if (fade > 1f) fade = 1f
+    }
+    val cardA = (fade * 255f).toInt()
+    interstitialCardPaint.alpha = cardA
+    val slot = stageId - 1
+    val bmp = if (slot >= 0 && slot < 6) interstitialCards[slot] else null
+    canvas.drawColor(Color.BLACK)
+    var calculatedTop = 0f
+    if (bmp != null && !bmp.isRecycled && bmp.width > 0) {
+      val scale = screenW / bmp.width.toFloat()
+      val drawH = bmp.height.toFloat() * scale
+      calculatedTop = (screenH - drawH) * 0.5f
+      interstitialDst.set(0f, calculatedTop, screenW, calculatedTop + drawH)
+      canvas.drawBitmap(bmp, null, interstitialDst, interstitialCardPaint)
+    }
+    val mission = operationHeader(stageId)
+    val cx = screenW * 0.5f
+    val line1Y = calculatedTop + (goldPaint.textSize * 4.2f)
+    val line2Y = line1Y + goldPaint.textSize * 1.3f
+    val goldA = goldPaint.alpha
+    val goldShA = goldShadowPaint.alpha
+    goldPaint.alpha = cardA
+    goldShadowPaint.alpha = cardA
+    drawCentered(canvas, OP_PREFIX, 0, OP_PREFIX.size, cx, line1Y, goldPaint, goldShadowPaint)
+    drawCentered(canvas, mission, 0, mission.size, cx, line2Y, goldPaint, goldShadowPaint)
+    goldPaint.alpha = goldA
+    goldShadowPaint.alpha = goldShA
+  }
+
+  private fun operationHeader(stageId: Int): CharArray {
+    if (stageId == 1) return OP_STAGE1
+    if (stageId == 2) return OP_STAGE2
+    if (stageId == 3) return OP_STAGE3
+    if (stageId == 4) return OP_STAGE4
+    if (stageId == 5) return OP_STAGE5
+    if (stageId == 6) return OP_STAGE6
+    return OP_STAGE1
+  }
+
+  private fun decodeNativeAspect(resources: Resources, id: Int): Bitmap {
+    val opts = BitmapFactory.Options().apply {
+      inScaled = false
+      inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    return BitmapFactory.decodeResource(resources, id, opts)
+      ?: error("Missing drawable $id")
   }
 
   fun onSizeChanged(width: Int, height: Int) {
@@ -335,5 +429,36 @@ class UIController {
     private val CREDIT_CHARS: Array<CharArray> = Array(CREDIT_LINES.size) { i ->
       CREDIT_LINES[i].toCharArray()
     }
+    private const val INTERSTITIAL_DURATION = 3.0f
+    private const val INTERSTITIAL_FADE_IN = 0.5f
+    private val INTERSTITIAL_IDS = intArrayOf(
+      R.drawable.interstitial_stage1,
+      R.drawable.interstitial_stage2,
+      R.drawable.interstitial_stage3,
+      R.drawable.interstitial_stage4,
+      R.drawable.interstitial_stage5,
+      R.drawable.interstitial_stage6,
+    )
+    private val OP_PREFIX = charArrayOf(
+      'O', 'P', 'E', 'R', 'A', 'T', 'I', 'O', 'N', ':',
+    )
+    private val OP_STAGE1 = charArrayOf(
+      'C', 'L', 'O', 'U', 'D', ' ', 'F', 'O', 'R', 'T', 'R', 'E', 'S', 'S',
+    )
+    private val OP_STAGE2 = charArrayOf(
+      'I', 'R', 'O', 'N', ' ', 'T', 'R', 'E', 'A', 'D', 'S',
+    )
+    private val OP_STAGE3 = charArrayOf(
+      'S', 'T', 'E', 'E', 'L', ' ', 'A', 'T', 'L', 'A', 'N', 'T', 'I', 'C',
+    )
+    private val OP_STAGE4 = charArrayOf(
+      'J', 'U', 'N', 'G', 'L', 'E', ' ', 'R', 'U', 'I', 'N', 'S',
+    )
+    private val OP_STAGE5 = charArrayOf(
+      'A', 'S', 'C', 'E', 'N', 'T', ' ', 'C', 'A', 'N', 'O', 'P', 'Y',
+    )
+    private val OP_STAGE6 = charArrayOf(
+      'O', 'R', 'B', 'I', 'T', ' ', 'T', 'H', 'R', 'E', 'S', 'H', 'O', 'L', 'D',
+    )
   }
 }

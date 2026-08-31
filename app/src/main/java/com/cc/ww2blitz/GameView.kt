@@ -78,6 +78,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var bgStage6Layer2Bmp: Bitmap? = null
   private var activeFloorBmp: Bitmap? = null
   private var stage6FloorSwapped = false
+  private var interstitialTimer = 0f
   private var lastTapUpMs = 0L
   private var touchDownMs = 0L
   private var touchDownX = 0f
@@ -254,6 +255,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     particles.onSizeChanged(w, h)
     boss.onSizeChanged(w, h)
     uiController.onSizeChanged(w, h)
+    uiController.loadInterstitials(resources, w, h)
     screenW = w
     screenH = h
     loadBombSheetsIfNeeded()
@@ -281,6 +283,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     homingMissiles.onSizeChanged(width, height)
     particles.onSizeChanged(width, height)
     boss.onSizeChanged(width, height)
+    uiController.onSizeChanged(width, height)
+    uiController.loadInterstitials(resources, width, height)
     screenW = width
     screenH = height
     loadBombSheetsIfNeeded()
@@ -345,6 +349,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         particles.update(dt)
         updateFloatingScores(dt)
         campaignCompleteT += dt
+      }
+      STATE_INTERSTITIAL -> {
+        interstitialTimer -= dt
+        if (interstitialTimer <= 0f) {
+          interstitialTimer = 0f
+          gameState = STATE_PLAYING
+        }
       }
       else -> {
         if (boss.locksWorldScroll()) {
@@ -442,7 +453,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           canvas.save()
           canvas.translate(dx, dy)
         }
-        if (stageManager.isStage5Backdrop && gameState != STATE_REGISTRATION) {
+        if (gameState == STATE_INTERSTITIAL) {
+          uiController.drawStageInterstitial(
+            canvas,
+            screenW.toFloat(),
+            screenH.toFloat(),
+            interstitialTimer,
+            stageManager.currentStage,
+          )
+        } else if (stageManager.isStage5Backdrop && gameState != STATE_REGISTRATION) {
           if (
             gameState == STATE_TITLE ||
             gameState == STATE_CLEAR ||
@@ -470,7 +489,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           gameState != STATE_TITLE &&
           gameState != STATE_CLEAR &&
           gameState != STATE_REGISTRATION &&
-          gameState != STATE_CAMPAIGN_COMPLETE
+          gameState != STATE_CAMPAIGN_COMPLETE &&
+          gameState != STATE_INTERSTITIAL
         ) {
           enemies.draw(canvas)
           boss.draw(canvas)
@@ -560,6 +580,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
    * [SurfaceHolder.lockCanvas].
    */
   private fun drawArcadeUI(canvas: Canvas) {
+    if (gameState == STATE_INTERSTITIAL) {
+      return
+    }
     if (gameState == STATE_TITLE) {
       if (attractCycleState == ATTRACT_HIGH_SCORE) {
         drawHighScoreScreen(canvas)
@@ -1888,6 +1911,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     recycleStageBitmap(bgStage5Layer2Bmp)
     bgStage5Layer2Bmp = null
     recycleStage6Bitmaps()
+    uiController.releaseInterstitials()
     super.onDetachedFromWindow()
   }
 
@@ -2162,12 +2186,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             resetStage()
             attractCycleTimer = 0f
             attractCycleState = ATTRACT_TITLE
-            gameState = STATE_PLAYING
+            interstitialTimer = INTERSTITIAL_SECS
+            gameState = STATE_INTERSTITIAL
           }
         }
         return true
       }
       STATE_DEMO -> {
+        return true
+      }
+      STATE_INTERSTITIAL -> {
         return true
       }
       STATE_CLEAR -> {
@@ -2182,7 +2210,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             gameState = STATE_CAMPAIGN_COMPLETE
           } else {
             resetStage()
-            gameState = STATE_PLAYING
+            interstitialTimer = INTERSTITIAL_SECS
+            gameState = STATE_INTERSTITIAL
           }
         }
         return true
@@ -2254,7 +2283,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val want = when (gameState) {
       STATE_TITLE -> R.raw.bgm_title
       STATE_CLEAR, STATE_REGISTRATION, STATE_CAMPAIGN_COMPLETE -> R.raw.bgm_victory
-      STATE_PLAYING, STATE_DEMO -> {
+      STATE_PLAYING, STATE_DEMO, STATE_INTERSTITIAL -> {
         if (boss.isVictorySequence()) {
           0
         } else if (boss.isActive()) {
@@ -2308,6 +2337,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val SCREEN_REGISTRATION = 5
     const val STATE_REGISTRATION = SCREEN_REGISTRATION
     const val STATE_CAMPAIGN_COMPLETE = 6
+    const val STATE_INTERSTITIAL = 7
+    const val INTERSTITIAL_SECS = 3.0f
     const val ATTRACT_TITLE = 0
     const val ATTRACT_CPU_DEMO = 1
     const val ATTRACT_HIGH_SCORE = 2
