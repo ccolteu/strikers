@@ -146,29 +146,43 @@ class BulletManager {
       if (b.isActive) {
         val dx = b.x - px
         val dy = b.y - py
-        val distSq = (dx * dx) + (dy * dy)
-        if (distSq <= coreSq) {
-          b.isActive = false
-          b.flags = 0
-          if (player.takeDamage()) {
-            particles.triggerExplosion(px, py)
-            return true
+        if ((b.flags and EnemyBullet.FLAG_LASER) != 0) {
+          val hw = EnemyWeaponSystem.S6_LASER_HW + coreR
+          val hh = EnemyWeaponSystem.S6_LASER_HH + coreR
+          if (dx <= hw && dx >= -hw && dy <= hh && dy >= -hh) {
+            b.isActive = false
+            b.flags = 0
+            if (player.takeDamage()) {
+              particles.triggerExplosion(px, py)
+              return true
+            }
+            return false
           }
-          return false
-        }
-        if (distSq <= grazeSq && (b.flags and EnemyBullet.FLAG_GRAZED) == 0) {
-          b.flags = b.flags or EnemyBullet.FLAG_GRAZED
-          if (awardScore) {
-            ScoreManager.instance.addGrazeScore(ScoreManager.GRAZE_POINTS)
+        } else {
+          val distSq = (dx * dx) + (dy * dy)
+          if (distSq <= coreSq) {
+            b.isActive = false
+            b.flags = 0
+            if (player.takeDamage()) {
+              particles.triggerExplosion(px, py)
+              return true
+            }
+            return false
           }
-          var sparkVx = 0f
-          var sparkVy = SPARK_FALLBACK_VY
-          if (distSq > 0.0001f) {
-            val inv = SPARK_SPEED / kotlin.math.sqrt(distSq)
-            sparkVx = dx * inv
-            sparkVy = dy * inv
+          if (distSq <= grazeSq && (b.flags and EnemyBullet.FLAG_GRAZED) == 0) {
+            b.flags = b.flags or EnemyBullet.FLAG_GRAZED
+            if (awardScore) {
+              ScoreManager.instance.addGrazeScore(ScoreManager.GRAZE_POINTS)
+            }
+            var sparkVx = 0f
+            var sparkVy = SPARK_FALLBACK_VY
+            if (distSq > 0.0001f) {
+              val inv = SPARK_SPEED / kotlin.math.sqrt(distSq)
+              sparkVx = dx * inv
+              sparkVy = dy * inv
+            }
+            particles.triggerSpark(b.x, b.y, sparkVx, sparkVy)
           }
-          particles.triggerSpark(b.x, b.y, sparkVx, sparkVy)
         }
       }
       i++

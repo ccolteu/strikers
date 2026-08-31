@@ -30,7 +30,7 @@ class StageData {
     fun setCurrentStage(stage: Int) {
         var s = stage
         if (s < 1) s = 1
-        if (s > STAGE_5) s = STAGE_5
+        if (s > STAGE_6) s = STAGE_6
         stageId = s
         var i = 0
         sequenceIndex = 0
@@ -72,6 +72,11 @@ class StageData {
                 targetBossTimelineSeconds = 45f
                 stageMusicTrack = SoundManager.MUSIC_STAGE_5
             }
+            STAGE_6 -> {
+                scrollSpeedY = 180f
+                targetBossTimelineSeconds = 50f
+                stageMusicTrack = SoundManager.BGM_STAGE1
+            }
             else -> {
                 scrollSpeedY = 180f
                 targetBossTimelineSeconds = 38f
@@ -82,6 +87,7 @@ class StageData {
 
     companion object {
         const val STAGE_5 = 5
-        val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4, 5)
+        const val STAGE_6 = 6
+        val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4, 5, 6)
     }
 }

@@ -51,6 +51,8 @@ class SpawnTimeline {
   private var s5PowerWaveSpawned = false
   private var s5KamiWallSpawned = false
 
+  fun elapsedSeconds(): Float = elapsedTime
+
   fun update(
     dt: Float,
     enemyManager: EnemyPoolManager,
@@ -64,18 +66,26 @@ class SpawnTimeline {
     stageData: StageData,
   ) {
     if (screenWidth <= 0 || screenHeight <= 0) return
+    if (currentStage == 6) {
+      elapsedTime += dt
+      if (allowBoss && !bossCueFired && elapsedTime >= S6_INTRO_SECS) {
+        boss.beginEntranceForStage(6)
+        bossCueFired = true
+      }
+      return
+    }
     // Stages 3–5 lock the cursor at the boss gate until the fight ends.
     if (!((currentStage == 3 || currentStage == 4 || currentStage == 5) && bossCueFired)) {
       elapsedTime += dt
     }
     val w = screenWidth.toFloat()
     val h = screenHeight.toFloat()
-    if (currentStage != 5 && !openingPowerVSpawned && elapsedTime >= 0f && elapsedTime <= OPENING_END) {
+    if (currentStage != 5 && currentStage != 6 && !openingPowerVSpawned && elapsedTime >= 0f && elapsedTime <= OPENING_END) {
       openingPowerVSpawned = true
       spawnOpeningPowerV(enemyManager, w, h)
     }
     updatePowerSafeguard(dt, enemyManager, w, h, playerWeaponPower, boss)
-    if (currentStage < 2) {
+    if (currentStage == 1) {
       updateStage1(dt, enemyManager, w, h)
     } else if (currentStage == 2) {
       updateStage2(dt, enemyManager, w, h)
@@ -86,7 +96,7 @@ class SpawnTimeline {
     } else if (currentStage == 5) {
       updateStage5(dt, enemyManager, w, h, boss, allowBoss, stageData)
     }
-    if (allowBoss && !bossCueFired && currentStage != 5) {
+    if (allowBoss && !bossCueFired && currentStage != 5 && currentStage != 6) {
       val bossAt = when (currentStage) {
         4 -> S4_BOSS_AT
         3 -> S3_BOSS_AT
@@ -746,6 +756,7 @@ class SpawnTimeline {
     const val INTERCEPT_VY = 210f
     const val MAX_ACTIVE = 10
     const val OPENING_END = 5f
+    const val S6_INTRO_SECS = 5f
     const val POWER_WAVE_DELAY = 3.0f
     const val S2_PINCER_AT = 0.5f
     const val S2_PINCER_END = 3.5f

@@ -10,5 +10,8 @@ class EnemyBullet {
 
   companion object {
     const val FLAG_GRAZED = 1
+    const val FLAG_PINK = 2
+    const val FLAG_LASER = 4
+    const val FLAG_CYAN = 8
   }
 }

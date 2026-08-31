@@ -32,6 +32,8 @@ class ParallaxBackground(private val resources: Resources) {
   private var yHigh = 0f
   private var stage5Layer1Y = 0f
   private var stage5Layer2Y = 0f
+  private var stage6Layer2Y = 0f
+  var stage6SpeedModifier = 1.0f
 
   private val paintGround = Paint()
   private val paintStructures = Paint().apply {
@@ -65,6 +67,8 @@ class ParallaxBackground(private val resources: Resources) {
     yHigh = 0f
     stage5Layer1Y = 0f
     stage5Layer2Y = 0f
+    stage6Layer2Y = 0f
+    stage6SpeedModifier = 1.0f
   }
 
   /** [baseSpeed] is pixels this frame for layer 1. Layers 2/3 use 1.5x and 2.2x. */
@@ -94,12 +98,45 @@ class ParallaxBackground(private val resources: Resources) {
     }
   }
 
+  /**
+   * Stage 6 ascent: [scrollSpeedY] scaled by [stage6SpeedModifier] from the
+   * stage clock [elapsedTime]. Wrap uses the same three-layer blit as other maps.
+   */
+  fun updateStage6(scrollSpeedY: Float, dt: Float, elapsedTime: Float) {
+    val t = elapsedTime
+    if (t < S6_CLOUD_END) {
+      stage6SpeedModifier = 1.0f
+    } else if (t < S6_BURN_END) {
+      val u = (t - S6_CLOUD_END) / S6_BURN_SPAN
+      stage6SpeedModifier = 1.0f + u * (S6_BURN_PEAK - 1.0f)
+    } else if (t < S6_ORBIT_END) {
+      val u = (t - S6_BURN_END) / S6_ORBIT_SPAN
+      stage6SpeedModifier = S6_BURN_PEAK + u * (S6_ORBIT_FLOOR - S6_BURN_PEAK)
+    } else if (t < S6_BRAKE_END) {
+      val u = (t - S6_ORBIT_END) / S6_BRAKE_SPAN
+      stage6SpeedModifier = S6_ORBIT_FLOOR + u * (0f - S6_ORBIT_FLOOR)
+    } else {
+      stage6SpeedModifier = 0f
+    }
+    val speed = scrollSpeedY * stage6SpeedModifier
+    update(speed * dt)
+    val canvasHeight = screenH.toFloat()
+    if (canvasHeight > 0f) {
+      stage6Layer2Y += (scrollSpeedY * 1.5f) * dt
+      if (stage6Layer2Y >= canvasHeight) {
+        stage6Layer2Y -= canvasHeight
+      }
+    }
+  }
+
   fun resetScroll() {
     yGround = 0f
     yMid = 0f
     yHigh = 0f
     stage5Layer1Y = 0f
     stage5Layer2Y = 0f
+    stage6Layer2Y = 0f
+    stage6SpeedModifier = 1.0f
   }
 
   fun draw(canvas: Canvas, groundOverride: Bitmap?, overlayClouds: Boolean) {
@@ -118,15 +155,22 @@ class ParallaxBackground(private val resources: Resources) {
     }
   }
 
-  fun drawStage5Canopy(canvas: Canvas, canopy: Bitmap?) {
-    if (canopy != null) {
-      blitStage5(canvas, canopy, stage5Layer2Y, paintStructures)
-    }
+  fun drawStage5Canopy(canvas: Canvas, canopy: Bitmap?, currentStage: Int) {
+    if (currentStage != 5) return
+    if (canopy == null || canopy.isRecycled) return
+    blitStage5(canvas, canopy, stage5Layer2Y, paintStructures)
   }
 
-  fun drawStage5(canvas: Canvas, floor: Bitmap?, canopy: Bitmap?) {
+  fun drawStage6Canopy(canvas: Canvas, canopy: Bitmap?, currentStage: Int) {
+    if (currentStage != 6) return
+    if (canopy == null || canopy.isRecycled) return
+    blitStage5(canvas, canopy, stage6Layer2Y, paintStructures)
+  }
+
+  fun drawStage5(canvas: Canvas, floor: Bitmap?, canopy: Bitmap?, currentStage: Int) {
+    if (currentStage != 5) return
     drawStage5Floor(canvas, floor)
-    drawStage5Canopy(canvas, canopy)
+    drawStage5Canopy(canvas, canopy, currentStage)
   }
 
   fun release() {
@@ -162,6 +206,15 @@ class ParallaxBackground(private val resources: Resources) {
     const val SPEED_MID = 1.5f
     const val SPEED_HIGH = 2.2f
     const val SPEED_S5_LAYER2 = 1.5f
+    const val S6_CLOUD_END = 15.0f
+    const val S6_BURN_END = 35.0f
+    const val S6_BURN_SPAN = 20.0f
+    const val S6_BURN_PEAK = 3.5f
+    const val S6_ORBIT_END = 45.0f
+    const val S6_ORBIT_SPAN = 10.0f
+    const val S6_ORBIT_FLOOR = 0.4f
+    const val S6_BRAKE_END = 50.0f
+    const val S6_BRAKE_SPAN = 5.0f
     const val MID_ALPHA = 140
     const val HIGH_ALPHA = 36
 
