@@ -24,6 +24,8 @@ A real cabinet in 1996 did three things while nobody was playing: show the logo,
 
 **Hold to fire** means you do not tap for every bullet. While the finger is down, a vulcan fires on a timer. Stronger **weapon power** adds extra streams, then **homing missiles**.
 
+**Graze** is a Psikyo-cabinet trick: the plane’s *picture* is large so you can see it, but you only die if a green shot hits a **tiny core**. Sliding a bullet through the halo around that core is a graze: you get a spark and **100** points, and the shot keeps going.
+
 **Double-tap** is a separate gesture (short taps close together, little movement). That spends one bomb. A bomb is a short, huge blast used as a panic button, not as your main gun.
 
 **Audio settings** on the title are real sliders for BGM and SFX. They do not start a game.
@@ -37,12 +39,13 @@ Drops are items that fall after certain kills:
 - **P (power)** — your shot pattern gets denser. When power is already maxed, extra P becomes a medal (score only).
 - **B (bomb)** — another bomb, up to 3. Extra B becomes a medal.
 - **Medal** — score. Face-up is worth more (2000) than edge-on (200).
+- **Graze** — 100 points the first time each enemy bullet threads the halo (not the core). Attract demo still sparks; it does **not** add to the campaign total.
 
-Your running total is `campaignScore`, capped at 99,999,999. When a stage is cleared you also get a **life bonus** (10,000 × lives left) and a **bomb bonus** (5,000 × bombs left). Those numbers tick up on screen like a 1990s scorecard, then you tap to go to the next stage.
+Your running total is owned by `ScoreManager` (`campaignScore` in `GameView` is a getter/setter over it), capped at 99,999,999. When a stage is cleared you also get a **life bonus** (10,000 × lives left) and a **bomb bonus** (5,000 × bombs left). Those numbers tick up on screen like a 1990s scorecard, then you tap to go to the next stage.
 
 ### Bosses
 
-A boss is one big illustration, but the engine treats it as **several hitboxes**: left gun, right gun, core, and so on. If you could dump all damage into the core immediately, the fight would be a sponge. Instead you **peel** the modules. Destroyed modules show wreck art. The core only becomes vulnerable when every other part is gone. When the core dies, a short explode animation plays, then stage clear.
+A boss is one big illustration, but the engine treats it as **several hitboxes**: left gun, right gun, core, and so on. If you could dump all damage into the core immediately, the fight would be a sponge. Instead you **peel** the modules. Destroyed modules show wreck art. The core only becomes vulnerable when every other part is gone. When the last gun comes off, the screen **flashes** and **shakes**; when the core dies, a heavier flash/shake and a short explode animation, then stage clear. A bomb also kicks the camera.
 
 | Stage | Theater | How fast the ground moves | When the boss is cued |
 | --- | --- | --- | --- |
@@ -137,6 +140,18 @@ Each choice is stated first as a player-facing idea, then as an engineering rule
 
 **Engine:** `IntArray` / `CharArray`, in-place insertion, `SharedPreferences.edit().apply()`. Load once (`hydrated`).
 
+### 11. Sprite is not the hurtbox; graze is a ring
+
+**Plain:** If the whole fighter sprite were solid, weaving between bullets would be impossible. Psikyo cabinets draw a generous plane and hurt you on a **dot**. Passing a shot through the gap between the dot and a larger ring is a skill check with a score drip, not a second life.
+
+**Engine:** `PlayerShip` keeps `coreHitboxRadius = 6f` and `grazeRadius = 24f` on the same center as the sprite (`x`/`y`). `BulletManager.resolveEnemyBulletsVsPlayer` uses Euclidean distance from each `EnemyBullet` center to that point—no `RectF.intersects` on the physical path. Core overlap calls `takeDamage()` and consumes the shot. Else if inside the graze ring, `EnemyBullet.flags` bit `FLAG_GRAZED` latches once per bullet. `ScoreManager.instance.addGrazeScore(100)` and a pooled `ParticleManager.triggerSpark` at the bullet. Demo sets `awardScore = false`. Rams and pickups still use the larger `PLAYER_HIT_RADIUS`.
+
+### 12. Camera shake and screen flash as duration, not objects
+
+**Plain:** When a fortress loses its last turret, the cabinet should *kick*. When the core blows, it should kick harder and bleach the glass for a beat. HUD numbers should stay readable.
+
+**Engine:** `shakeDuration` / `shakeIntensity` / `flashDuration` on `GameView`. `triggerScreenShake` writes localized floats. World draw (background through particles) sits inside `canvas.save()` + `translate(dx, dy)` + `restore()`; `dx`/`dy` are signed unit noise × intensity from an LCG (same mapping as `(random * 2 - 1) * intensity`, no `Math.random()` on the frame). Duration decays by `dt`. Flash is a reused full-screen quad, 40% white, prebuilt PorterDuff `SRC_OVER`, then HUD. `BossController` latches `FX_PHASE` when the core first becomes vulnerable and `FX_DEATH` when explode starts; `GameView` consumes those flags after collisions. Bombs call `addScreenShake`, which forwards into `triggerScreenShake`.
+
 ---
 
 ## Enemy formation design
@@ -220,10 +235,13 @@ Those choices map directly to `SpawnTimeline` + `Enemy.pattern` + a 48-slot pool
 | Design rule | Home in code |
 | --- | --- |
 | Cabinet attract | `GameView` attract timers, `STATE_DEMO`, `demoPilot()`, ranking draw |
-| No GC in combat | Pools: `Enemy`, `PlayerBullet`, `EnemyBullet`, missiles, explosions, pickups |
+| No GC in combat | Pools: `Enemy`, `PlayerBullet`, `EnemyBullet`, missiles, explosions, graze sparks, pickups |
 | Scripted waves | `SpawnTimeline` + flags; `StageData` for scroll and boss-at time |
 | Formation shapes | `spawnVFormation`, weaves, pincers, walls, diamond cues in `SpawnTimeline`; motion in `EnemyPoolManager` |
-| Peel bosses | `BossController` + `BossComponent[14]`; wreck sheets |
+| Peel bosses | `BossController` + `BossComponent[14]`; wreck sheets; `FX_PHASE` / `FX_DEATH` |
+| Tiny core + graze ring | `PlayerShip` radii; `BulletManager.resolveEnemyBulletsVsPlayer`; `EnemyBullet.FLAG_GRAZED` |
+| Running score | `ScoreManager`; graze 100; medals/bombs still add through `GameView` |
+| Camera kick / bleach | `triggerScreenShake` / `triggerScreenFlash`; world `translate`; 40% white quad |
 | Relative flight | `PlayerShip` pointer tracking; frames 1–7 |
 | Auto-fire / bombs | `BulletManager` cooldown; `PanicBomb`; double-tap in `GameView` |
 | Green key | loadKeyed / `keyGreen` at bitmap load |
@@ -268,6 +286,7 @@ flowchart TB
     PA[ParallaxBackground]
     PT[ParticleManager]
     SC[VictoryScorecard]
+    SCR[ScoreManager]
     HS[HighScoreManager]
   end
 
@@ -280,24 +299,26 @@ flowchart TB
   BS --> EW
   PL --> BL
   BL --> HM
+  BL --> SCR
   GV --> PB
   GV --> PU
   GV --> PA
   GV --> PT
   GV --> SC
+  GV --> SCR
   GV --> HS
 ```
 
 **Boot:** hide system bars → init `SoundManager` → construct `GameView` → load high scores once → when the surface exists, post a Choreographer callback.
 
-**One frame:** measure `dt` → update only what the current scene needs → draw sky/ground → draw sprites → draw HUD → unlock the canvas → ask for the next vsync.
+**One frame:** measure `dt` → update only what the current scene needs → optionally `save`/`translate` the world → draw sky/ground and sprites → `restore` → optional full-screen flash → draw HUD → unlock the canvas → ask for the next vsync.
 
 **A real play second, in order:**
 
 1. Timeline may activate enemy slots or start a boss entrance.  
 2. Enemies and boss may call `EnemyWeaponSystem.fireBullet`.  
 3. Your drag moves `PlayerShip`; hold feeds `BulletManager` (and missiles at high power).  
-4. `resolveCollisions` in `GameView` compares pools: tiny player hurtbox vs shots, body vs rams, padded boxes vs boss parts. Score, particles, peel damage.  
+4. `resolveCollisions` in `GameView` compares pools: **6 px core** vs enemy shots (graze ring 24 px, once per bullet), body vs rams, padded boxes vs boss parts. Score, particles, peel damage. After collisions the boss may pulse shake/flash.  
 5. Core dead and explode finished → scorecard → `STATE_CLEAR`.  
 6. Lives gone → game over → maybe registration.
 
@@ -331,11 +352,11 @@ Each chapter starts with the idea, then the mechanism.
 
 Attract uses a second int (`ATTRACT_*`) and one float timer so title/demo/ranking can share `STATE_TITLE` / `STATE_DEMO` without a third activity.
 
-**Play/demo tick order:** parallax → optional `demoPilot` → player → player bullets/missiles → pickups → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → clear/demo-timeout.
+**Play/demo tick order:** parallax → optional `demoPilot` → player → player bullets/missiles → pickups → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → boss visual flags → clear/demo-timeout.
 
-**Paint order:** background → optional screen shake → world sprites → HUD. Registration and campaign-complete skip world sprites and draw a 40% dim wash plus text.
+**Paint order:** optional world `translate` → background → world sprites (including graze sparks) → `restore` → 40% white flash quad if live → HUD. Registration and campaign-complete skip world sprites and draw a 40% dim wash plus text.
 
-**Why collisions live here:** they need *every* pool. Splitting them would create a mediator that is `GameView` anyway. Player vs bullets uses a **small radius** (fair shmup). Rams use a **fraction of body size**. Boss shots use padded AABBs. Bomb damage is **DPS with a per-frame cap** so a 0.5 s animation neither deletes the core through armor nor does nothing.
+**Why collisions live here:** they need *every* pool. Splitting enemy-shot vs player *math* still lives in `BulletManager.resolveEnemyBulletsVsPlayer` so the Euclidean core/graze test is one loop; `GameView` owns game-over. Rams use a **fraction of body size**. Boss shots use padded AABBs. Bomb damage is **DPS with a per-frame cap** so a 0.5 s animation neither deletes the core through armor nor does nothing.
 
 **HUD:** one `StringBuilder`, shared paints. Hit testing is `RectF.contains`, not Android widgets.
 
@@ -365,25 +386,31 @@ See [Enemy formation design](#enemy-formation-design) for *why* each wave exists
 
 **Idea:** Every green shot is the same physical thing: a point with a velocity. Bosses and grunts share one pool so a dense boss pattern cannot allocate.
 
-**Mechanism:** First-free `fireBullet`. `beginDeathClear` records a short-lived circle that deactivates nearby enemy shots (the “cancel” when a cued heavy dies). Draw: green rect + white core, no bitmaps.
+**Mechanism:** First-free `fireBullet`. `flags` is a bitmask; `FLAG_GRAZED` is set once when the shot threads the player halo. `beginDeathClear` records a short-lived circle that deactivates nearby enemy shots (the “cancel” when a cued heavy dies). Draw: green oval + white core, no bitmaps.
 
 ### `BossComponent` and `BossController`
 
 **Idea:** A boss is a **constellation of parts** welded to a core position. Art is one sheet; gameplay is many HP bars.
 
-**Mechanism:** Up to 14 `BossComponent`s. Entrance moves the constellation on; then hover/sweep. Stage-specific timers fire into `EnemyWeaponSystem`. `isCoreVulnerable()` walks non-core parts. Wreck overlays for left/right/center. Explode frames on core death. Bitmaps reload when `bindStage` sees a new `loadedStage`.
+**Mechanism:** Up to 14 `BossComponent`s. Entrance moves the constellation on; then hover/sweep. Stage-specific timers fire into `EnemyWeaponSystem`. `isCoreVulnerable()` walks non-core parts. Wreck overlays for left/right/center. Explode frames on core death. `refreshPhaseFlags` / `consumeVisualFlags` expose peel-complete (`FX_PHASE`) and core death (`FX_DEATH`) as primitive bits for `GameView` shake/flash. Bitmaps reload when `bindStage` sees a new `loadedStage`.
 
 ### `PlayerShip`
 
-**Idea:** The player is the only thing that should feel *sticky* and *readable*. Bank art (seven frames) telegraphs horizontal speed. The hurtbox is stingy so weaving between bullets is possible.
+**Idea:** The player is the only thing that should feel *sticky* and *readable*. Bank art (seven frames) telegraphs horizontal speed. The **drawn** ship is large; the **core** is a 6 px circle so weaving is possible. A 24 px graze ring scores near-misses.
 
-**Mechanism:** Relative drag, clamp, lives/hits, invuln/respawn timers, `weaponPowerLevel`, `autoFire` for demo. `steerToward` is a simple arrive used by `demoPilot`. Same chroma-keyed blit stack.
+**Mechanism:** Relative drag, clamp, lives/hits, invuln/respawn timers, `weaponPowerLevel`, `autoFire` for demo. `centerX`/`centerY` are the sprite center. `steerToward` is a simple arrive used by `demoPilot`. Same chroma-keyed blit stack (`dst` is visual only).
 
 ### `PlayerBullet` and `BulletManager`
 
-**Idea:** Your gun is a **metronome**, not a spray of new objects. Power only changes *how many* slots you activate per tick.
+**Idea:** Your gun is a **metronome**, not a spray of new objects. Power only changes *how many* slots you activate per tick. The same class also runs the **enemy-bullet vs core/graze** test so that loop stays Euclidean and allocation-free.
 
-**Mechanism:** Pool of 100. ~0.12 s vulcan cooldown. Separate missile cooldown at power ≥ 3. Yellow `RectF`s. `spawnWeaponStream` fans extra bullets.
+**Mechanism:** Pool of 100. ~0.12 s vulcan cooldown. Separate missile cooldown at power ≥ 3. Yellow `RectF`s for *your* shots (draw only). `spawnWeaponStream` fans extra bullets. `resolveEnemyBulletsVsPlayer` walks the enemy pool: core hit → `takeDamage`; else graze latch + score + spark.
+
+### `ScoreManager`
+
+**Idea:** One running total the HUD, graze, medals, and registration all read. No second score living only in `GameView`.
+
+**Mechanism:** Singleton like `SoundManager`. Clamp 0…99,999,999. `addGrazeScore` is `addScore`. `GameView.campaignScore` get/set delegates here.
 
 ### `HomingMissileManager`
 
@@ -407,7 +434,7 @@ See [Enemy formation design](#enemy-formation-design) for *why* each wave exists
 
 **Idea:** Explosions are decoration with a cap. If ten ships die in one frame, we still only have N explosion slots.
 
-**Mechanism:** Sheet sliced into frames, pool of `ActiveExplosion`, optional SFX.
+**Mechanism:** Sheet sliced into frames, pool of `ActiveExplosion`, optional SFX. Separate pooled `GrazeSpark` dots (`triggerSpark`) with velocity and a short life; draw even if the explosion sheet is missing.
 
 ### `ParallaxBackground`
 

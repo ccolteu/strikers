@@ -123,6 +123,60 @@ class BulletManager {
   }
 
   /**
+   * Euclidean core vs graze vs [EnemyBullet] centers. No RectF.intersects on the physical path.
+   * @return true if [PlayerShip.takeDamage] destroyed the ship this frame.
+   */
+  fun resolveEnemyBulletsVsPlayer(
+    player: PlayerShip,
+    enemyBullets: Array<EnemyBullet>,
+    enemyBulletCount: Int,
+    particles: ParticleManager,
+    awardScore: Boolean,
+  ): Boolean {
+    if (!player.isOnField()) return false
+    val px = player.centerX()
+    val py = player.centerY()
+    val coreR = player.coreHitboxRadius
+    val grazeR = player.grazeRadius
+    val coreSq = coreR * coreR
+    val grazeSq = grazeR * grazeR
+    var i = 0
+    while (i < enemyBulletCount) {
+      val b = enemyBullets[i]
+      if (b.isActive) {
+        val dx = b.x - px
+        val dy = b.y - py
+        val distSq = (dx * dx) + (dy * dy)
+        if (distSq <= coreSq) {
+          b.isActive = false
+          b.flags = 0
+          if (player.takeDamage()) {
+            particles.triggerExplosion(px, py)
+            return true
+          }
+          return false
+        }
+        if (distSq <= grazeSq && (b.flags and EnemyBullet.FLAG_GRAZED) == 0) {
+          b.flags = b.flags or EnemyBullet.FLAG_GRAZED
+          if (awardScore) {
+            ScoreManager.instance.addGrazeScore(ScoreManager.GRAZE_POINTS)
+          }
+          var sparkVx = 0f
+          var sparkVy = SPARK_FALLBACK_VY
+          if (distSq > 0.0001f) {
+            val inv = SPARK_SPEED / kotlin.math.sqrt(distSq)
+            sparkVx = dx * inv
+            sparkVy = dy * inv
+          }
+          particles.triggerSpark(b.x, b.y, sparkVx, sparkVy)
+        }
+      }
+      i++
+    }
+    return false
+  }
+
+  /**
    * Iterates through your active projectile states, mapping points directly
    * to a single float drawRect template variable to keep memory generation completely clean.
    */
@@ -151,5 +205,7 @@ class BulletManager {
     const val LANE3_OUTER = 0.72f
     const val LANE3_INNER = 0.28f
     const val MISSILE_INTERVAL = 0.480f
+    const val SPARK_SPEED = 280f
+    const val SPARK_FALLBACK_VY = -280f
   }
 }

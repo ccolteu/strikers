@@ -11,10 +11,16 @@ import android.graphics.RectF
 class ParticleManager(private val resources: Resources) {
 
   private val pool = Array(POOL_SIZE) { ActiveExplosion() }
+  private val sparks = Array(SPARK_POOL) { GrazeSpark() }
   private val srcRects = Array(FRAME_COUNT) { Rect() }
   private val dstRect = RectF()
   private val paint = Paint().apply {
     isFilterBitmap = true
+    isAntiAlias = false
+  }
+  private val sparkPaint = Paint().apply {
+    color = 0xFFFFF2A0.toInt()
+    style = Paint.Style.FILL
     isAntiAlias = false
   }
   private val lock = Any()
@@ -35,6 +41,25 @@ class ParticleManager(private val resources: Resources) {
     val targetDrawH = (targetDrawW * aspect).toInt().coerceAtLeast(1)
     halfW = targetDrawW * 0.5f
     halfH = targetDrawH * 0.5f
+  }
+
+  fun triggerSpark(x: Float, y: Float, vx: Float, vy: Float) {
+    synchronized(lock) {
+      var i = 0
+      while (i < SPARK_POOL) {
+        val s = sparks[i]
+        if (!s.isActive) {
+          s.x = x
+          s.y = y
+          s.vx = vx
+          s.vy = vy
+          s.life = SPARK_LIFE
+          s.isActive = true
+          return
+        }
+        i++
+      }
+    }
   }
 
   fun triggerExplosion(centerX: Float, centerY: Float, playSound: Boolean = true) {
@@ -76,23 +101,46 @@ class ParticleManager(private val resources: Resources) {
         }
         i++
       }
+      i = 0
+      while (i < SPARK_POOL) {
+        val s = sparks[i]
+        if (s.isActive) {
+          s.x += s.vx * dt
+          s.y += s.vy * dt
+          s.life -= dt
+          if (s.life <= 0f) {
+            s.isActive = false
+          }
+        }
+        i++
+      }
     }
   }
 
   fun draw(canvas: Canvas) {
-    val bmp = sheet ?: return
     synchronized(lock) {
-      val hw = halfW
-      val hh = halfH
-      var i = 0
-      while (i < POOL_SIZE) {
-        val e = pool[i]
-        if (e.isActive) {
-          val frame = e.currentFrameIndex
-          if (frame in 0..LAST_FRAME) {
-            dstRect.set(e.x - hw, e.y - hh, e.x + hw, e.y + hh)
-            canvas.drawBitmap(bmp, srcRects[frame], dstRect, paint)
+      val bmp = sheet
+      if (bmp != null) {
+        val hw = halfW
+        val hh = halfH
+        var ei = 0
+        while (ei < POOL_SIZE) {
+          val e = pool[ei]
+          if (e.isActive) {
+            val frame = e.currentFrameIndex
+            if (frame in 0..LAST_FRAME) {
+              dstRect.set(e.x - hw, e.y - hh, e.x + hw, e.y + hh)
+              canvas.drawBitmap(bmp, srcRects[frame], dstRect, paint)
+            }
           }
+          ei++
+        }
+      }
+      var i = 0
+      while (i < SPARK_POOL) {
+        val s = sparks[i]
+        if (s.isActive) {
+          canvas.drawCircle(s.x, s.y, SPARK_RADIUS, sparkPaint)
         }
         i++
       }
@@ -157,5 +205,17 @@ class ParticleManager(private val resources: Resources) {
     const val LAST_FRAME = 7
     const val FRAME_SEC = 0.05f
     const val EXPLOSION_WIDTH_FRAC = 0.18f * 1.5f
+    const val SPARK_POOL = 48
+    const val SPARK_LIFE = 0.12f
+    const val SPARK_RADIUS = 2.4f
   }
+}
+
+private class GrazeSpark {
+  var x = 0f
+  var y = 0f
+  var vx = 0f
+  var vy = 0f
+  var life = 0f
+  var isActive = false
 }

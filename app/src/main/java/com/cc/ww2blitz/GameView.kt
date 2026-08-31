@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
+import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Typeface
@@ -33,7 +34,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val particles = ParticleManager(resources)
   private val boss = BossController(resources)
   private val scorecard = VictoryScorecard()
-  private var campaignScore = 0
+  private var campaignScore: Int
+    get() = ScoreManager.instance.getScore()
+    set(value) { ScoreManager.instance.setScore(value) }
   private val panicBomb = PanicBomb()
   private val powerUpItem = PowerUpItem()
   private val scorePool = Array(12) { FloatingScore() }
@@ -107,8 +110,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
-  private var screenShakeTrauma = 0f
+  private var shakeDuration = 0f
+  private var shakeIntensity = 0f
+  private var flashDuration = 0f
   private var shakeSeed = 14352451L
+  private val flashPaint = Paint().apply {
+    color = 0x66FFFFFF.toInt()
+    style = Paint.Style.FILL
+    isAntiAlias = false
+    xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_OVER)
+  }
+  private val flashRect = RectF()
   private var lootSeed = 2463534242L
   private var bossWasExploding = false
   private var screenW = 0
@@ -279,7 +291,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       ((frameTimeNanos - lastNanos).coerceIn(0L, MAX_FRAME_NS) / 1_000_000_000f)
     }
     lastNanos = frameTimeNanos
-    screenShakeTrauma = (screenShakeTrauma - 1.2f * dt).coerceAtLeast(0f)
     when (gameState) {
       STATE_TITLE -> {
         parallax.update(TITLE_SCROLL_PX * dt)
@@ -353,15 +364,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (boss.isActive() || boss.isExploding()) {
           bossFought = true
         }
-        val exploding = boss.isExploding()
-        if (exploding && !bossWasExploding) {
-          addScreenShake(1.0f)
-        }
-        bossWasExploding = exploding
         enemyShots.update(dt)
         updatePanicBomb(dt)
         particles.update(dt)
         resolveCollisions()
+        boss.refreshPhaseFlags()
+        val pulse = boss.consumeVisualFlags()
+        if ((pulse and BossController.FX_PHASE) != 0) {
+          triggerScreenShake(0.18f, 10f)
+          triggerScreenFlash(0.08f)
+        }
+        if ((pulse and BossController.FX_DEATH) != 0) {
+          triggerScreenShake(0.42f, 22f)
+          triggerScreenFlash(0.14f)
+        }
+        bossWasExploding = boss.isExploding()
         if (
           gameState == STATE_PLAYING &&
           bossFought &&
@@ -373,6 +390,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           if (stageManager.currentStage > maxStageCleared) {
             maxStageCleared = stageManager.currentStage
           }
+          sweepPlayfieldForClear()
           gameState = STATE_CLEAR
         }
         if (gameState == STATE_DEMO) {
@@ -388,6 +406,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val canvas = lockGameCanvas()
     if (canvas != null) {
       try {
+        val shaking = shakeDuration > 0f
+        if (shaking) {
+          val mag = shakeIntensity
+          val dx = (nextShakeUnit() * 2f - 1f) * mag
+          val dy = (nextShakeUnit() * 2f - 1f) * mag
+          canvas.save()
+          canvas.translate(dx, dy)
+        }
         parallax.draw(
           canvas,
           when {
@@ -398,17 +424,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           gameState == STATE_REGISTRATION ||
             (gameState != STATE_CAMPAIGN_COMPLETE && stageManager.currentStage == 1),
         )
-        val shaking = screenShakeTrauma > 0f &&
-          gameState != STATE_TITLE &&
-          gameState != STATE_REGISTRATION &&
-          gameState != STATE_CAMPAIGN_COMPLETE
-        if (shaking) {
-          val power = screenShakeTrauma * screenShakeTrauma * 30f
-          canvas.save()
-          canvas.translate(nextShakeUnit() * power, nextShakeUnit() * power)
-        }
         if (
           gameState != STATE_TITLE &&
+          gameState != STATE_CLEAR &&
           gameState != STATE_REGISTRATION &&
           gameState != STATE_CAMPAIGN_COMPLETE
         ) {
@@ -424,6 +442,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
         if (shaking) {
           canvas.restore()
+          shakeDuration -= dt
+          if (shakeDuration < 0f) shakeDuration = 0f
+        }
+        if (flashDuration > 0f) {
+          flashRect.set(0f, 0f, screenW.toFloat(), screenH.toFloat())
+          canvas.drawRect(flashRect, flashPaint)
+          flashDuration -= dt
+          if (flashDuration < 0f) flashDuration = 0f
+        }
+        if (gameState == STATE_CLEAR) {
+          canvas.drawColor(0x66000000.toInt())
         }
         drawArcadeUI(canvas)
       } finally {
@@ -433,13 +462,26 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     choreographer.postFrameCallback(this)
   }
 
+  fun triggerScreenShake(duration: Float, intensity: Float) {
+    val dur = duration
+    val mag = intensity
+    shakeDuration = if (dur < 0f) 0f else dur
+    shakeIntensity = if (mag < 0f) 0f else mag
+  }
+
+  fun triggerScreenFlash(duration: Float) {
+    val dur = duration
+    flashDuration = if (dur < 0f) 0f else dur
+  }
+
   fun addScreenShake(intensity: Float) {
-    screenShakeTrauma = (screenShakeTrauma + intensity).coerceAtMost(1.0f)
+    val mag = intensity
+    triggerScreenShake(0.28f, 12f + mag * 22f)
   }
 
   private fun nextShakeUnit(): Float {
     shakeSeed = shakeSeed * 1664525L + 1013904223L
-    return (((shakeSeed ushr 8) and 0xFFFFFFL).toFloat() / 16777215f) * 2f - 1f
+    return ((shakeSeed ushr 8) and 0xFFFFFFL).toFloat() / 16777215f
   }
 
   /**
@@ -1265,27 +1307,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val enemyBullets = enemyShots.getBulletPool()
     val playerX = player.getHitboxX()
     val playerY = player.getHitboxY()
-    val playerRadius = PLAYER_HIT_RADIUS
-    val sumRadius = playerRadius + EnemyWeaponSystem.HALF_BULLET_WIDTH
-    val sumSq = sumRadius * sumRadius
-    val enemyBulletCount = enemyShots.getPoolSize()
-    var i = 0
-    while (i < enemyBulletCount) {
-      val b = enemyBullets[i]
-      if (b.isActive) {
-        val dx = b.x - playerX
-        val dy = b.y - playerY
-        val distSq = (dx * dx) + (dy * dy)
-        if (distSq <= sumSq) {
-          b.isActive = false
-          if (player.takeDamage()) {
-            particles.triggerExplosion(playerX, playerY)
-            if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
-          }
-          break
-        }
-      }
-      i++
+    if (bullets.resolveEnemyBulletsVsPlayer(
+        player,
+        enemyBullets,
+        enemyShots.getPoolSize(),
+        particles,
+        gameState == STATE_PLAYING,
+      ) && gameState == STATE_PLAYING
+    ) {
+      enterGameOver()
     }
 
     if (!player.isGameOver()) {
@@ -1318,6 +1348,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     if (!player.isGameOver() && boss.isActive()) {
+      val playerRadius = PLAYER_HIT_RADIUS
       val parts = boss.getComponents()
       val partCount = boss.getComponentCount()
       var pi = 0
@@ -1555,6 +1586,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     super.onDetachedFromWindow()
   }
 
+  private fun sweepPlayfieldForClear() {
+    bullets.deactivateAll()
+    homingMissiles.deactivateAll()
+    enemies.deactivateAll()
+    enemyShots.deactivateAll()
+    powerUpItem.deactivateAll()
+    deactivateScorePopups()
+    panicBomb.isActive = false
+    boss.deactivate()
+    shakeDuration = 0f
+    shakeIntensity = 0f
+    flashDuration = 0f
+  }
+
   private fun resetStage() {
     // FORCE-CLEAR SCORING FLAGS TO PREVENT INSTANT TICKER SKIPPING ON NEXT LEVELS
     scorecard.isActive = false
@@ -1567,7 +1612,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     panicBomb.isActive = false
     bossWasExploding = false
-    screenShakeTrauma = 0f
+    shakeDuration = 0f
+    shakeIntensity = 0f
+    flashDuration = 0f
     enemyBombDmgBank = 0f
     bossBombDmgBank = 0f
     bombCoreWasOpen = false

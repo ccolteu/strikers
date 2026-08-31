@@ -38,6 +38,7 @@ class EnemyWeaponSystem {
     var i = 0
     while (i < POOL_SIZE) {
       pool[i].isActive = false
+      pool[i].flags = 0
       i++
     }
     i = 0
@@ -72,6 +73,7 @@ class EnemyWeaponSystem {
         b.y = startY
         b.vx = velX
         b.vy = velY
+        b.flags = 0
         b.isActive = true
         return
       }
@@ -91,6 +93,7 @@ class EnemyWeaponSystem {
         b.y += b.vy * dt
         if (b.x + r < 0f || b.x - r > w || b.y + r < 0f || b.y - r > h) {
           b.isActive = false
+          b.flags = 0
         }
       }
       i++
@@ -119,6 +122,7 @@ class EnemyWeaponSystem {
             val dy = b.y - oy
             if ((dx * dx) + (dy * dy) <= rSq) {
               b.isActive = false
+              b.flags = 0
             }
           }
           bi++

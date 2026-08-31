@@ -17,6 +17,9 @@ import android.view.MotionEvent
  */
 class PlayerShip(private val resources: Resources) {
 
+  val coreHitboxRadius = 6f
+  val grazeRadius = 24f
+
   private val frames = arrayOfNulls<Bitmap>(FRAME_COUNT)
   private val dst = Rect()
   private val paint = Paint().apply { isFilterBitmap = true }
@@ -165,6 +168,12 @@ class PlayerShip(private val resources: Resources) {
   fun getHitboxX(): Float = x
 
   fun getHitboxY(): Float = y
+
+  fun centerX(): Float = x
+
+  fun centerY(): Float = y
+
+  fun isOnField(): Boolean = !isGameOverFlag && lives > 0 && respawnTimer <= 0f
 
   fun getHealth(): Int = lives
 

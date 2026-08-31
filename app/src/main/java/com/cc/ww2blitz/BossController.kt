@@ -75,6 +75,8 @@ class BossController(private val resources: Resources) {
   private var activeExpFrame = 0
   private var currentStage = 1
   private var loadedStage = -1
+  private var corePhaseOpen = false
+  private var visualFlags = 0
   private val partSfxPlayed = BooleanArray(MAX_PART_COUNT)
   private val preservedDestroyed = BooleanArray(MAX_PART_COUNT)
   private val preservedHealth = IntArray(MAX_PART_COUNT)
@@ -143,6 +145,8 @@ class BossController(private val resources: Resources) {
     isExploding = false
     explosionTimer = 0f
     activeExpFrame = 0
+    corePhaseOpen = false
+    visualFlags = 0
     var i = 0
     while (i < MAX_PART_COUNT) {
       val p = parts[i]
@@ -174,12 +178,32 @@ class BossController(private val resources: Resources) {
     return true
   }
 
+  fun refreshPhaseFlags() {
+    if (!active || isExploding || entering) {
+      corePhaseOpen = isCoreVulnerable()
+      return
+    }
+    val open = isCoreVulnerable()
+    if (open && !corePhaseOpen) {
+      visualFlags = visualFlags or FX_PHASE
+    }
+    corePhaseOpen = open
+  }
+
+  fun consumeVisualFlags(): Int {
+    val flags = visualFlags
+    visualFlags = 0
+    return flags
+  }
+
   fun deactivate() {
     active = false
     entering = false
     isExploding = false
     explosionTimer = 0f
     activeExpFrame = 0
+    corePhaseOpen = false
+    visualFlags = 0
     SoundManager.instance.stopAlarm()
     s4MortarTimer = 0f
     s4GatlingTimer = 0f
@@ -224,6 +248,7 @@ class BossController(private val resources: Resources) {
       isExploding = true
       explosionTimer = 0f
       activeExpFrame = 0
+      visualFlags = visualFlags or FX_DEATH
       return
     }
     if (entering) {
@@ -927,6 +952,8 @@ class BossController(private val resources: Resources) {
 
   companion object {
     const val TYPE_CORE = 0
+    const val FX_PHASE = 1
+    const val FX_DEATH = 2
     const val TYPE_LEFT_WING = 1
     const val TYPE_RIGHT_WING = 2
     const val TYPE_TURRET = 3
