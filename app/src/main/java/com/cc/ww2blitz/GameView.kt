@@ -78,9 +78,32 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var bombCoreWasOpen = false
   private var bossFought = false
   private var lastBgmRes = 0
-  private var idleT = 0f
+  private var attractCycleState = ATTRACT_TITLE
+  private var attractCycleTimer = 0f
   private var demoT = 0f
+  private var lastDemoStage = 0
+  private var campaignCompleteT = 0f
+  private var maxStageCleared = 0
   private var gameOverT = 0f
+  private var registrationActiveCharIndex = 0
+  private var registrationCurrentCharValue = 'A'
+  private var registrationTextFlashTimer = 0f
+  private val pendingInitials = CharArray(3) { 'A' }
+  private val registrationSetRect = RectF()
+  private val registrationLeftWing = RectF()
+  private val registrationRightWing = RectF()
+  private val uiRegRedPaint = Paint().apply {
+    color = 0xFFE53935.toInt()
+    typeface = Typeface.DEFAULT_BOLD
+    textSize = 42f
+    isAntiAlias = true
+  }
+  private val uiNeonStrokePaint = Paint().apply {
+    color = 0xFF00E5FF.toInt()
+    style = Paint.Style.STROKE
+    strokeWidth = 4f
+    isAntiAlias = true
+  }
   private val choreographer = Choreographer.getInstance()
   private var running = false
   private var lastNanos = 0L
@@ -174,6 +197,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   init {
+    HighScoreManager.loadHighScores(context)
+    attractCycleState = ATTRACT_TITLE
+    attractCycleTimer = 0f
+    gameState = STATE_TITLE
     holder.addCallback(this)
     isFocusable = true
     isFocusableInTouchMode = true
@@ -187,6 +214,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiShadowPaint.typeface = face
     uiGoldPaint.typeface = face
     uiGoldShadowPaint.typeface = face
+    uiRegRedPaint.typeface = face
     uiSmallPaint.typeface = face
     uiSmallShadowPaint.typeface = face
     accentShadowPaint.typeface = face
@@ -213,6 +241,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   override fun surfaceCreated(holder: SurfaceHolder) {
+    HighScoreManager.loadHighScores(context)
+    if (gameState == STATE_TITLE) {
+      attractCycleState = ATTRACT_TITLE
+      attractCycleTimer = 0f
+    }
     running = true
     lastNanos = 0L
     choreographer.postFrameCallback(this)
@@ -251,9 +284,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       STATE_TITLE -> {
         parallax.update(TITLE_SCROLL_PX * dt)
         if (!isSettingsMenuOpen) {
-          idleT += dt
-          if (idleT >= IDLE_SECS && screenW > 0 && screenH > 0) {
-            beginDemo()
+          attractCycleTimer += dt
+          when (attractCycleState) {
+            ATTRACT_TITLE -> {
+              if (attractCycleTimer >= ATTRACT_TITLE_SECS && screenW > 0 && screenH > 0) {
+                attractCycleTimer = 0f
+                attractCycleState = ATTRACT_CPU_DEMO
+                beginDemo()
+              }
+            }
+            ATTRACT_HIGH_SCORE -> {
+              if (attractCycleTimer >= ATTRACT_HIGH_SCORE_SECS) {
+                attractCycleTimer = 0f
+                attractCycleState = ATTRACT_TITLE
+              }
+            }
           }
         }
       }
@@ -268,8 +313,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         particles.update(dt)
         gameOverT += dt
         if (gameOverT >= GAMEOVER_SECS) {
-          returnToTitle()
+          routeAfterGameOver()
         }
+      }
+      STATE_REGISTRATION -> {
+        parallax.update(TITLE_SCROLL_PX * dt)
+        registrationTextFlashTimer += dt
+      }
+      STATE_CAMPAIGN_COMPLETE -> {
+        parallax.update(0f)
+        particles.update(dt)
+        updateFloatingScores(dt)
+        campaignCompleteT += dt
       }
       else -> {
         parallax.update(stageManager.scrollSpeedY * dt)
@@ -315,13 +370,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         ) {
           scorecard.trigger(player.getHealth(), availableBombs, campaignScore)
           campaignScore = scorecard.totalStageScore
+          if (stageManager.currentStage > maxStageCleared) {
+            maxStageCleared = stageManager.currentStage
+          }
           gameState = STATE_CLEAR
         }
         if (gameState == STATE_DEMO) {
           demoT += dt
-          val demoBossDone = bossFought && !boss.isActive() && !boss.isExploding()
-          if (player.isGameOver() || demoBossDone || demoT >= DEMO_SECS) {
-            exitDemo()
+          attractCycleTimer += dt
+          if (attractCycleTimer >= ATTRACT_DEMO_SECS) {
+            finishDemoToHighScore()
           }
         }
       }
@@ -332,16 +390,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       try {
         parallax.draw(
           canvas,
-          stageGroundBitmap(),
-          stageManager.currentStage == 1,
+          when {
+            gameState == STATE_REGISTRATION -> null
+            gameState == STATE_CAMPAIGN_COMPLETE -> bgStage4Bmp
+            else -> stageGroundBitmap()
+          },
+          gameState == STATE_REGISTRATION ||
+            (gameState != STATE_CAMPAIGN_COMPLETE && stageManager.currentStage == 1),
         )
-        val shaking = screenShakeTrauma > 0f && gameState != STATE_TITLE
+        val shaking = screenShakeTrauma > 0f &&
+          gameState != STATE_TITLE &&
+          gameState != STATE_REGISTRATION &&
+          gameState != STATE_CAMPAIGN_COMPLETE
         if (shaking) {
           val power = screenShakeTrauma * screenShakeTrauma * 30f
           canvas.save()
           canvas.translate(nextShakeUnit() * power, nextShakeUnit() * power)
         }
-        if (gameState != STATE_TITLE) {
+        if (
+          gameState != STATE_TITLE &&
+          gameState != STATE_REGISTRATION &&
+          gameState != STATE_CAMPAIGN_COMPLETE
+        ) {
           enemies.draw(canvas)
           boss.draw(canvas)
           player.draw(canvas)
@@ -379,7 +449,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
    */
   private fun drawArcadeUI(canvas: Canvas) {
     if (gameState == STATE_TITLE) {
-      drawTitleScreen(canvas)
+      if (attractCycleState == ATTRACT_HIGH_SCORE) {
+        drawHighScoreScreen(canvas)
+      } else {
+        drawTitleScreen(canvas)
+      }
+      return
+    }
+    if (gameState == STATE_REGISTRATION) {
+      drawRegistrationScreen(canvas)
+      return
+    }
+    if (gameState == STATE_CAMPAIGN_COMPLETE) {
+      drawCampaignCompleteScreen(canvas)
       return
     }
     val bombWidth = 80f
@@ -553,7 +635,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if ((System.currentTimeMillis() / 600L) % 2L == 0L) {
       uiStringBuilder.setLength(0)
-      uiStringBuilder.append("TOUCH SCREEN TO START")
+      uiStringBuilder.append("1P START")
       drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, screenH * 0.52f, uiGoldPaint, uiGoldShadowPaint)
     }
     uiStringBuilder.setLength(0)
@@ -571,6 +653,151 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       settingsX + settingsW,
       settingsY + uiTextPaint.descent(),
     )
+  }
+
+  private fun drawHighScoreScreen(canvas: Canvas) {
+    val cx = screenW * 0.5f
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("TOP SCORES")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.12f, uiGoldPaint, uiGoldShadowPaint)
+    val savedSmall = uiSmallPaint.textSize
+    val savedSmallShadow = uiSmallShadowPaint.textSize
+    uiSmallPaint.textSize = 26f
+    uiSmallShadowPaint.textSize = 26f
+    val rowStep = screenH * 0.054f
+    var i = 0
+    while (i < HighScoreManager.SLOT_COUNT) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append(i + 1)
+      uiStringBuilder.append(' ')
+      var score = HighScoreManager.scoreAt(i)
+      if (score < 0) score = 0
+      if (score > 99_999_999) score = 99_999_999
+      var digits = 1
+      var tally = score
+      while (tally >= 10) {
+        tally /= 10
+        digits++
+      }
+      var pad = 8 - digits
+      while (pad > 0) {
+        uiStringBuilder.append('0')
+        pad--
+      }
+      uiStringBuilder.append(score)
+      uiStringBuilder.append("  ")
+      uiStringBuilder.append(HighScoreManager.nameChar(i, 0))
+      uiStringBuilder.append(HighScoreManager.nameChar(i, 1))
+      uiStringBuilder.append(HighScoreManager.nameChar(i, 2))
+      uiStringBuilder.append("  ST")
+      uiStringBuilder.append(HighScoreManager.stageAt(i))
+      val rowY = screenH * 0.20f + i * rowStep
+      drawCenteredHud(canvas, uiStringBuilder, cx, rowY, uiSmallPaint, uiSmallShadowPaint)
+      i++
+    }
+    uiSmallPaint.textSize = savedSmall
+    uiSmallShadowPaint.textSize = savedSmallShadow
+    if ((System.currentTimeMillis() / 600L) % 2L == 0L) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("1P START")
+      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.90f, uiGoldPaint, uiGoldShadowPaint)
+    }
+  }
+
+  private fun layoutRegistrationHitZones() {
+    registrationLeftWing.set(0f, screenH * 0.25f, screenW * 0.45f, screenH * 0.65f)
+    registrationRightWing.set(screenW * 0.55f, screenH * 0.25f, screenW * 1.0f, screenH * 0.65f)
+    registrationSetRect.set(screenW * 0.10f, screenH * 0.75f, screenW * 0.90f, screenH * 0.85f)
+  }
+
+  private fun drawRegistrationScreen(canvas: Canvas) {
+    canvas.drawColor(0x66000000.toInt())
+    layoutRegistrationHitZones()
+    val cx = screenW * 0.5f
+    uiRegRedPaint.textAlign = Paint.Align.LEFT
+    uiTextPaint.textAlign = Paint.Align.LEFT
+    uiGoldPaint.textAlign = Paint.Align.LEFT
+    uiGoldShadowPaint.textAlign = Paint.Align.LEFT
+    uiShadowPaint.textAlign = Paint.Align.LEFT
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("REGISTRATION")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.18f, uiRegRedPaint, uiGoldShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("HI-SCORE ENTRY")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.24f, uiTextPaint, uiShadowPaint)
+    val originalGoldSize = uiGoldPaint.textSize
+    val originalGoldShadowSize = uiGoldShadowPaint.textSize
+    uiGoldPaint.textSize = 72f
+    uiGoldShadowPaint.textSize = 72f
+    val charSpacing = 110f
+    val totalWidth = 2f * charSpacing
+    val startX = cx - (totalWidth * 0.5f)
+    val letterY = screenH * 0.46f
+    val blink = kotlin.math.sin(registrationTextFlashTimer * 14f) * 0.5f + 0.5f
+    val blinkAlpha = (80f + blink * 175f).toInt()
+    var idx = 0
+    while (idx < 3) {
+      val slotX = startX + (idx * charSpacing)
+      val charToDraw = if (idx == registrationActiveCharIndex) {
+        registrationCurrentCharValue
+      } else {
+        pendingInitials[idx]
+      }
+      if (idx == registrationActiveCharIndex) {
+        uiTextPaint.textSize = 72f
+        uiShadowPaint.textSize = 72f
+        uiTextPaint.alpha = blinkAlpha
+        uiShadowPaint.alpha = blinkAlpha
+        uiStringBuilder.setLength(0)
+        uiStringBuilder.append('<')
+        drawCenteredHud(canvas, uiStringBuilder, slotX - 54f, letterY, uiTextPaint, uiShadowPaint)
+        uiStringBuilder.setLength(0)
+        uiStringBuilder.append('>')
+        drawCenteredHud(canvas, uiStringBuilder, slotX + 54f, letterY, uiTextPaint, uiShadowPaint)
+        uiTextPaint.alpha = 255
+        uiShadowPaint.alpha = 255
+        uiTextPaint.textSize = 32f
+        uiShadowPaint.textSize = 32f
+        uiGoldPaint.alpha = blinkAlpha
+        uiGoldShadowPaint.alpha = blinkAlpha
+      }
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append(charToDraw)
+      drawCenteredHud(canvas, uiStringBuilder, slotX, letterY, uiGoldPaint, uiGoldShadowPaint)
+      uiGoldPaint.alpha = 255
+      uiGoldShadowPaint.alpha = 255
+      idx++
+    }
+    uiGoldPaint.textSize = 26f
+    uiGoldShadowPaint.textSize = 26f
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ PRESS ENTER TO LOCK INITIAL ]")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.78f, uiGoldPaint, uiGoldShadowPaint)
+    uiGoldPaint.textSize = originalGoldSize
+    uiGoldShadowPaint.textSize = originalGoldShadowSize
+  }
+
+  private fun drawCampaignCompleteScreen(canvas: Canvas) {
+    canvas.drawColor(0x66000000.toInt())
+    val cx = screenW * 0.5f
+    val flashOn = ((campaignCompleteT * 3f).toInt() and 1) == 0
+    if (flashOn) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("CONGRATULATIONS!")
+      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.30f, uiGoldPaint, uiGoldShadowPaint)
+    }
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("ALL STAGES CLEAR")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.38f, uiTextPaint, uiShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("FINAL SCORE: ")
+    uiStringBuilder.append(campaignScore)
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.52f, uiGoldPaint, uiGoldShadowPaint)
+    if (flashOn) {
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("TOUCH SCREEN TO REGISTER SCORE")
+      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.82f, uiTextPaint, uiShadowPaint)
+    }
   }
 
   private fun drawSettingsOverlay(canvas: Canvas) {
@@ -656,6 +883,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   ) {
     accentShadowPaint.typeface = arcadeTypeface ?: fill.typeface
     accentShadowPaint.textSize = fill.textSize
+    accentShadowPaint.textAlign = fill.textAlign
     if (fill === uiGoldPaint) {
       accentShadowPaint.color = 0xFFB35400.toInt()
     } else {
@@ -1358,15 +1586,30 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     timeline.reset()
     parallax.resetScroll()
     lastBgmRes = 0
+    resetRegistration()
+  }
+
+  private fun resetRegistration() {
+    registrationActiveCharIndex = 0
+    registrationCurrentCharValue = 'A'
+    registrationTextFlashTimer = 0f
+    pendingInitials[0] = 'A'
+    pendingInitials[1] = 'A'
+    pendingInitials[2] = 'A'
   }
 
   private fun beginDemo() {
-    idleT = 0f
     demoT = 0f
-    stageManager.resetToStart()
-    if ((System.nanoTime() and 1L) != 0L) {
-      stageManager.advanceToNextStage()
+    attractCycleTimer = 0f
+    attractCycleState = ATTRACT_CPU_DEMO
+    var nextDemoStage = lastDemoStage
+    var lcgSeed = System.nanoTime()
+    while (nextDemoStage == lastDemoStage) {
+      lcgSeed = lcgSeed * 1664525L + 1013904223L
+      nextDemoStage = (((lcgSeed ushr 16) and 0xFFFFL).toInt() % 4) + 1
     }
+    lastDemoStage = nextDemoStage
+    stageManager.setCurrentStage(nextDemoStage)
     player.resetWeaponPower()
     player.restoreLives()
     availableBombs = 3
@@ -1383,6 +1626,52 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     gameState = STATE_GAMEOVER
   }
 
+  private fun routeAfterGameOver() {
+    if (HighScoreManager.checkIfQualifies(campaignScore)) {
+      beginRegistration()
+    } else {
+      finishDemoToHighScore()
+    }
+  }
+
+  private fun beginRegistration() {
+    resetRegistration()
+    lastBgmRes = 0
+    gameState = STATE_REGISTRATION
+  }
+
+  private fun bumpRegistrationChar(up: Boolean) {
+    var code = registrationCurrentCharValue.code
+    if (up) {
+      code++
+      if (code > 'Z'.code) code = 'A'.code
+    } else {
+      code--
+      if (code < 'A'.code) code = 'Z'.code
+    }
+    registrationCurrentCharValue = code.toChar()
+    SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+  }
+
+  private fun confirmRegistrationLetter() {
+    pendingInitials[registrationActiveCharIndex] = registrationCurrentCharValue
+    registrationActiveCharIndex++
+    SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+    if (registrationActiveCharIndex >= 3) {
+      HighScoreManager.checkAndInsertNewScore(
+        context,
+        campaignScore,
+        pendingInitials[0],
+        pendingInitials[1],
+        pendingInitials[2],
+        maxStageCleared,
+      )
+      finishDemoToHighScore()
+    } else {
+      registrationCurrentCharValue = 'A'
+    }
+  }
+
   private fun returnToTitle() {
     player.setAutoFire(false)
     stageManager.resetToStart()
@@ -1390,8 +1679,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.restoreLives()
     availableBombs = 3
     campaignScore = 0
+    maxStageCleared = 0
     resetStage()
-    idleT = 0f
+    attractCycleTimer = 0f
+    attractCycleState = ATTRACT_TITLE
     demoT = 0f
     gameOverT = 0f
     lastBgmRes = 0
@@ -1399,8 +1690,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     gameState = STATE_TITLE
   }
 
-  private fun exitDemo() {
+  private fun abortAttractToTitle() {
     returnToTitle()
+  }
+
+  private fun finishDemoToHighScore() {
+    returnToTitle()
+    attractCycleState = ATTRACT_HIGH_SCORE
+    attractCycleTimer = 0f
   }
 
   private fun demoPilot(dt: Float) {
@@ -1464,10 +1761,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   override fun onTouchEvent(event: MotionEvent): Boolean {
     val down = event.actionMasked == MotionEvent.ACTION_DOWN ||
       event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
+    if (
+      down &&
+      (attractCycleState == ATTRACT_CPU_DEMO || attractCycleState == ATTRACT_HIGH_SCORE)
+    ) {
+      abortAttractToTitle()
+      return true
+    }
     when (gameState) {
       STATE_TITLE -> {
         if (down || event.actionMasked == MotionEvent.ACTION_MOVE) {
-          idleT = 0f
+          attractCycleTimer = 0f
+          attractCycleState = ATTRACT_TITLE
           val x = event.x
           val y = event.y
           if (isSettingsMenuOpen) {
@@ -1502,25 +1807,59 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             player.restoreLives()
             availableBombs = 3
             campaignScore = 0
+            maxStageCleared = 0
             resetStage()
+            attractCycleTimer = 0f
+            attractCycleState = ATTRACT_TITLE
             gameState = STATE_PLAYING
           }
         }
         return true
       }
       STATE_DEMO -> {
-        if (down) exitDemo()
         return true
       }
       STATE_CLEAR -> {
         if (scorecard.isCountingDone && down) {
-          stageManager.advanceToNextStage()
-          resetStage()
-          gameState = STATE_PLAYING
+          if (stageManager.currentStage >= 4) {
+            campaignCompleteT = 0f
+            lastBgmRes = 0
+            gameState = STATE_CAMPAIGN_COMPLETE
+          } else {
+            stageManager.advanceToNextStage()
+            resetStage()
+            gameState = STATE_PLAYING
+          }
         }
         return true
       }
       STATE_GAMEOVER -> {
+        if (down) routeAfterGameOver()
+        return true
+      }
+      STATE_REGISTRATION -> {
+        if (down) {
+          layoutRegistrationHitZones()
+          val x = event.x
+          val y = event.y
+          if (registrationSetRect.contains(x, y)) {
+            confirmRegistrationLetter()
+          } else if (registrationLeftWing.contains(x, y)) {
+            bumpRegistrationChar(false)
+          } else if (registrationRightWing.contains(x, y)) {
+            bumpRegistrationChar(true)
+          }
+        }
+        return true
+      }
+      STATE_CAMPAIGN_COMPLETE -> {
+        if (down) {
+          if (HighScoreManager.checkIfQualifies(campaignScore)) {
+            beginRegistration()
+          } else {
+            finishDemoToHighScore()
+          }
+        }
         return true
       }
     }
@@ -1560,7 +1899,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private fun syncBgm() {
     val want = when (gameState) {
       STATE_TITLE -> R.raw.bgm_title
-      STATE_CLEAR -> R.raw.bgm_victory
+      STATE_CLEAR, STATE_REGISTRATION, STATE_CAMPAIGN_COMPLETE -> R.raw.bgm_victory
       STATE_PLAYING, STATE_DEMO -> {
         if (boss.isActive()) {
           R.raw.bgm_boss
@@ -1605,9 +1944,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val STATE_CLEAR = 2
     const val STATE_GAMEOVER = 3
     const val STATE_DEMO = 4
-    const val IDLE_SECS = 10f
-    const val DEMO_SECS = 30f
-    const val GAMEOVER_SECS = 5f
+    const val SCREEN_REGISTRATION = 5
+    const val STATE_REGISTRATION = SCREEN_REGISTRATION
+    const val STATE_CAMPAIGN_COMPLETE = 6
+    const val ATTRACT_TITLE = 0
+    const val ATTRACT_CPU_DEMO = 1
+    const val ATTRACT_HIGH_SCORE = 2
+    const val ATTRACT_TITLE_SECS = 4f
+    const val ATTRACT_DEMO_SECS = 30f
+    const val ATTRACT_HIGH_SCORE_SECS = 4f
+    const val GAMEOVER_SECS = 9f
     const val TITLE_SCROLL_PX = 50f
     const val MAX_FRAME_NS = 50_000_000L
     const val RADIUS_SUM_THRESHOLD = 28f
