@@ -382,7 +382,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           enemyShots,
           player.getWeaponPower(),
           availableBombs,
+          timeline,
         )
+        maybeSwapStage6Floor()
         if (boss.isActive() || boss.isExploding()) {
           bossFought = true
         }
@@ -478,7 +480,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           if (currentStage == 5) {
             parallax.drawStage5Canopy(canvas, bgStage5Layer2Bmp, currentStage)
           } else if (currentStage == 6 && timeline.elapsedSeconds() >= S6_CANOPY_AT) {
-            parallax.drawStage6Canopy(canvas, bgStage6Layer2Bmp, currentStage)
+            val canopyAsset = bgStage6Layer2Bmp
+            if (canopyAsset != null && !canopyAsset.isRecycled) {
+              parallax.drawStage6Canopy(canvas, canopyAsset, currentStage)
+            }
           }
           player.draw(canvas)
           drawPowerUpItem(canvas)
@@ -570,7 +575,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       return
     }
     if (gameState == STATE_CAMPAIGN_COMPLETE) {
-      drawCampaignCompleteScreen(canvas)
+      canvas.drawColor(0x66000000.toInt())
+      uiController.drawCampaignCompleteCredits(canvas, screenW, screenH, campaignCompleteT)
+      if (campaignCompleteT >= 22.0f) {
+        if ((campaignCompleteT * 3f).toInt() % 2 == 0) {
+          uiStringBuilder.setLength(0)
+          uiStringBuilder.append("TOUCH SCREEN TO REGISTER SCORE")
+          uiController.drawCenteredHud(
+            canvas,
+            uiStringBuilder,
+            screenW * 0.5f,
+            screenH * 0.85f,
+            uiGoldPaint,
+            uiGoldShadowPaint,
+          )
+        }
+      }
       return
     }
     val bombWidth = 80f
@@ -854,29 +874,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.78f, uiGoldPaint, uiGoldShadowPaint)
     uiGoldPaint.textSize = originalGoldSize
     uiGoldShadowPaint.textSize = originalGoldShadowSize
-  }
-
-  private fun drawCampaignCompleteScreen(canvas: Canvas) {
-    canvas.drawColor(0x66000000.toInt())
-    val cx = screenW * 0.5f
-    val flashOn = ((campaignCompleteT * 3f).toInt() and 1) == 0
-    if (flashOn) {
-      uiStringBuilder.setLength(0)
-      uiStringBuilder.append("CONGRATULATIONS!")
-      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.30f, uiGoldPaint, uiGoldShadowPaint)
-    }
-    uiStringBuilder.setLength(0)
-    uiStringBuilder.append("ALL STAGES CLEAR")
-    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.38f, uiTextPaint, uiShadowPaint)
-    uiStringBuilder.setLength(0)
-    uiStringBuilder.append("FINAL SCORE: ")
-    uiStringBuilder.append(campaignScore)
-    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.52f, uiGoldPaint, uiGoldShadowPaint)
-    if (flashOn) {
-      uiStringBuilder.setLength(0)
-      uiStringBuilder.append("TOUCH SCREEN TO REGISTER SCORE")
-      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.82f, uiTextPaint, uiShadowPaint)
-    }
   }
 
   private fun drawSettingsOverlay(canvas: Canvas) {
@@ -1239,6 +1236,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun loadStage5Bitmaps(width: Int, height: Int) {
     if (width <= 0 || height <= 0) return
+    recycleStageBitmap(bgStage6Layer2Bmp)
+    bgStage6Layer2Bmp = null
     val ready1 = bgStage5Layer1Bmp
     val ready2 = bgStage5Layer2Bmp
     if (
@@ -1271,10 +1270,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun loadStage6Resources(w: Int, h: Int) {
     if (w <= 0 || h <= 0) return
-    recycleStageBitmap(bgStage5Layer1Bmp)
-    bgStage5Layer1Bmp = null
     recycleStageBitmap(bgStage5Layer2Bmp)
     bgStage5Layer2Bmp = null
+    recycleStageBitmap(bgStage5Layer1Bmp)
+    bgStage5Layer1Bmp = null
     val clouds = bgStage6Phase1Bmp
     val space = bgStage6Phase2Bmp
     if (
@@ -2345,7 +2344,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val HUD_SHADOW_PX = 2f
     const val HUD_OUTLINE_PX = 3f
     const val S6_SPACE_SWAP_AT = 30.0f
-    const val S6_CANOPY_AT = 40.0f
+    const val S6_CANOPY_AT = 35.0f
   }
 }
 

@@ -66,6 +66,35 @@ class UIController {
     goldShadowPaint.textSize = title
   }
 
+  fun drawCampaignCompleteCredits(
+    canvas: Canvas,
+    screenW: Int,
+    screenH: Int,
+    elapsedSeconds: Float,
+  ) {
+    val cx = screenW * 0.5f
+    val h = screenH.toFloat()
+    val startY = h - (elapsedSeconds * CREDIT_SCROLL_PX)
+    var index = 0
+    val count = CREDIT_LINES.size
+    while (index < count) {
+      val lineY = startY + index * CREDIT_LINE_GAP
+      if (lineY >= -60f && lineY <= h + 60f) {
+        val src = CREDIT_CHARS[index]
+        val n = src.size
+        if (n > 0) {
+          val gold = index == 0 || index == CREDIT_THANK_INDEX
+          if (gold) {
+            drawCentered(canvas, src, n, cx, lineY, goldPaint, goldShadowPaint)
+          } else {
+            drawCentered(canvas, src, n, cx, lineY, fillPaint, shadowPaint)
+          }
+        }
+      }
+      index++
+    }
+  }
+
   fun drawStageClear(canvas: Canvas, screenW: Int, screenH: Int, scores: ScoreManager, stage: Int) {
     val cx = screenW * 0.5f
     val phase = scores.recapPhase()
@@ -102,6 +131,24 @@ class UIController {
         drawCentered(canvas, line, n, cx, screenH * 0.86f, fillPaint, shadowPaint)
       }
     }
+  }
+
+  fun drawCenteredHud(
+    canvas: Canvas,
+    text: CharSequence,
+    centerX: Float,
+    y: Float,
+    fill: Paint,
+    shadow: Paint,
+  ) {
+    val n = text.length
+    if (n <= 0) return
+    var i = 0
+    while (i < n && i < LINE_CAP) {
+      line[i] = text[i]
+      i++
+    }
+    drawCentered(canvas, line, i, centerX, y, fill, shadow)
   }
 
   private fun drawCentered(
@@ -191,5 +238,32 @@ class UIController {
       'P', 'R', 'E', 'S', 'S', ' ', 'F', 'I', 'R', 'E', ' ',
       'T', 'O', ' ', 'C', 'O', 'N', 'T', 'I', 'N', 'U', 'E',
     )
+    private const val CREDIT_SCROLL_PX = 75f
+    private const val CREDIT_LINE_GAP = 55f
+    private const val CREDIT_THANK_INDEX = 18
+    private val CREDIT_LINES = arrayOf(
+      "STRIKERS BLITZ 2026",
+      "ALL STAGES COMPLETED",
+      "---------------------",
+      "PRODUCER",
+      "CURSOR ENGINE ARCHITECT",
+      " ",
+      "LEAD GAME DESIGNER",
+      "GROK AI SYSTEMS",
+      " ",
+      "GRAPHICS ENGINEER",
+      "32BIT ART POOL SELECTION",
+      " ",
+      "SOUND DESIGNER",
+      "Arcade Cabinet FM-Synthesis",
+      " ",
+      "SPECIAL THANKS TO",
+      "THE SHMUP COMMUNITY",
+      " ",
+      "THANK YOU FOR PLAYING!",
+    )
+    private val CREDIT_CHARS: Array<CharArray> = Array(CREDIT_LINES.size) { i ->
+      CREDIT_LINES[i].toCharArray()
+    }
   }
 }

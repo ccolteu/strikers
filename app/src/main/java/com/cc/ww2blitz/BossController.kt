@@ -103,6 +103,9 @@ class BossController(private val resources: Resources) {
   private var victoryShatterFired = false
   private var s5ShowTerminalWreck = false
   private var victoryLcg = 2463534242L
+  private var s6SawOneFlankDown = false
+  private var s6SawBothFlanksDown = false
+  private var stageTimeline: SpawnTimeline? = null
 
   fun onSizeChanged(width: Int, height: Int) {
     screenW = width.toFloat()
@@ -180,6 +183,8 @@ class BossController(private val resources: Resources) {
     hasDroppedLeftReward = false
     hasDroppedRightReward = false
     hasDroppedCoreReward = false
+    s6SawOneFlankDown = false
+    s6SawBothFlanksDown = false
     var i = 0
     while (i < MAX_PART_COUNT) {
       val p = parts[i]
@@ -487,9 +492,11 @@ class BossController(private val resources: Resources) {
     weapons: EnemyWeaponSystem,
     playerWeaponPower: Int,
     bombStock: Int,
+    timeline: SpawnTimeline? = null,
   ) {
     s5WeaponPower = playerWeaponPower
     s5BombStock = bombStock
+    stageTimeline = timeline
     if (!active) return
     tickShudder(dt)
     if (isExploding) {
@@ -872,6 +879,20 @@ class BossController(private val resources: Resources) {
     }
     val left = parts[TYPE_LEFT_FLANK]
     val right = parts[TYPE_RIGHT_FLANK]
+    val leftDead = left.isDestroyed
+    val rightDead = right.isDestroyed
+    if (leftDead && rightDead) {
+      if (!s6SawBothFlanksDown) {
+        s6SawBothFlanksDown = true
+        s6SawOneFlankDown = true
+        stageTimeline?.forceAdvanceStage6Timeline(S6_PHASE3_CLOCK)
+      }
+    } else if (leftDead || rightDead) {
+      if (!s6SawOneFlankDown) {
+        s6SawOneFlankDown = true
+        stageTimeline?.forceAdvanceStage6Timeline(S6_PHASE2_CLOCK)
+      }
+    }
     val bossWidth = bodyHalfW * 2f
     val bossHeight = bodyHalfH * 2f
     val leftMuzzleXOffset = S6_LEFT_MUZZLE_X * bossWidth
@@ -1691,6 +1712,8 @@ class BossController(private val resources: Resources) {
     const val S6_RIGHT_MUZZLE_Y = 0.38f
     const val S6_CORE_LENS_X = 0f
     const val S6_CORE_LENS_Y = -0.02f
+    const val S6_PHASE2_CLOCK = 15.1f
+    const val S6_PHASE3_CLOCK = 35.1f
     const val VICTORY_CASCADE_START = 0.5f
     const val VICTORY_SHATTER_AT = 3.0f
     const val VICTORY_END = 4.5f

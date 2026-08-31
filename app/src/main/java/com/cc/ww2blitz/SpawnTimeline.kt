@@ -50,8 +50,15 @@ class SpawnTimeline {
   private var s5DrizzleSeed = 1L
   private var s5PowerWaveSpawned = false
   private var s5KamiWallSpawned = false
+  private var activeStage = 0
 
   fun elapsedSeconds(): Float = elapsedTime
+
+  fun forceAdvanceStage6Timeline(targetSeconds: Float) {
+    if (activeStage == 6) {
+      elapsedTime = targetSeconds
+    }
+  }
 
   fun update(
     dt: Float,
@@ -66,11 +73,15 @@ class SpawnTimeline {
     stageData: StageData,
   ) {
     if (screenWidth <= 0 || screenHeight <= 0) return
+    activeStage = currentStage
     if (currentStage == 6) {
-      elapsedTime += dt
-      if (allowBoss && !bossCueFired && elapsedTime >= S6_INTRO_SECS) {
-        boss.beginEntranceForStage(6)
-        bossCueFired = true
+      if (!bossCueFired) {
+        elapsedTime += dt
+        if (allowBoss && elapsedTime >= S6_INTRO_SECS) {
+          boss.beginEntranceForStage(6)
+          bossCueFired = true
+          elapsedTime = S6_INTRO_SECS
+        }
       }
       return
     }
@@ -112,6 +123,7 @@ class SpawnTimeline {
   fun reset() {
     elapsedTime = 0f
     bossCueFired = false
+    activeStage = 0
     flankGap = FLANK_SPACING
     weaveGap = 0f
     vFormSpawned = false

@@ -187,14 +187,14 @@ class ParallaxBackground(private val resources: Resources) {
   private fun blit(canvas: Canvas, bitmap: Bitmap?, y: Float, h: Float, paint: Paint) {
     if (bitmap == null) return
     canvas.drawBitmap(bitmap, 0f, y, paint)
-    canvas.drawBitmap(bitmap, 0f, y - h, paint)
+    canvas.drawBitmap(bitmap, 0f, y - h + 1.0f, paint)
   }
 
   private fun blitStage5(canvas: Canvas, bitmap: Bitmap, y: Float, paint: Paint) {
     val canvasHeight = screenH.toFloat()
     if (canvasHeight <= 0f) return
     canvas.drawBitmap(bitmap, 0f, y, paint)
-    canvas.drawBitmap(bitmap, 0f, y - canvasHeight, paint)
+    canvas.drawBitmap(bitmap, 0f, y - canvasHeight + 1.0f, paint)
   }
 
   private fun recycle(bitmap: Bitmap?) {

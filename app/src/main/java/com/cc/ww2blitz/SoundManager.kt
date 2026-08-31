@@ -382,7 +382,15 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
       if (!loadBgmSourceLocked(next, resId)) return false
       next.prepare()
       applyVolumeToPlayerLocked(next)
-      active.setNextMediaPlayer(next)
+      try {
+        active.setNextMediaPlayer(next)
+      } catch (_: IllegalArgumentException) {
+        active.setNextMediaPlayer(null)
+        active.isLooping = true
+      } catch (_: IllegalStateException) {
+        active.setNextMediaPlayer(null)
+        active.isLooping = true
+      }
       return true
     } catch (_: Exception) {
       return false
