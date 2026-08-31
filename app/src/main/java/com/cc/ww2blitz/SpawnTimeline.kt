@@ -1,4 +1,4 @@
-package com.example.strikers
+package com.cc.ww2blitz
 
 /**
  * Stages 1–4 are driven by elapsed-time spawn loops (no per-frame alloc).

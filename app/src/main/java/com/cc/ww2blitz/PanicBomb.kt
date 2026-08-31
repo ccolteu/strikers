@@ -1,4 +1,4 @@
-package com.example.strikers
+package com.cc.ww2blitz
 
 class PanicBomb {
     var x = 0f

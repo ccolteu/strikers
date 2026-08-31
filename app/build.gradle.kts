@@ -4,10 +4,10 @@ plugins {
 }
 
 android {
-    namespace = "com.example.strikers"
+    namespace = "com.cc.ww2blitz"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.strikers"
+        applicationId = "com.cc.ww2blitz"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

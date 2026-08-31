@@ -1,4 +1,4 @@
-package com.example.strikers
+package com.cc.ww2blitz
 
 import android.content.Context
 import android.graphics.Bitmap

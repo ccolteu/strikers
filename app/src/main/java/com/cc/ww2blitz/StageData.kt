@@ -1,4 +1,4 @@
-package com.example.strikers
+package com.cc.ww2blitz
 
 class StageData {
     // Dev playlist: change order to jump into a stage (e.g. intArrayOf(3, 2, 1)).
