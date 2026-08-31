@@ -1,5 +1,7 @@
 package com.cc.ww2blitz
 
+import android.content.Context
+
 class StageData {
     private var sequenceIndex = 0
 
@@ -49,6 +51,18 @@ class StageData {
 
     fun setCurrentDifficulty(diff: Difficulty) {
         currentDifficulty = diff
+    }
+
+    fun initPersistentSettings(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val savedIndex = prefs.getInt(KEY_DIFFICULTY, Difficulty.NORMAL.index)
+        currentDifficulty = difficultyFromIndex(savedIndex)
+    }
+
+    fun saveDifficultySetting(context: Context, diff: Difficulty) {
+        currentDifficulty = diff
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_DIFFICULTY, diff.index).apply()
     }
 
     fun isLastInSequence(): Boolean {
@@ -152,6 +166,21 @@ class StageData {
         // val STAGE_SEQUENCE = intArrayOf(1) // test just one level
         // val STAGE_SEQUENCE = intArrayOf(3,2,6,6) // test any order even with duplicates
         val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4, 5, 6)
+        private const val PREFS_NAME = "shmup_arcade_settings"
+        private const val KEY_DIFFICULTY = "target_difficulty"
+
+        fun difficultyFromIndex(index: Int): Difficulty {
+            return when (index) {
+                1 -> Difficulty.MONKEY
+                2 -> Difficulty.EASY
+                3 -> Difficulty.NORMAL
+                4 -> Difficulty.HARD
+                5 -> Difficulty.VERY_HARD
+                6 -> Difficulty.EXPERT
+                7 -> Difficulty.HARDCORE
+                else -> Difficulty.NORMAL
+            }
+        }
     }
 
     enum class Difficulty(

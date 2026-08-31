@@ -234,6 +234,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   init {
     HighScoreManager.loadHighScores(context)
+    stageManager.initPersistentSettings(context)
     attractCycleState = ATTRACT_TITLE
     attractCycleTimer = 0f
     gameState = STATE_TITLE
@@ -2358,7 +2359,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             var i = 0
             while (i < 7) {
               if (difficultyButtons[i].contains(x, y)) {
-                stageManager.setCurrentDifficulty(difficultyTiers[i])
+                stageManager.saveDifficultySetting(context, difficultyTiers[i])
                 SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
                 break
               }

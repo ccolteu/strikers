@@ -6,6 +6,22 @@ If you have played *1942*, *Strikers 1945*, or a Psikyo cabinet: that is the gen
 
 The software is a small Kotlin engine (`com.cc.ww2blitz`). It does **not** use Jetpack Compose for gameplay. One `SurfaceView` draws every pixel. A vsync callback (`Choreographer`) is the clock. The combat loop is written so it **does not allocate memory every frame**, which keeps Android’s garbage collector from hitching the action.
 
+<p align="center">
+  <img src="app/src/main/res/drawable/game_logo.png" alt="WW2 Blitz logo" width="420">
+</p>
+<p align="center">
+  <img src="app/src/main/res/drawable/title_screen_backdrop.png" alt="Title still: olive P-38 over clouds" width="280">
+</p>
+
+<p align="center">
+  <img src="app/src/main/res/drawable/interstitial_stage1.png" alt="Stage 1 briefing" width="120">
+  <img src="app/src/main/res/drawable/interstitial_stage2.png" alt="Stage 2 briefing" width="120">
+  <img src="app/src/main/res/drawable/interstitial_stage3.png" alt="Stage 3 briefing" width="120">
+  <img src="app/src/main/res/drawable/interstitial_stage4.png" alt="Stage 4 briefing" width="120">
+  <img src="app/src/main/res/drawable/interstitial_stage5.png" alt="Stage 5 briefing" width="120">
+  <img src="app/src/main/res/drawable/interstitial_stage6.png" alt="Stage 6 briefing" width="120">
+</p>
+
 ---
 
 ## What you play
