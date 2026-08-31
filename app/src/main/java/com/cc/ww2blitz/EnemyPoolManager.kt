@@ -97,6 +97,7 @@ class EnemyPoolManager(private val resources: Resources) {
         pool[i].diamondLeader = false
         pool[i].diamondWingSign = 0f
         pool[i].splinterVeer = false
+        pool[i].shudderTimer = 0f
         i++
       }
     }
@@ -145,6 +146,7 @@ class EnemyPoolManager(private val resources: Resources) {
         if (spawnCue == SpawnEvent.CUE_DIAMOND_WING_L) e.diamondWingSign = -1f
         if (spawnCue == SpawnEvent.CUE_DIAMOND_WING_R) e.diamondWingSign = 1f
         e.splinterVeer = false
+        e.shudderTimer = 0f
         e.isActive = true
         return
       }
@@ -184,6 +186,9 @@ class EnemyPoolManager(private val resources: Resources) {
       for (i in 0 until POOL_SIZE) {
         val e = pool[i]
         if (!e.isActive) continue
+        if (e.shudderTimer > 0f) {
+          e.shudderTimer -= dt
+        }
         if (e.flightProfile == Enemy.FLIGHT_PROFILE_SWEEP_ARC) {
           updateSweepArc(e, dt, w, h)
           continue
@@ -459,8 +464,16 @@ class EnemyPoolManager(private val resources: Resources) {
         if (e.flightProfile == Enemy.FLIGHT_PROFILE_SWEEP_ARC && e.patternDelay > 0f) continue
         val base = sheetFor(e.type) ?: continue
         val sheet = if (e.isRedShipAnchor) (droneRedSheet ?: base) else base
+        var drawX = e.x
+        if (e.type == TYPE_HEAVY && e.shudderTimer > 0f) {
+          drawX += if ((e.shudderTimer * 100f).toInt() % 2 == 0) {
+            Enemy.SHUDDER_AMPLITUDE
+          } else {
+            -Enemy.SHUDDER_AMPLITUDE
+          }
+        }
         canvas.save()
-        canvas.translate(e.x, e.y)
+        canvas.translate(drawX, e.y)
         canvas.rotate(180f)
         val ew = halfWOf(e.type)
         val eh = halfHOf(e.type)

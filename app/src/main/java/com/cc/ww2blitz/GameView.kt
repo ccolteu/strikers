@@ -988,6 +988,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             enemy.y + eh >= bombTop && enemy.y - eh <= bombBottom
           ) {
             enemy.health -= enemyDmg
+            if (enemy.type == ENEMY_TYPE_HEAVY) {
+              enemy.triggerMicroShudder()
+            }
             if (enemy.health <= 0) {
               onEnemyKilled(enemy)
               enemy.isActive = false
@@ -1023,6 +1026,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 continue
               }
               part.health -= dmg
+              part.triggerMicroShudder()
               if (part.health <= 0) {
                 part.health = 0
                 part.isDestroyed = true
@@ -1193,6 +1197,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             if (distanceSquared <= radiusSq) {
               bullet.isActive = false
               enemy.health -= 1
+              if (enemy.type == ENEMY_TYPE_HEAVY) {
+                enemy.triggerMicroShudder()
+              }
               if (enemy.health <= 0) {
                 onEnemyKilled(enemy)
                 enemy.isActive = false
@@ -1224,6 +1231,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             if (distanceSquared <= radiusSq) {
               missile.isActive = false
               enemy.health -= 1
+              if (enemy.type == ENEMY_TYPE_HEAVY) {
+                enemy.triggerMicroShudder()
+              }
               if (enemy.health <= 0) {
                 onEnemyKilled(enemy)
                 enemy.isActive = false
@@ -1258,6 +1268,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 bullet.isActive = false
                 if (part.componentType != BossController.TYPE_CORE || boss.isCoreVulnerable()) {
                   part.health -= 1
+                  part.triggerMicroShudder()
                   if (part.health <= 0) {
                     part.health = 0
                     part.isDestroyed = true
@@ -1288,6 +1299,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 missile.isActive = false
                 if (part.componentType != BossController.TYPE_CORE || boss.isCoreVulnerable()) {
                   part.health -= 1
+                  part.triggerMicroShudder()
                   if (part.health <= 0) {
                     part.health = 0
                     part.isDestroyed = true
@@ -1313,7 +1325,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         enemyShots.getPoolSize(),
         particles,
         gameState == STATE_PLAYING,
-      ) && gameState == STATE_PLAYING
+      ) && player.isGameOver() && gameState == STATE_PLAYING
     ) {
       enterGameOver()
     }

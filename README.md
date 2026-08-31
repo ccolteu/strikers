@@ -30,7 +30,9 @@ A real cabinet in 1996 did three things while nobody was playing: show the logo,
 
 **Audio settings** on the title are real sliders for BGM and SFX. They do not start a game.
 
-You start with **3 lives**, **3 hits per life** (a small bar), and **3 bombs**. After a hit you are briefly invincible so a bullet cloud cannot delete three lives in one frame.
+You start with **3 lives**, **3 hits per life** (a small bar), and **3 bombs**. A chip on the hit bar does not cost a life. Emptying the bar **explodes the plane** and spends one life; you respawn with a short invincibility window. **GAME OVER** only happens when that last life is gone—not when the sprite blows up with lives still on the HUD.
+
+Heavies and boss turrets **shudder** a couple of pixels when they take a hit, so you can see the round connect without a full-body white flash.
 
 ### Power-ups and score
 
@@ -41,11 +43,11 @@ Drops are items that fall after certain kills:
 - **Medal** — score. Face-up is worth more (2000) than edge-on (200).
 - **Graze** — 100 points the first time each enemy bullet threads the halo (not the core). Attract demo still sparks; it does **not** add to the campaign total.
 
-Your running total is owned by `ScoreManager` (`campaignScore` in `GameView` is a getter/setter over it), capped at 99,999,999. When a stage is cleared you also get a **life bonus** (10,000 × lives left) and a **bomb bonus** (5,000 × bombs left). Those numbers tick up on screen like a 1990s scorecard, then you tap to go to the next stage.
+Your running total is owned by `ScoreManager` (`campaignScore` in `GameView` is a getter/setter over it), capped at 99,999,999. When a stage is cleared, leftover planes, bullets, and pickups are **swept off** so the scorecard is readable. You also get a **life bonus** (10,000 × lives left) and a **bomb bonus** (5,000 × bombs left). Those numbers tick up on screen like a 1990s scorecard, then you tap to go to the next stage.
 
 ### Bosses
 
-A boss is one big illustration, but the engine treats it as **several hitboxes**: left gun, right gun, core, and so on. If you could dump all damage into the core immediately, the fight would be a sponge. Instead you **peel** the modules. Destroyed modules show wreck art. The core only becomes vulnerable when every other part is gone. When the last gun comes off, the screen **flashes** and **shakes**; when the core dies, a heavier flash/shake and a short explode animation, then stage clear. A bomb also kicks the camera.
+A boss is one big illustration, but the engine treats it as **several hitboxes**: left gun, right gun, core, and so on. If you could dump all damage into the core immediately, the fight would be a sponge. Instead you **peel** the modules. Destroyed modules show wreck art. Each hit **shudders** the vehicle 2 px left/right for a few frames. The core only becomes vulnerable when every other part is gone. When the last gun comes off, the screen **flashes** and **shakes**; when the core dies, a heavier flash/shake and a short explode animation, then stage clear on a dimmed empty map. A bomb also kicks the camera.
 
 | Stage | Theater | How fast the ground moves | When the boss is cued |
 | --- | --- | --- | --- |
@@ -68,7 +70,7 @@ Touch during demo or ranking returns you to the interactive title so you can sta
 
 ### Game over, campaign complete, names
 
-If you lose all lives: **GAME OVER** for about 9 seconds (tap to skip). If your score beats 10th place, **REGISTRATION**: tap the left half of the letter row to go backward through A–Z, right half to go forward, bottom prompt to lock a letter. Three letters, then the ranking list. If you do not beat 10th, you skip naming and see the list.
+If you lose all lives: **GAME OVER** for about 9 seconds (tap to skip). Spending a life with 2 remaining is a respawn, not game over. If your score beats 10th place, **REGISTRATION**: tap the left half of the letter row to go backward through A–Z, right half to go forward, bottom prompt to lock a letter. Three letters, then the ranking list. If you do not beat 10th, you skip naming and see the list.
 
 If you **clear stage 4**, you do not go back to stage 1. You get **CONGRATULATIONS / ALL STAGES CLEAR / FINAL SCORE**, then the same “do I qualify?” path.
 
@@ -151,6 +153,18 @@ Each choice is stated first as a player-facing idea, then as an engineering rule
 **Plain:** When a fortress loses its last turret, the cabinet should *kick*. When the core blows, it should kick harder and bleach the glass for a beat. HUD numbers should stay readable.
 
 **Engine:** `shakeDuration` / `shakeIntensity` / `flashDuration` on `GameView`. `triggerScreenShake` writes localized floats. World draw (background through particles) sits inside `canvas.save()` + `translate(dx, dy)` + `restore()`; `dx`/`dy` are signed unit noise × intensity from an LCG (same mapping as `(random * 2 - 1) * intensity`, no `Math.random()` on the frame). Duration decays by `dt`. Flash is a reused full-screen quad, 40% white, prebuilt PorterDuff `SRC_OVER`, then HUD. `BossController` latches `FX_PHASE` when the core first becomes vulnerable and `FX_DEATH` when explode starts; `GameView` consumes those flags after collisions. Bombs call `addScreenShake`, which forwards into `triggerScreenShake`.
+
+### 13. Hit confirm is a 2 px shudder, not a white flash
+
+**Plain:** A tanky gunship should *jolt* when a round lands so you know the shot counted. Painting the whole sprite white fights the outline/sticker look. A tiny left-right rattle is the cabinet language for “armor took it.”
+
+**Engine:** `Enemy` (heavies only) and `BossComponent` hold `shudderTimer`. `triggerMicroShudder()` sets it to `SHUDDER_DURATION` (0.08 s). Update subtracts `dt`. Draw wraps that unit’s blit in `save` / `translate(±SHUDDER_AMPLITUDE, 0)` / `restore` with ping-pong `(shudderTimer * 100).toInt() % 2`. The boss is one welded sheet, so a part hit shudders the whole vehicle blit, then the matrix pops. Drones, kamikazes, and interceptors do not shudder.
+
+### 14. Stage clear is a swept, dimmed map
+
+**Plain:** Bonus text on top of a frozen bullet soup is unreadable. The map can stay so you know which theater you beat; the war toys go away.
+
+**Engine:** On the playing → `STATE_CLEAR` edge, `sweepPlayfieldForClear()` deactivates enemies, both bullet pools, missiles, pickups, bombs, score popups, and the boss, and zeros shake/flash. World sprites are not drawn in `STATE_CLEAR`. A 40% black `drawColor` wash sits under the scorecard HUD.
 
 ---
 
@@ -242,6 +256,8 @@ Those choices map directly to `SpawnTimeline` + `Enemy.pattern` + a 48-slot pool
 | Tiny core + graze ring | `PlayerShip` radii; `BulletManager.resolveEnemyBulletsVsPlayer`; `EnemyBullet.FLAG_GRAZED` |
 | Running score | `ScoreManager`; graze 100; medals/bombs still add through `GameView` |
 | Camera kick / bleach | `triggerScreenShake` / `triggerScreenFlash`; world `translate`; 40% white quad |
+| Hit shudder | `triggerMicroShudder`; 2 px ping-pong `translate` on heavies and boss blit |
+| Stage clear card | `sweepPlayfieldForClear`; skip world draw; 40% dim; `VictoryScorecard` |
 | Relative flight | `PlayerShip` pointer tracking; frames 1–7 |
 | Auto-fire / bombs | `BulletManager` cooldown; `PanicBomb`; double-tap in `GameView` |
 | Green key | loadKeyed / `keyGreen` at bitmap load |
@@ -318,8 +334,8 @@ flowchart TB
 1. Timeline may activate enemy slots or start a boss entrance.  
 2. Enemies and boss may call `EnemyWeaponSystem.fireBullet`.  
 3. Your drag moves `PlayerShip`; hold feeds `BulletManager` (and missiles at high power).  
-4. `resolveCollisions` in `GameView` compares pools: **6 px core** vs enemy shots (graze ring 24 px, once per bullet), body vs rams, padded boxes vs boss parts. Score, particles, peel damage. After collisions the boss may pulse shake/flash.  
-5. Core dead and explode finished → scorecard → `STATE_CLEAR`.  
+4. `resolveCollisions` in `GameView` compares pools: **6 px core** vs enemy shots (graze ring 24 px, once per bullet), body vs rams, padded boxes vs boss parts. Score, particles, peel damage, heavy/boss shudder. After collisions the boss may pulse shake/flash. Core hit that spends a life respawns; `enterGameOver` only if `player.isGameOver()`.  
+5. Core dead and explode finished → sweep playfield → scorecard → `STATE_CLEAR`.  
 6. Lives gone → game over → maybe registration.
 
 ---
@@ -354,9 +370,9 @@ Attract uses a second int (`ATTRACT_*`) and one float timer so title/demo/rankin
 
 **Play/demo tick order:** parallax → optional `demoPilot` → player → player bullets/missiles → pickups → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → boss visual flags → clear/demo-timeout.
 
-**Paint order:** optional world `translate` → background → world sprites (including graze sparks) → `restore` → 40% white flash quad if live → HUD. Registration and campaign-complete skip world sprites and draw a 40% dim wash plus text.
+**Paint order:** optional world `translate` → background → world sprites (including graze sparks; heavies/boss may local-`translate` ±2 px) → `restore` → 40% white flash quad if live → **stage clear** skips sprites and dims 40% black → HUD. Registration and campaign-complete skip world sprites and draw a 40% dim wash plus text.
 
-**Why collisions live here:** they need *every* pool. Splitting enemy-shot vs player *math* still lives in `BulletManager.resolveEnemyBulletsVsPlayer` so the Euclidean core/graze test is one loop; `GameView` owns game-over. Rams use a **fraction of body size**. Boss shots use padded AABBs. Bomb damage is **DPS with a per-frame cap** so a 0.5 s animation neither deletes the core through armor nor does nothing.
+**Why collisions live here:** they need *every* pool. Splitting enemy-shot vs player *math* still lives in `BulletManager.resolveEnemyBulletsVsPlayer` so the Euclidean core/graze test is one loop; `GameView` owns game-over and only enters it when `isGameOver()` is true (`takeDamage()` returning true can mean “this life exploded,” not “credit over”). Rams use a **fraction of body size**. Boss shots use padded AABBs. Bomb damage is **DPS with a per-frame cap** so a 0.5 s animation neither deletes the core through armor nor does nothing.
 
 **HUD:** one `StringBuilder`, shared paints. Hit testing is `RectF.contains`, not Android widgets.
 
@@ -380,7 +396,7 @@ See [Enemy formation design](#enemy-formation-design) for *why* each wave exists
 
 **Idea:** An enemy is a **row in a table**, not a Java object graph. Forty-eight rows is enough for the densest wall. When a ship dies, its row is marked inactive and can be reused.
 
-**Mechanism:** `Enemy` holds x/y/vx/vy, type, pattern, HP, fire timers, weave phase, diamond flags, etc. `EnemyPoolManager` owns the array, four keyed sheets, sizes, and a sine LUT for sweep-arc flight (`FLIGHT_PROFILE_SWEEP_ARC`). `spawnEnemy` finds `!isActive`. `update` integrates, runs hold/weave/kamikaze logic, and may fire. Draw is shadow, black outline, body—same recipe as the player so everything sits on the same “arcade sticker” look.
+**Mechanism:** `Enemy` holds x/y/vx/vy, type, pattern, HP, fire timers, weave phase, diamond flags, `shudderTimer`, etc. `EnemyPoolManager` owns the array, four keyed sheets, sizes, and a sine LUT for sweep-arc flight (`FLIGHT_PROFILE_SWEEP_ARC`). `spawnEnemy` finds `!isActive`. `update` integrates, runs hold/weave/kamikaze logic, may fire, and ticks shudder. Draw is shadow, black outline, body. **Heavies** add a local ±2 px `translate` while `shudderTimer > 0` after `triggerMicroShudder()` from a player round.
 
 ### `EnemyBullet` and `EnemyWeaponSystem`
 
@@ -392,13 +408,13 @@ See [Enemy formation design](#enemy-formation-design) for *why* each wave exists
 
 **Idea:** A boss is a **constellation of parts** welded to a core position. Art is one sheet; gameplay is many HP bars.
 
-**Mechanism:** Up to 14 `BossComponent`s. Entrance moves the constellation on; then hover/sweep. Stage-specific timers fire into `EnemyWeaponSystem`. `isCoreVulnerable()` walks non-core parts. Wreck overlays for left/right/center. Explode frames on core death. `refreshPhaseFlags` / `consumeVisualFlags` expose peel-complete (`FX_PHASE`) and core death (`FX_DEATH`) as primitive bits for `GameView` shake/flash. Bitmaps reload when `bindStage` sees a new `loadedStage`.
+**Mechanism:** Up to 14 `BossComponent`s. Entrance moves the constellation on; then hover/sweep. Stage-specific timers fire into `EnemyWeaponSystem`. `isCoreVulnerable()` walks non-core parts. Wreck overlays for left/right/center. Explode frames on core death. `refreshPhaseFlags` / `consumeVisualFlags` expose peel-complete (`FX_PHASE`) and core death (`FX_DEATH`) as primitive bits for `GameView` shake/flash. A damaged part calls `triggerMicroShudder()`; draw `save`/`translate`/`restore`s the whole body blit ±2 px. Bitmaps reload when `bindStage` sees a new `loadedStage`.
 
 ### `PlayerShip`
 
 **Idea:** The player is the only thing that should feel *sticky* and *readable*. Bank art (seven frames) telegraphs horizontal speed. The **drawn** ship is large; the **core** is a 6 px circle so weaving is possible. A 24 px graze ring scores near-misses.
 
-**Mechanism:** Relative drag, clamp, lives/hits, invuln/respawn timers, `weaponPowerLevel`, `autoFire` for demo. `centerX`/`centerY` are the sprite center. `steerToward` is a simple arrive used by `demoPilot`. Same chroma-keyed blit stack (`dst` is visual only).
+**Mechanism:** Relative drag, clamp, lives/hits, invuln/respawn timers, `weaponPowerLevel`, `autoFire` for demo. `centerX`/`centerY` are the sprite center. `takeDamage()` returns true when the **plane explodes** (life spent); `isGameOver()` is true only when lives hit 0. `steerToward` is a simple arrive used by `demoPilot`. Same chroma-keyed blit stack (`dst` is visual only).
 
 ### `PlayerBullet` and `BulletManager`
 
@@ -446,7 +462,7 @@ See [Enemy formation design](#enemy-formation-design) for *why* each wave exists
 
 **Idea:** Players should *see* the bonus count, not jump to a new total. That is the “thank you for not dying” beat.
 
-**Mechanism:** `trigger` computes bonuses. `update` reveals lines on a wall-clock and ramps `visibleLifeBonus` / `visibleBombBonus` / `visibleTotalScore`. No formatted `String` objects stored.
+**Mechanism:** `trigger` computes bonuses. `update` reveals lines on a wall-clock and ramps `visibleLifeBonus` / `visibleBombBonus` / `visibleTotalScore`. No formatted `String` objects stored. `GameView` sweeps the playfield first so the ticker is not drawn on frozen shots.
 
 ### `HighScoreManager`
 

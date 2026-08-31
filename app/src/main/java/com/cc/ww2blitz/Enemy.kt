@@ -26,8 +26,15 @@ class Enemy {
   var diamondLeader = false
   var diamondWingSign = 0f
   var splinterVeer = false
+  var shudderTimer = 0f
+
+  fun triggerMicroShudder() {
+    shudderTimer = SHUDDER_DURATION
+  }
 
   companion object {
     const val FLIGHT_PROFILE_SWEEP_ARC = 101
+    const val SHUDDER_DURATION = 0.08f
+    const val SHUDDER_AMPLITUDE = 2.0f
   }
 }

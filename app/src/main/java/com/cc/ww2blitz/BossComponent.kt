@@ -11,4 +11,14 @@ class BossComponent {
   var maxHealth = 0
   var isDestroyed = false
   var componentType = 0
+  var shudderTimer = 0f
+
+  fun triggerMicroShudder() {
+    shudderTimer = SHUDDER_DURATION
+  }
+
+  companion object {
+    const val SHUDDER_DURATION = 0.08f
+    const val SHUDDER_AMPLITUDE = 2.0f
+  }
 }

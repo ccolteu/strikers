@@ -153,6 +153,7 @@ class BossController(private val resources: Resources) {
       if (p.halfW > 0f) {
         p.isDestroyed = false
         p.health = p.maxHealth
+        p.shudderTimer = 0f
       }
       i++
     }
@@ -231,6 +232,7 @@ class BossController(private val resources: Resources) {
 
   fun update(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
     if (!active) return
+    tickShudder(dt)
     if (isExploding) {
       explosionTimer += dt
       val idx = (explosionTimer / EXPLODE_FRAME_SEC).toInt()
@@ -282,6 +284,17 @@ class BossController(private val resources: Resources) {
     }
   }
 
+  private fun tickShudder(dt: Float) {
+    var i = 0
+    while (i < MAX_PART_COUNT) {
+      val p = parts[i]
+      if (p.shudderTimer > 0f) {
+        p.shudderTimer -= dt
+      }
+      i++
+    }
+  }
+
   fun draw(canvas: Canvas) {
     if (!active) return
     dstRect.set(coreX - bodyHalfW, coreY - bodyHalfH, coreX + bodyHalfW, coreY + bodyHalfH)
@@ -289,8 +302,30 @@ class BossController(private val resources: Resources) {
     if (!hideBody) {
       val sheet = bodySheet
       if (sheet != null) {
+        var shudderTimer = 0f
+        var i = 0
+        while (i < MAX_PART_COUNT) {
+          if (parts[i].shudderTimer > 0f) {
+            shudderTimer = parts[i].shudderTimer
+            break
+          }
+          i++
+        }
+        val shuddering = shudderTimer > 0f
+        if (shuddering) {
+          val currentOffset = if ((shudderTimer * 100f).toInt() % 2 == 0) {
+            BossComponent.SHUDDER_AMPLITUDE
+          } else {
+            -BossComponent.SHUDDER_AMPLITUDE
+          }
+          canvas.save()
+          canvas.translate(currentOffset, 0f)
+        }
         blitOutlined(canvas, sheet, srcCore, bodyPaint)
         drawWreckOverlays(canvas)
+        if (shuddering) {
+          canvas.restore()
+        }
       }
     }
     if (isExploding) {
