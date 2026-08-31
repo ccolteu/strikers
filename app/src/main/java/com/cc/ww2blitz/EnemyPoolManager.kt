@@ -39,6 +39,11 @@ class EnemyPoolManager(private val resources: Resources) {
   private var sweepArcLen = 1f
   private var sweepTailDelay = 0.75f
   private var rng = 2463534242
+  private var lastPlayerX = 0f
+  private var lastPlayerY = 0f
+  private var playerVelX = 0f
+  private var playerVelY = 0f
+  private var hasPlayerSample = false
 
   fun onSizeChanged(width: Int, height: Int) {
     screenW = width.toFloat()
@@ -100,6 +105,9 @@ class EnemyPoolManager(private val resources: Resources) {
         pool[i].shudderTimer = 0f
         i++
       }
+      hasPlayerSample = false
+      playerVelX = 0f
+      playerVelY = 0f
     }
   }
 
@@ -134,7 +142,7 @@ class EnemyPoolManager(private val resources: Resources) {
         e.weaveT = 0f
         e.homeX = startX
         e.health = if (health < 1) 1 else health
-        e.fireTimer = FIRE_DELAY_MIN + nextUnit() * (FIRE_DELAY_MAX - FIRE_DELAY_MIN)
+        e.fireTimer = scaledFireDelay()
         e.burstLeft = 0
         e.burstWait = 0f
         e.aimVx = 0f
@@ -182,7 +190,15 @@ class EnemyPoolManager(private val resources: Resources) {
     synchronized(lock) {
       val w = screenW
       val h = screenH
-      val speed = AIMED_SHOT_SPEED
+      val diff = activeDifficulty()
+      val speed = AIMED_SHOT_SPEED * diff.speedMultiplier
+      if (dt > 0.0001f && hasPlayerSample) {
+        playerVelX = (playerX - lastPlayerX) / dt
+        playerVelY = (playerY - lastPlayerY) / dt
+      }
+      lastPlayerX = playerX
+      lastPlayerY = playerY
+      hasPlayerSample = true
       for (i in 0 until POOL_SIZE) {
         val e = pool[i]
         if (!e.isActive) continue
@@ -192,6 +208,9 @@ class EnemyPoolManager(private val resources: Resources) {
         if (e.flightProfile == Enemy.FLIGHT_PROFILE_SWEEP_ARC) {
           updateSweepArc(e, dt, w, h)
           continue
+        }
+        if (e.type == TYPE_KAMIKAZE && diff.index >= 4) {
+          e.steerToward(playerX, playerY, dt, Enemy.KAMI_TURN_RATE)
         }
         when (e.pattern) {
           PATTERN_V_HOLD -> updateInterceptorHold(e, dt, h)
@@ -216,7 +235,7 @@ class EnemyPoolManager(private val resources: Resources) {
           continue
         }
         if (e.type == TYPE_KAMIKAZE) continue
-        updateEnemyFire(e, dt, playerX, playerY, weapons, speed)
+        updateEnemyFire(e, dt, playerX, playerY, weapons, speed, diff)
       }
     }
   }
@@ -352,29 +371,22 @@ class EnemyPoolManager(private val resources: Resources) {
     playerY: Float,
     weapons: EnemyWeaponSystem,
     speed: Float,
+    diff: StageData.Difficulty,
   ) {
     // --- PATTERN 1: LIGHT DRONES AMED 3-SHOT BURST ---
     // If mid-burst, handle timed delay ticks between bullets
     if (e.burstLeft > 0) {
       e.burstWait -= dt
       if (e.burstWait <= 0f) {
-        // Recalculate tracking vector slightly to prevent complete linear avoidance
-        val dx = playerX - e.x
-        val dy = playerY - e.y
-        val lenSq = dx * dx + dy * dy
-        if (lenSq > 0.0001f) {
-          val inv = speed / kotlin.math.sqrt(lenSq)
-          e.aimVx = dx * inv
-          e.aimVy = dy * inv
-        }
+        writeSniperAim(e, playerX, playerY, speed, diff)
         weapons.fireBullet(e.x, e.y, e.aimVx, e.aimVy)
-        SoundManager.instance.playSFX(SoundManager.SFX_LASER) // Play retro laser sound per burst element
+        SoundManager.instance.playSFX(SoundManager.SFX_LASER)
 
         e.burstLeft -= 1
         if (e.burstLeft > 0) {
           e.burstWait = BURST_GAP
         } else {
-          e.fireTimer = SCOUT_REFIRE
+          e.fireTimer = scaledInterval(SCOUT_REFIRE)
         }
       }
       return
@@ -385,50 +397,66 @@ class EnemyPoolManager(private val resources: Resources) {
 
     when (e.type) {
       TYPE_HEAVY -> {
-        // --- PATTERN 3: HEAVY VINYARD GUNSHIPS 12-WAY RADIAL RING ---
-        fireHeavyRing(e, weapons, RING_SPEED)
-        e.fireTimer = HEAVY_FIRE_GAP
+        fireHeavyRing(e, weapons, RING_SPEED * diff.speedMultiplier)
+        e.fireTimer = scaledInterval(HEAVY_FIRE_GAP)
       }
       TYPE_INTERCEPTOR -> {
-        // --- PATTERN 2: MEDIUM INTERCEPTORS WIDE 3-WAY SPREAD ---
+        writeSniperAim(e, playerX, playerY, speed, diff)
         fireInterceptorSpread(e, weapons, speed)
-        e.fireTimer = if (e.pattern == PATTERN_V_HOLD && e.aiPhase == 1) HOLD_FIRE_GAP else INTERCEPT_REFIRE
+        e.fireTimer = scaledInterval(
+          if (e.pattern == PATTERN_V_HOLD && e.aiPhase == 1) HOLD_FIRE_GAP else INTERCEPT_REFIRE,
+        )
       }
       else -> {
-        // Initiate the 3-shot burst cycle for standard drones
-        val dx = playerX - e.x
-        val dy = playerY - e.y
-        val lenSq = dx * dx + dy * dy
-        if (lenSq > 0.0001f) {
-          val inv = speed / kotlin.math.sqrt(lenSq)
-          e.aimVx = dx * inv
-          e.aimVy = dy * inv
-
-          // Fire initial shot immediately
+        if (writeSniperAim(e, playerX, playerY, speed, diff)) {
           weapons.fireBullet(e.x, e.y, e.aimVx, e.aimVy)
           SoundManager.instance.playSFX(SoundManager.SFX_LASER)
-
-          e.burstLeft = 2 // 2 more shots left to complete the 3-shot arcade burst
+          e.burstLeft = 2
           e.burstWait = BURST_GAP
         } else {
-          e.fireTimer = SCOUT_REFIRE
+          e.fireTimer = scaledInterval(SCOUT_REFIRE)
         }
       }
     }
   }
 
-  private fun fireInterceptorSpread(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
-    // Fire a classic 3-way branching wall (Center Down, Left-Angled Down, Right-Angled Down)
-    var k = -1
-    while (k <= 1) {
-      // Android Canvas Math Fix: To point straight down by default, your starting base angle must be PI / 2.
-      val baseAng = Math.PI / 2.0
-      val finalAng = baseAng + (k * SPREAD_RAD)
+  private fun writeSniperAim(
+    e: Enemy,
+    playerX: Float,
+    playerY: Float,
+    speed: Float,
+    diff: StageData.Difficulty,
+  ): Boolean {
+    val idx = diff.index
+    val slop = if (idx < 3) {
+      (nextUnit() * 2f - 1f) * Enemy.AIM_SLOP_RAD
+    } else {
+      0f
+    }
+    return e.writeAimedShot(
+      playerX,
+      playerY,
+      playerVelX,
+      playerVelY,
+      speed,
+      idx >= 5,
+      slop,
+    )
+  }
 
-      // Realignment: X uses cosine for horizontal offset, Y uses sine for downward travel vector
+  private fun fireInterceptorSpread(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
+    val span = 1 + activeDifficulty().burstBonus
+    val aimLenSq = e.aimVx * e.aimVx + e.aimVy * e.aimVy
+    val baseAng = if (aimLenSq > 0.0001f) {
+      kotlin.math.atan2(e.aimVy, e.aimVx).toDouble()
+    } else {
+      Math.PI / 2.0
+    }
+    var k = -span
+    while (k <= span) {
+      val finalAng = baseAng + (k * SPREAD_RAD)
       val vx = speed * kotlin.math.cos(finalAng).toFloat()
       val vy = speed * kotlin.math.sin(finalAng).toFloat()
-
       weapons.fireBullet(e.x, e.y, vx, vy)
       k++
     }
@@ -436,11 +464,11 @@ class EnemyPoolManager(private val resources: Resources) {
   }
 
   private fun fireHeavyRing(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
-    // Overhaul from 8 bullets to a dense 12-bullet circular ring
-    val customRingCount = 12
-    val customRingStep = (Math.PI * 2.0) / customRingCount
+    val customRingCount = 12 + activeDifficulty().burstBonus
+    val count = if (customRingCount < 1) 1 else customRingCount
+    val customRingStep = (Math.PI * 2.0) / count.toDouble()
     var k = 0
-    while (k < customRingCount) {
+    while (k < count) {
       val ang = k * customRingStep
       val vx = speed * kotlin.math.cos(ang).toFloat()
       val vy = speed * kotlin.math.sin(ang).toFloat()
@@ -449,6 +477,21 @@ class EnemyPoolManager(private val resources: Resources) {
       k++
     }
     SoundManager.instance.playSFX(SoundManager.SFX_ALARM) // Play a quick alert warning overlay for heavy shots
+  }
+
+  private fun activeDifficulty(): StageData.Difficulty {
+    val s = StageData.liveInstance
+    return if (s != null) s.getDifficulty() else StageData.Difficulty.NORMAL
+  }
+
+  private fun scaledInterval(base: Float): Float {
+    val div = activeDifficulty().intervalDivider
+    return if (div < 0.01f) base else base / div
+  }
+
+  private fun scaledFireDelay(): Float {
+    val raw = FIRE_DELAY_MIN + nextUnit() * (FIRE_DELAY_MAX - FIRE_DELAY_MIN)
+    return scaledInterval(raw)
   }
 
   private fun nextUnit(): Float {

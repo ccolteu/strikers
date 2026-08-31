@@ -16,6 +16,7 @@ class ScoreManager private constructor() {
   private var bombsAwarded = 0
   private var grazeAwarded = 0
   private var recapActive = false
+  private var activeMultiplier = 1.0f
 
   fun getScore(): Int = score
 
@@ -30,19 +31,42 @@ class ScoreManager private constructor() {
     setScore(score + points)
   }
 
+  fun syncDifficultyMultiplier(difficultyIndex: Int) {
+    activeMultiplier = when (difficultyIndex) {
+      1 -> 0.5f
+      2 -> 0.8f
+      3 -> 1.0f
+      4 -> 1.2f
+      5 -> 1.5f
+      6 -> 2.0f
+      7 -> 3.0f
+      else -> 1.0f
+    }
+  }
+
+  fun scalePoints(base: Int): Int {
+    var v = (base * activeMultiplier).toInt()
+    if (v < 0) v = 0
+    if (v > MAX_SCORE) v = MAX_SCORE
+    return v
+  }
+
   fun addFlankBreakBonus(x: Float, y: Float) {
-    addScore(FLANK_BREAK_POINTS)
-    queuePopup(x, y, FLANK_BREAK_POINTS)
+    val awarded = scalePoints(FLANK_BREAK_POINTS)
+    addScore(awarded)
+    queuePopup(x, y, awarded)
   }
 
   fun addCoreKillBonus(x: Float, y: Float) {
-    addScore(CORE_KILL_POINTS)
-    queuePopup(x, y, CORE_KILL_POINTS)
+    val awarded = scalePoints(CORE_KILL_POINTS)
+    addScore(awarded)
+    queuePopup(x, y, awarded)
   }
 
   fun addBulletCancelBonus(x: Float, y: Float) {
-    addScore(BULLET_CANCEL_POINTS)
-    queuePopup(x, y, BULLET_CANCEL_POINTS)
+    val awarded = scalePoints(BULLET_CANCEL_POINTS)
+    addScore(awarded)
+    queuePopup(x, y, awarded)
   }
 
   fun hasPopup(): Boolean = popupCount > 0
@@ -68,7 +92,7 @@ class ScoreManager private constructor() {
   fun addGrazeScore(points: Int) {
     grazeCount++
     if (grazeCount > MAX_GRAZE) grazeCount = MAX_GRAZE
-    addScore(points)
+    addScore(scalePoints(points))
   }
 
   fun getGrazeCount(): Int = grazeCount

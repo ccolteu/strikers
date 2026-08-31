@@ -16,7 +16,7 @@ You are a lone interceptor. The ground scrolls toward you like a map on a convey
 
 ### Why it feels like an arcade, not a “level select” app
 
-A real cabinet in 1996 did three things while nobody was playing: show the logo, play a **demo** with the CPU flying, then show the **high score table**. WW2 Blitz does the same. You do not pick a stage from a menu. You either tap **1P START** and play the campaign, or you watch the machine sell itself.
+A real cabinet in 1996 did three things while nobody was playing: show the logo, play a **demo** with the CPU flying, then show the **high score table**. WW2 Blitz does the same. You do not pick a stage from a menu. You set **difficulty**, tap **1P START**, and play the campaign—or you watch the machine sell itself.
 
 ### Controls (what your thumb does)
 
@@ -24,11 +24,13 @@ A real cabinet in 1996 did three things while nobody was playing: show the logo,
 
 **Hold to fire** means you do not tap for every bullet. While the finger is down, a vulcan fires on a timer. Stronger **weapon power** adds extra streams, then **homing missiles**.
 
-**Graze** is a Psikyo-cabinet trick: the plane’s *picture* is large so you can see it, but you only die if a green shot hits a **tiny core**. Sliding a bullet through the halo around that core is a graze: you get a spark and **100** points, and the shot keeps going.
+**Graze** is a Psikyo-cabinet trick: the plane’s *picture* is large so you can see it, but you only die if a green shot hits a **tiny core**. Sliding a bullet through the halo around that core is a graze: you get a spark and **100** points at Normal (other tiers scale that payout; the **graze count** on the recap is always one tick per halo). The shot keeps going.
 
 **Double-tap** is a separate gesture (short taps close together, little movement). That spends one bomb. A bomb is a short, huge blast used as a panic button, not as your main gun.
 
 **Audio settings** on the title are real sliders for BGM and SFX. They do not start a game.
+
+**Difficulty** is a second gold title control, **[ DIFFICULTY ]**, the same type style as **[ AUDIO SETTINGS ]**, one step below it (same gap as **1P START** → audio). It opens a Psikyo-style list (Monkey → Hardcore). Tapping a row **only stores the tier**—it does not start the campaign. **[ RETURN TO MAIN ]** goes back to the title. **1P START** then boots the briefing with that ruleset.
 
 You start with **3 lives**, **3 hits per life** (a small bar), and **3 bombs**. A chip on the hit bar does not cost a life. Emptying the bar **explodes the plane** and spends one life; you respawn with a short invincibility window. **GAME OVER** only happens when that last life is gone—not when the sprite blows up with lives still on the HUD.
 
@@ -41,10 +43,10 @@ Drops are items that fall after certain kills:
 - **P (power)** — your shot pattern gets denser. When power is already maxed, extra P becomes a medal (score only).
 - **B (bomb)** — another bomb, up to 3. Extra B becomes a medal.
 - **Shield** — restores the hit bar on the current life (`restoreHits()`). Stage 5’s right flank can drop this instead of a bomb when you are already stocked.
-- **Medal** — score. Face-up is worth more (2000) than edge-on (200). Bullets cancelled in the Stage 5 core-kill freeze become **stationary +100** medals.
-- **Graze** — 100 points the first time each enemy bullet threads the halo (not the core). Attract demo still sparks; it does **not** add to the campaign total. The **count** of grazes this stage is stored for the recap bonus.
+- **Medal** — score. Face-up is worth more (2000) than edge-on (200) at Normal; both are multiplied by the active difficulty. Bullets cancelled in the Stage 5 core-kill freeze become **stationary** cancel medals (base +100, then the same multiplier).
+- **Graze** — 100 points at Normal the first time each enemy bullet threads the halo (not the core). Attract demo still sparks; it does **not** add to the campaign total. The **count** of grazes this stage is stored for the recap bonus and is **not** multiplied.
 
-Your running total is owned by `ScoreManager` (`campaignScore` in `GameView` is a getter/setter over it), capped at 99,999,999. When a stage is cleared, leftover planes, bullets, and pickups are **swept off** so the recap is readable. The ticker is a **four-phase state machine** (lives → bombs → graze → total):
+Your running total is owned by `ScoreManager` (`campaignScore` in `GameView` is a getter/setter over it), capped at 99,999,999. `syncDifficultyMultiplier` sets a float (`0.5` Monkey … `3.0` Hardcore) at stage reset; flank/core/cancel/graze **points** and medals use `(base * multiplier).toInt()`. Recap **LIVES / BOMBS / GRAZE BONUS** tables stay the raw 50k / 20k / 500 so the ticker is not doubled. When a stage is cleared, leftover planes, bullets, and pickups are **swept off** so the recap is readable. The ticker is a **four-phase state machine** (lives → bombs → graze → total):
 
 - **LIVES BONUS** — 50,000 × lives left, rolled in over ~1 s with a vulcan click every 5 frames.
 - **BOMBS BONUS** — 20,000 × bombs left, same roll.
@@ -70,11 +72,13 @@ A boss is one big illustration, but the engine treats it as **several hitboxes**
 | 5 | ASCENT CANOPY | Industrial facility | fast (280 px/s, ramps to 0 at the gate) | ~45 seconds |
 | 6 | ORBIT THRESHOLD | Clouds → space → orbit overlay | 180 px/s, speed envelope then brake | **5 seconds** (no grunt script) |
 
-The four **grunt types** you see before the boss: **drone** (fodder), **kamikaze** (dives, little shooting), **interceptor** (holds and aims), **heavy** (tanky, slow fire). How they are *arranged* is a design topic of its own—see [Enemy formation design](#enemy-formation-design) below. Stage 6 skips that vocabulary: the briefing ends, then the dreadnought.
+The four **grunt types** you see before the boss: **drone** (fodder), **kamikaze** (dives; Hard+ they steer toward you), **interceptor** (holds and aims), **heavy** (tanky, dense rings). How they are *arranged* is a design topic of its own—see [Enemy formation design](#enemy-formation-design) below. Aiming, fire rate, shot speed, and revenge bullets also follow [difficulty](#16-difficulty-is-a-cabinet-dipswitch). Stage 6 skips that vocabulary: the briefing ends, then the dreadnought.
 
 ### Title card and briefing cards
 
-The attract title is **not** the scrolling stage parallax. `doFrame` blits `title_screen_backdrop` with a **center-crop fit**: `fillScale = max(screenW / bmpW, screenH / bmpH)`, dest `RectF` reused (`titleDstRect`). Uniform scale fills the glass; overflow is cropped; aspect is not stretched. Logo, **1P START**, **CREDIT 00**, and **[ AUDIO SETTINGS ]** draw afterward in `drawArcadeUI` / `drawTitleScreen` (screen-relative layout, independent of the crop rect).
+The attract title is **not** the scrolling stage parallax. `doFrame` blits `title_screen_backdrop` (olive-drab P-38 over clouds, 1080×2400) with a **center-crop fit**: `fillScale = max(screenW / bmpW, screenH / bmpH)`, dest `RectF` reused (`titleDstRect`). Uniform scale fills the glass; overflow is cropped; aspect is not stretched. Logo, blinking **1P START**, credit line, **[ AUDIO SETTINGS ]**, and **[ DIFFICULTY ]** draw afterward in `drawArcadeUI` / `drawTitleScreen` (screen-relative layout, independent of the crop rect). Difficulty uses the same gold paint and hit-rect recipe as audio; its Y is `settingsY + (settingsY - startY)`.
+
+Tap **[ DIFFICULTY ]** → `STATE_DIFFICULTY_SELECT` (8): title still plus a dim overlay, header **SELECT DIFFICULTY**, seven rows in seven preallocated `RectF`s, current tier in gold. A row tap calls `setCurrentDifficulty` and stays on the list. **[ RETURN TO MAIN ]** → `STATE_TITLE`. Title BGM keeps playing.
 
 After **1P START**, and after every recap that is **not** the end of the playlist, the loop enters `STATE_INTERSTITIAL` for **3 seconds**. Touch is swallowed. Combat does not tick. Six native-aspect PNGs (`interstitial_stage1.png` … `stage6.png`) decode once. Draw **width-fits** and **centers vertically**. Gold type: `OPERATION:` then the mission name, offset from the card top (`textSize * 4.2f`) so it clears a camera notch. Fade-in uses remaining `interstitialTimer` (first 0.5 s). When the timer hits 0 → `STATE_PLAYING`.
 
@@ -82,7 +86,7 @@ After **1P START**, and after every recap that is **not** the end of the playlis
 
 Leave the title untouched:
 
-1. **Title (~4 s)** — logo and blinking **1P START**.
+1. **Title (~4 s)** — logo, blinking **1P START**, **[ AUDIO SETTINGS ]**, **[ DIFFICULTY ]**.
 2. **CPU demo (~30 s)** — an AI flies a **random stage 1–5**, never the same map twice in a row (`% 5 + 1`). Stage 6 is not in that attract set. That demo score is **not** a high score.
 3. **Top 10 (~4 s)** — rank, 8-digit score, three letters, highest stage reached.
 
@@ -190,7 +194,30 @@ Each choice is stated first as a player-facing idea, then as an engineering rule
 
 **Plain:** The cabinet should sell the next map with one painting and two gold lines—not a scrolling theater behind the logo.
 
-**Engine:** Title skips `tickParallax`. `titleBackdropBmp` loads via `decodeKeyed(R.drawable.title_screen_backdrop)`. Draw uses `max(scaleX, scaleY)` into `titleDstRect` (no `new Rect`/`Matrix` on the frame). `STATE_INTERSTITIAL` (7): `interstitialTimer` counts down; at 0 → `STATE_PLAYING`. Title start and recap-continue (when not finished) both assign `INTERSTITIAL_SECS`. `UIController` decodes six native-aspect cards; dest is width-fit + vertical center. Two `drawCentered` calls on `OP_PREFIX` and `OP_STAGE1`…`6`.
+**Engine:** Title skips `tickParallax`. `titleBackdropBmp` loads via `decodeKeyed(R.drawable.title_screen_backdrop)`. Draw uses `max(scaleX, scaleY)` into `titleDstRect` (no `new Rect`/`Matrix` on the frame). `STATE_DIFFICULTY_SELECT` (8) reuses that still; HUD writes into `difficultyButtons[7]` and `diffBackButtonRect`. `STATE_INTERSTITIAL` (7): `interstitialTimer` counts down; at 0 → `STATE_PLAYING`. Title start and recap-continue (when not finished) both assign `INTERSTITIAL_SECS`. `UIController` decodes six native-aspect cards; dest is width-fit + vertical center. Two `drawCentered` calls on `OP_PREFIX` and `OP_STAGE1`…`6`.
+
+### 16. Difficulty is a cabinet dipswitch
+
+**Plain:** Psikyo cabinets had a difficulty pot: Monkey is a tutorial, Hardcore is a gauntlet. Changing the dip should not allocate, should not start a credit, and should scale **speed, cadence, density, aim, and score** together.
+
+**Engine:** `StageData.Difficulty` is a nested enum (`index` 1–7, `speedMultiplier`, `intervalDivider`, `burstBonus`). Default **NORMAL**. `getDifficulty` / `setCurrentDifficulty` on the live `StageData` instance (`liveInstance`). No `enum.values()` on the tap path—seven constants sit in a `GameView` array created at construct.
+
+Combat reads that enum as primitives:
+
+| Index | Label | Shot speed | Fire interval | Extra bullets | Score × |
+| --- | --- | --- | --- | --- | --- |
+| 1 | MONKEY | 0.65 | longer (`÷ 0.75`) | −1 | 0.5 |
+| 2 | EASY | 0.85 | `÷ 0.90` | 0 | 0.8 |
+| 3 | NORMAL | 1.00 | 1.00 | 0 | 1.0 |
+| 4 | HARD | 1.15 | `÷ 1.15` | 0 | 1.2 |
+| 5 | VERY HARD | 1.30 | `÷ 1.25` | +1 | 1.5 |
+| 6 | EXPERT | 1.45 | `÷ 1.40` | +1 | 2.0 |
+| 7 | HARDCORE | 1.60 | `÷ 1.55` | +2 | 3.0 |
+
+- **Grunts** (`EnemyPoolManager`): aimed speed × multiplier; spawn/refire delays ÷ `intervalDivider`; heavy ring `12 + burstBonus`; interceptor fan span `1 + burstBonus`. Monkey/Easy add ±0.15 rad aim slop via `nextUnit()`. Very Hard+ first-order **lead** from sampled player velocity (two floats, reset with the pool). Hard+ kamikazes `steerToward` with `atan2` each step.
+- **Boss guns** (`EnemyWeaponSystem`): muzzle speeds and timer **resets** use the same two floats; decrement is still `-= dt`.
+- **Revenge** (`resolveCollisions`): Very Hard+ fires one aimed shot from a dying grunt; Hardcore heavies fire a 3-way. Death-clear ships skip so their cancel radius does not eat the round.
+- **Score** (`ScoreManager.syncDifficultyMultiplier`): called from `resetStage` and title/demo boot after `StageData` is set.
 
 ---
 
@@ -284,13 +311,14 @@ Those choices map directly to `SpawnTimeline` + `Enemy.pattern` + a 48-slot pool
 | --- | --- |
 | Cabinet attract | `GameView` attract timers, `STATE_DEMO`, `demoPilot()`, ranking draw |
 | Title still | `titleBackdropBmp`; center-crop in `doFrame`; HUD in `drawTitleScreen` |
+| Difficulty dip | `StageData.Difficulty`; `STATE_DIFFICULTY_SELECT`; `ScoreManager.syncDifficultyMultiplier` |
 | No GC in combat | Pools: `Enemy`, `PlayerBullet`, `EnemyBullet`, missiles, explosions, graze sparks, pickups |
 | Scripted waves | `SpawnTimeline` + flags; `StageData` identity flags for which director runs |
 | Formation shapes | `spawnVFormation`, weaves, pincers, walls, diamond cues in `SpawnTimeline`; motion in `EnemyPoolManager` |
 | Peel bosses | `BossController` + `BossComponent[14]`; wreck sheets; `FX_PHASE` / `FX_DEATH` / Stage 5 `FX_VICTORY_*` |
 | Stage 1–4 / 6 guns | Isolated `EnemyWeaponSystem.updateStage1Boss` … `updateStage6Boss` |
 | Tiny core + graze ring | `PlayerShip` radii; `BulletManager.resolveEnemyBulletsVsPlayer`; `EnemyBullet.FLAG_GRAZED` |
-| Running score | `ScoreManager`; graze 100; flank 25k / core 100k; recap 50k/20k/500 |
+| Running score | `ScoreManager`; graze/flank/core/cancel × difficulty; recap 50k/20k/500 unscaled |
 | Camera kick / bleach | `triggerScreenShake` / `triggerScreenFlash` / `triggerWhiteFlash`; world `translate`; 40% white quad |
 | Hit shudder | `triggerMicroShudder`; 2 px ping-pong `translate` on heavies and boss blit |
 | Stage clear card | `sweepPlayfieldForClear`; skip world draw; 40% dim; `ScoreManager` recap + `UIController` |
@@ -300,7 +328,7 @@ Those choices map directly to `SpawnTimeline` + `Enemy.pattern` + a 48-slot pool
 | Green key | loadKeyed / `keyGreen` at bitmap load; Stage 5 canopy punches `#00FF00` |
 | Parallax | `ParallaxBackground` + ground override; Stage 5 dual Y; Stage 6 floor swap + orbit overlay |
 | Vsync + GPU blit | `GameView.doFrame` → `lockHardwareCanvas` |
-| SFX/BGM | `SoundManager`; `syncBgm()`; interstitial uses stage BGM; `stopBGM()` during Stage 5 victory |
+| SFX/BGM | `SoundManager`; `syncBgm()`; title + difficulty use title BGM; interstitial uses stage BGM; `stopBGM()` during Stage 5 victory |
 | High scores | `HighScoreManager`; `STATE_REGISTRATION` |
 | Campaign end | `STATE_CAMPAIGN_COMPLETE` when `isCampaignFinished` after `advanceToNextStage()` |
 | Score ticker | `ScoreManager.recapPhase` + `UIController` char buffers |
@@ -369,7 +397,7 @@ flowchart TB
 
 **A real play second, in order:**
 
-1. Title tap (or recap continue) may enter **briefing** (`STATE_INTERSTITIAL`): timer only, then `STATE_PLAYING`.  
+1. Title **[ DIFFICULTY ]** only stores the tier. **1P START** (or recap continue) may enter **briefing** (`STATE_INTERSTITIAL`): timer only, then `STATE_PLAYING`.  
 2. Timeline may activate enemy slots or start a boss entrance (Stage 6: intro clock only).  
 3. Enemies and boss may call `EnemyWeaponSystem.fireBullet`.  
 4. Your drag moves `PlayerShip`; hold feeds `BulletManager` (and missiles at high power).  
@@ -397,7 +425,7 @@ Each chapter starts with the idea, then the mechanism.
 
 | Constant | Scene |
 | --- | --- |
-| `STATE_TITLE` | Attraction still + logo / settings / ranking overlay |
+| `STATE_TITLE` | Attraction still + logo / audio / difficulty / ranking overlay |
 | `STATE_PLAYING` | Your campaign |
 | `STATE_CLEAR` | Bonus ticker after a boss |
 | `STATE_GAMEOVER` | Death pause |
@@ -405,12 +433,13 @@ Each chapter starts with the idea, then the mechanism.
 | `STATE_REGISTRATION` | Three initials |
 | `STATE_CAMPAIGN_COMPLETE` | Credits after the playlist latch |
 | `STATE_INTERSTITIAL` | Full-screen briefing card (3 s) |
+| `STATE_DIFFICULTY_SELECT` | Psikyo difficulty list over the title still |
 
 Attract uses a second int (`ATTRACT_*`) and one float timer so title/demo/ranking can share `STATE_TITLE` / `STATE_DEMO` without a third activity.
 
-**Play/demo tick order:** parallax → optional `demoPilot` → player → player bullets/missiles → pickups → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → boss visual flags → clear/demo-timeout. **`STATE_TITLE`** does not tick parallax. **`STATE_INTERSTITIAL`** only decrements `interstitialTimer`.
+**Play/demo tick order:** parallax → optional `demoPilot` → player → player bullets/missiles → pickups → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → boss visual flags → clear/demo-timeout. **`STATE_TITLE`** and **`STATE_DIFFICULTY_SELECT`** do not tick parallax. **`STATE_INTERSTITIAL`** only decrements `interstitialTimer`.
 
-**Paint order:** optional world `translate` → background (title: center-crop still; interstitial: `drawStageInterstitial`; else parallax) → world sprites → `restore` → flash → HUD. Title HUD is `drawArcadeUI` after the still. Interstitial skips combat HUD.
+**Paint order:** optional world `translate` → background (title and difficulty: center-crop still; interstitial: `drawStageInterstitial`; else parallax) → world sprites → `restore` → flash → HUD. Title HUD is `drawArcadeUI` after the still. Interstitial skips combat HUD.
 
 **Stage 5 tactical z:** floor → enemies/boss/enemy bullets → canopy → player, pickups, player shots, particles, bomb → HUD. The roof occludes hostile craft; you stay readable on top.
 
@@ -418,7 +447,7 @@ Attract uses a second int (`ATTRACT_*`) and one float timer so title/demo/rankin
 
 **Why collisions live here:** they need *every* pool. Splitting enemy-shot vs player *math* still lives in `BulletManager.resolveEnemyBulletsVsPlayer` so the Euclidean core/graze test is one loop; `GameView` owns game-over and only enters it when `isGameOver()` is true (`takeDamage()` returning true can mean “this life exploded,” not “credit over”). Rams use a **fraction of body size**. Boss shots use padded AABBs. Bomb damage is **DPS with a per-frame cap** so a 0.5 s animation neither deletes the core through armor nor does nothing.
 
-**HUD:** one `StringBuilder`, shared paints. Hit testing is `RectF.contains`, not Android widgets.
+**HUD:** one `StringBuilder`, shared paints. Hit testing is `RectF.contains`, not Android widgets. Title **[ DIFFICULTY ]** and the seven select rows are preallocated `RectF`s written during draw.
 
 **Demo AI:** aim at the lowest on-screen enemy or boss part, sidestep nearby downward bullets, sine-wander if idle. `lastDemoStage` + LCG avoids repeating the showcase map.
 
@@ -426,7 +455,9 @@ Attract uses a second int (`ATTRACT_*`) and one float timer so title/demo/rankin
 
 **Idea:** “Which war theater is this?” is an **identity**, not a playlist index. Scroll, music, overlay clouds, and which spawn director runs must survive a shuffled or duplicated `STAGE_SEQUENCE`.
 
-**Mechanism:** Playlist default `intArrayOf(1, 2, 3, 4, 5, 6)`. Flags: `hasOverlayClouds`, `isStage1Script`…`isStage4Script`, `isStage5Backdrop` / `isStage6Backdrop`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `usesSharedBossEntranceCue`. `isCampaignFinished` is **only** `campaignFinishedLatch`, set when `advanceToNextStage()` increments past `STAGE_SEQUENCE.size` (index clamped, no wrap). `isLastInSequence()` is “current index is last”; do **not** use it as campaign-complete. `setCurrentStage` scans with a `while`. `resetToStart()` clears the latch.
+**Mechanism:** Playlist default `intArrayOf(1, 2, 3, 4, 5, 6)`. Flags: `hasOverlayClouds`, `isStage1Script`…`isStage4Script`, `isStage5Backdrop` / `isStage6Backdrop`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `usesSharedBossEntranceCue`. `isCampaignFinished` is **only** `campaignFinishedLatch`, set when `advanceToNextStage()` increments past `STAGE_SEQUENCE.size` (index clamped, no wrap). `isLastInSequence()` is “current index is last”; do **not** use it as campaign-complete. `setCurrentStage` scans with a `while`. `resetToStart()` clears the latch and does **not** reset difficulty.
+
+**Difficulty:** nested `enum class Difficulty` with `index`, `speedMultiplier`, `intervalDivider`, `burstBonus`. Instance field `currentDifficulty` (default `NORMAL`). `getDifficulty()`, `setDifficulty` / `setCurrentDifficulty`. `init` assigns `companion liveInstance` so pools can read the dip without a `GameView` pointer.
 
 ### `SpawnTimeline`
 
@@ -440,13 +471,13 @@ See [Enemy formation design](#enemy-formation-design) for *why* each wave exists
 
 **Idea:** An enemy is a **row in a table**, not a Java object graph. Forty-eight rows is enough for the densest wall. When a ship dies, its row is marked inactive and can be reused.
 
-**Mechanism:** `Enemy` holds x/y/vx/vy, type, pattern, HP, fire timers, weave phase, diamond flags, `shudderTimer`, etc. `EnemyPoolManager` owns the array, four keyed sheets, sizes, and a sine LUT for sweep-arc flight (`FLIGHT_PROFILE_SWEEP_ARC`). `spawnEnemy` finds `!isActive`. `update` integrates, runs hold/weave/kamikaze logic, may fire, and ticks shudder. Draw is shadow, black outline, body. **Heavies** add a local ±2 px `translate` while `shudderTimer > 0` after `triggerMicroShudder()` from a player round.
+**Mechanism:** `Enemy` holds x/y/vx/vy, type, pattern, HP, fire timers, weave phase, diamond flags, `shudderTimer`, `writeAimedShot` / `steerToward` (primitives only). `EnemyPoolManager` owns the array, four keyed sheets, sizes, and a sine LUT for sweep-arc flight (`FLIGHT_PROFILE_SWEEP_ARC`). `spawnEnemy` finds `!isActive`. `update` samples player velocity, optionally steers kamikazes, integrates, runs hold/weave logic, may fire with slop/lead, and ticks shudder. Draw is shadow, black outline, body. **Heavies** add a local ±2 px `translate` while `shudderTimer > 0` after `triggerMicroShudder()` from a player round.
 
 ### `EnemyBullet` and `EnemyWeaponSystem`
 
 **Idea:** Every green shot is the same physical thing: a point with a velocity. Bosses and grunts share one pool so a dense boss pattern cannot allocate.
 
-**Mechanism:** First-free `fireBullet`. `flags` is a bitmask; `FLAG_GRAZED` is set once when the shot threads the player halo. `beginDeathClear` records a short-lived circle that deactivates nearby enemy shots. `convertActiveToScoreItems()` (Stage 5 core death) deactivates every live shot and spawns a zero-velocity +100 medal. Draw: green oval + white core. Isolated `dt` gates: Stage **1** nose + wing 3-way; **2** dual down + sponson fans; **3** flak + 7-bullet wall; **4** mortars + gatling; **5** volley/ring / fans / dual spiral; **6** cyan/pink as above.
+**Mechanism:** First-free `fireBullet`. `flags` is a bitmask; `FLAG_GRAZED` is set once when the shot threads the player halo. `beginDeathClear` records a short-lived circle that deactivates nearby enemy shots. `convertActiveToScoreItems()` (Stage 5 core death) deactivates every live shot and spawns a zero-velocity +100 medal. Draw: green oval + white core. Isolated `dt` gates: Stage **1** nose + wing 3-way; **2** dual down + sponson fans; **3** flak + 7-bullet wall; **4** mortars + gatling; **5** volley/ring / fans / dual spiral; **6** cyan/pink as above. Boss muzzle speeds and interval resets scale from `StageData.liveInstance.getDifficulty()`.
 
 ### `BossComponent` and `BossController`
 
@@ -472,7 +503,7 @@ See [Enemy formation design](#enemy-formation-design) for *why* each wave exists
 
 **Idea:** One running total the HUD, graze, medals, and registration all read. No second score living only in `GameView`.
 
-**Mechanism:** Singleton like `SoundManager`. Clamp 0…99,999,999. `addGrazeScore` increments **grazeCount** and score. Flank/core/bullet-cancel bonuses queue a popup drained into `GameView`’s floating-text pool. `beginRecap(lives, bombs)` snapshots recap targets; `updateRecap(dt)` ticks `recapPhase` / `recapTimer` and adds score over 1.0 s per row. `resetStageCounters()` zeros graze and recap flags when a map starts or you tap through the total.
+**Mechanism:** Singleton like `SoundManager`. Clamp 0…99,999,999. `syncDifficultyMultiplier(index)` writes `activeMultiplier`. `scalePoints` is `(base * multiplier).toInt()` with a max clamp. `addGrazeScore` increments **grazeCount** first (raw recap tally), then adds scaled points. Flank/core/bullet-cancel bonuses scale before `addScore` and `queuePopup`. Recap life/bomb/graze **bonus tables** stay unscaled. `beginRecap(lives, bombs)` snapshots recap targets; `updateRecap(dt)` ticks `recapPhase` / `recapTimer` and adds score over 1.0 s per row. `resetStageCounters()` zeros graze and recap flags when a map starts or you tap through the total.
 
 ### `HomingMissileManager`
 
@@ -524,7 +555,7 @@ See [Enemy formation design](#enemy-formation-design) for *why* each wave exists
 
 **Idea:** Shots click now; music does not hiccup at loop; nothing in `doFrame` builds a `MediaPlayer`.
 
-**Mechanism:** Singleton, SoundPool, dual MediaPlayer chain, audio focus, prefs for two volume floats. `GameView.syncBgm()` maps state → raw resource. `STATE_PLAYING`, `STATE_DEMO`, and `STATE_INTERSTITIAL` share the **stage** track. During Stage 5 victory `want` is 0 and `stopBGM()` resets both players. Recap / campaign complete still use `bgm_victory`. Title uses `bgm_title`.
+**Mechanism:** Singleton, SoundPool, dual MediaPlayer chain, audio focus, prefs for two volume floats. `GameView.syncBgm()` maps state → raw resource. `STATE_PLAYING`, `STATE_DEMO`, and `STATE_INTERSTITIAL` share the **stage** track. During Stage 5 victory `want` is 0 and `stopBGM()` resets both players. Recap / campaign complete still use `bgm_victory`. Title and difficulty select use `bgm_title`.
 
 ### `FloatingScore` (private in `GameView.kt`)
 

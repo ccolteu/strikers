@@ -50,6 +50,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val sfxSliderRect = RectF()
   private val backButtonRect = RectF()
   private val openSettingsButtonRect = RectF()
+  private val openDifficultyButtonRect = RectF()
+  private val difficultyButtons = Array(7) { RectF() }
+  private val diffBackButtonRect = RectF()
+  private val difficultyTiers = arrayOf(
+    StageData.Difficulty.MONKEY,
+    StageData.Difficulty.EASY,
+    StageData.Difficulty.NORMAL,
+    StageData.Difficulty.HARD,
+    StageData.Difficulty.VERY_HARD,
+    StageData.Difficulty.EXPERT,
+    StageData.Difficulty.HARDCORE,
+  )
   private val bodyPaint = Paint().apply { isFilterBitmap = true }
   private val hudOutlinePaint = Paint().apply {
     isFilterBitmap = true
@@ -358,6 +370,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           gameState = STATE_PLAYING
         }
       }
+      STATE_DIFFICULTY_SELECT -> {
+      }
       else -> {
         if (boss.locksWorldScroll()) {
           stageManager.scrollSpeedY = 0f
@@ -454,7 +468,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           canvas.save()
           canvas.translate(dx, dy)
         }
-        if (gameState == STATE_TITLE) {
+        if (gameState == STATE_TITLE || gameState == STATE_DIFFICULTY_SELECT) {
           val bmp = titleBackdropBmp
           if (bmp != null && !bmp.isRecycled && bmp.width > 0 && bmp.height > 0) {
             val scaleX = screenW.toFloat() / bmp.width.toFloat()
@@ -502,6 +516,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
         if (
           gameState != STATE_TITLE &&
+          gameState != STATE_DIFFICULTY_SELECT &&
           gameState != STATE_CLEAR &&
           gameState != STATE_REGISTRATION &&
           gameState != STATE_CAMPAIGN_COMPLETE &&
@@ -596,6 +611,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
    */
   private fun drawArcadeUI(canvas: Canvas) {
     if (gameState == STATE_INTERSTITIAL) {
+      return
+    }
+    if (gameState == STATE_DIFFICULTY_SELECT) {
+      drawDifficultySelectScreen(canvas)
       return
     }
     if (gameState == STATE_TITLE) {
@@ -779,11 +798,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, screenH * 0.52f, uiGoldPaint, uiGoldShadowPaint)
     }
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("CREDIT 2026 CC. All rights reserved.")
+    uiStringBuilder.append("CREDIT 2026 Claudiu Colteu. All rights reserved.")
     drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, screenH - 88f, uiSmallPaint, uiSmallShadowPaint)
+    val startY = screenH * 0.52f
+    val settingsY = screenH * 0.68f
+    val difficultyY = settingsY + (settingsY - startY)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ AUDIO SETTINGS ]")
-    val settingsY = screenH * 0.68f
     drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, settingsY, uiGoldPaint, uiGoldShadowPaint)
     val settingsW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
     val settingsX = screenW * 0.5f - settingsW * 0.5f
@@ -793,6 +814,74 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       settingsX + settingsW,
       settingsY + uiGoldPaint.descent(),
     )
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ DIFFICULTY ]")
+    drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, difficultyY, uiGoldPaint, uiGoldShadowPaint)
+    val diffW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    val diffX = screenW * 0.5f - diffW * 0.5f
+    openDifficultyButtonRect.set(
+      diffX,
+      difficultyY + uiGoldPaint.ascent(),
+      diffX + diffW,
+      difficultyY + uiGoldPaint.descent(),
+    )
+  }
+
+  private fun drawDifficultySelectScreen(canvas: Canvas) {
+    canvas.drawColor(0x66000000.toInt())
+    val cx = screenW * 0.5f
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("SELECT DIFFICULTY")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
+
+    val top = screenH * 0.28f
+    val bottom = screenH * 0.76f
+    val step = (bottom - top) / 6f
+    val rowHalf = step * 0.42f
+    val hitLeft = screenW * 0.10f
+    val hitRight = screenW * 0.90f
+    val selected = stageManager.getDifficulty()
+    var i = 0
+    while (i < 7) {
+      val lineY = top + i * step
+      difficultyButtons[i].set(hitLeft, lineY - rowHalf, hitRight, lineY + rowHalf)
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append(i + 1)
+      uiStringBuilder.append(". ")
+      appendDifficultyName(i)
+      val gold = selected === difficultyTiers[i]
+      if (gold) {
+        drawCenteredHud(canvas, uiStringBuilder, cx, lineY, uiGoldPaint, uiGoldShadowPaint)
+      } else {
+        drawCenteredHud(canvas, uiStringBuilder, cx, lineY, uiTextPaint, uiShadowPaint)
+      }
+      i++
+    }
+
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ RETURN TO MAIN ]")
+    val backY = screenH * 0.88f
+    drawCenteredHud(canvas, uiStringBuilder, cx, backY, uiGoldPaint, uiGoldShadowPaint)
+    val backW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    val backX = cx - backW * 0.5f
+    diffBackButtonRect.set(
+      backX,
+      backY + uiGoldPaint.ascent(),
+      backX + backW,
+      backY + uiGoldPaint.descent(),
+    )
+  }
+
+  private fun appendDifficultyName(index: Int) {
+    when (index) {
+      0 -> uiStringBuilder.append("MONKEY")
+      1 -> uiStringBuilder.append("EASY")
+      2 -> uiStringBuilder.append("NORMAL")
+      3 -> uiStringBuilder.append("HARD")
+      4 -> uiStringBuilder.append("VERY HARD")
+      5 -> uiStringBuilder.append("EXPERT")
+      else -> uiStringBuilder.append("HARDCORE")
+    }
   }
 
   private fun drawHighScoreScreen(canvas: Canvas) {
@@ -1241,6 +1330,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private fun bootLaunchStageIfNeeded() {
     if (gameState != STATE_TITLE) return
     stageManager.resetToStart()
+    ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     timeline.reset()
     enemies.deactivateAll()
     enemyShots.deactivateAll()
@@ -1492,6 +1582,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               }
               if (enemy.health <= 0) {
                 onEnemyKilled(enemy)
+                fireRevengeIfNeeded(enemy)
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
                 dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
@@ -1526,6 +1617,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               }
               if (enemy.health <= 0) {
                 onEnemyKilled(enemy)
+                fireRevengeIfNeeded(enemy)
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
                 dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
@@ -1740,6 +1832,32 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
+  private fun fireRevengeIfNeeded(enemy: Enemy) {
+    if (enemy.deathClearBullets) return
+    val diff = stageManager.getDifficulty()
+    if (diff.index < 5) return
+    val px = player.getHitboxX()
+    val py = player.getHitboxY()
+    val dx = px - enemy.x
+    val dy = py - enemy.y
+    val lenSq = dx * dx + dy * dy
+    if (lenSq <= 0.0001f) return
+    val speed = REVENGE_SHOT_SPEED * diff.speedMultiplier
+    val inv = speed / kotlin.math.sqrt(lenSq)
+    val vx = dx * inv
+    val vy = dy * inv
+    if (enemy.type == ENEMY_TYPE_HEAVY && diff.index == 7) {
+      val ang = kotlin.math.atan2(vy, vx)
+      val left = ang - REVENGE_SPREAD_RAD
+      val right = ang + REVENGE_SPREAD_RAD
+      enemyShots.fireBullet(enemy.x, enemy.y, kotlin.math.cos(left) * speed, kotlin.math.sin(left) * speed)
+      enemyShots.fireBullet(enemy.x, enemy.y, vx, vy)
+      enemyShots.fireBullet(enemy.x, enemy.y, kotlin.math.cos(right) * speed, kotlin.math.sin(right) * speed)
+    } else {
+      enemyShots.fireBullet(enemy.x, enemy.y, vx, vy)
+    }
+  }
+
   private fun dropEnemyLoot(
     x: Float,
     y: Float,
@@ -1792,9 +1910,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     } else {
       MEDAL_SCORE_EDGE
     }
-    campaignScore += points
+    val awarded = ScoreManager.instance.scalePoints(points)
+    campaignScore += awarded
     if (campaignScore > 99_999_999) campaignScore = 99_999_999
-    triggerFloatingScore(item.x, item.y, points)
+    triggerFloatingScore(item.x, item.y, awarded)
     if (item.medalFrameIndex == 0) {
       particles.triggerExplosion(item.x, item.y, false)
     }
@@ -1951,8 +2070,24 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     flashWhiteDecay = false
   }
 
+  private fun beginCampaignFromMenu() {
+    stageManager.resetToStart()
+    ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
+    player.resetWeaponPower()
+    player.restoreLives()
+    availableBombs = 3
+    ScoreManager.instance.reset()
+    maxStageCleared = 0
+    resetStage()
+    attractCycleTimer = 0f
+    attractCycleState = ATTRACT_TITLE
+    interstitialTimer = INTERSTITIAL_SECS
+    gameState = STATE_INTERSTITIAL
+  }
+
   private fun resetStage() {
     ScoreManager.instance.resetStageCounters()
+    ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     panicBomb.isActive = false
     bossWasExploding = false
     shakeDuration = 0f
@@ -2006,6 +2141,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     lastDemoStage = nextDemoStage
     stageManager.setCurrentStage(nextDemoStage)
+    ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     player.resetWeaponPower()
     player.restoreLives()
     availableBombs = 3
@@ -2071,6 +2207,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private fun returnToTitle() {
     player.setAutoFire(false)
     stageManager.resetToStart()
+    ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     player.resetWeaponPower()
     player.restoreLives()
     availableBombs = 3
@@ -2197,18 +2334,36 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           } else if (down && openSettingsButtonRect.contains(x, y)) {
             isSettingsMenuOpen = true
             SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
-          } else if (down) {
-            stageManager.resetToStart()
-            player.resetWeaponPower()
-            player.restoreLives()
-            availableBombs = 3
-            ScoreManager.instance.reset()
-            maxStageCleared = 0
-            resetStage()
+          } else if (down && openDifficultyButtonRect.contains(x, y)) {
             attractCycleTimer = 0f
             attractCycleState = ATTRACT_TITLE
-            interstitialTimer = INTERSTITIAL_SECS
-            gameState = STATE_INTERSTITIAL
+            gameState = STATE_DIFFICULTY_SELECT
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          } else if (down) {
+            beginCampaignFromMenu()
+          }
+        }
+        return true
+      }
+      STATE_DIFFICULTY_SELECT -> {
+        if (down) {
+          val x = event.x
+          val y = event.y
+          if (diffBackButtonRect.contains(x, y)) {
+            attractCycleTimer = 0f
+            attractCycleState = ATTRACT_TITLE
+            gameState = STATE_TITLE
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          } else {
+            var i = 0
+            while (i < 7) {
+              if (difficultyButtons[i].contains(x, y)) {
+                stageManager.setCurrentDifficulty(difficultyTiers[i])
+                SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+                break
+              }
+              i++
+            }
           }
         }
         return true
@@ -2230,6 +2385,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             lastBgmRes = 0
             gameState = STATE_CAMPAIGN_COMPLETE
           } else {
+            ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
             resetStage()
             interstitialTimer = INTERSTITIAL_SECS
             gameState = STATE_INTERSTITIAL
@@ -2302,7 +2458,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun syncBgm() {
     val want = when (gameState) {
-      STATE_TITLE -> R.raw.bgm_title
+      STATE_TITLE, STATE_DIFFICULTY_SELECT -> R.raw.bgm_title
       STATE_CLEAR, STATE_REGISTRATION, STATE_CAMPAIGN_COMPLETE -> R.raw.bgm_victory
       STATE_PLAYING, STATE_DEMO, STATE_INTERSTITIAL -> {
         if (boss.isVictorySequence()) {
@@ -2359,6 +2515,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val STATE_REGISTRATION = SCREEN_REGISTRATION
     const val STATE_CAMPAIGN_COMPLETE = 6
     const val STATE_INTERSTITIAL = 7
+    const val STATE_DIFFICULTY_SELECT = 8
     const val INTERSTITIAL_SECS = 3.0f
     const val ATTRACT_TITLE = 0
     const val ATTRACT_CPU_DEMO = 1
@@ -2383,6 +2540,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val BOMB_BOSS_DPS_FRAME_CAP = 12
     const val ENEMY_TYPE_INTERCEPTOR = 2
     const val ENEMY_TYPE_HEAVY = 3
+    const val REVENGE_SHOT_SPEED = 550f
+    const val REVENGE_SPREAD_RAD = 0.18f
     const val MAX_BOMBS = 3
     const val BOMB_FULL_SCORE = 5000
     const val DOUBLE_TAP_MS = 280L

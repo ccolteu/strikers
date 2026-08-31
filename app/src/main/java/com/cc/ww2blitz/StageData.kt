@@ -34,9 +34,21 @@ class StageData {
     var scrollSpeedY = 180f
     var targetBossTimelineSeconds = 38f
     var stageMusicTrack = SoundManager.BGM_STAGE1
+    private var currentDifficulty = Difficulty.NORMAL
 
     init {
+        liveInstance = this
         applyStageMetrics(stageId)
+    }
+
+    fun getDifficulty(): Difficulty = currentDifficulty
+
+    fun setDifficulty(diff: Difficulty) {
+        currentDifficulty = diff
+    }
+
+    fun setCurrentDifficulty(diff: Difficulty) {
+        currentDifficulty = diff
     }
 
     fun isLastInSequence(): Boolean {
@@ -135,8 +147,25 @@ class StageData {
         const val STAGE_4 = 4
         const val STAGE_5 = 5
         const val STAGE_6 = 6
+        @JvmField
+        var liveInstance: StageData? = null
         // val STAGE_SEQUENCE = intArrayOf(1) // test just one level
         // val STAGE_SEQUENCE = intArrayOf(3,2,6,6) // test any order even with duplicates
         val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4, 5, 6)
+    }
+
+    enum class Difficulty(
+        val index: Int,
+        val speedMultiplier: Float,
+        val intervalDivider: Float,
+        val burstBonus: Int,
+    ) {
+        MONKEY(1, 0.65f, 0.75f, -1),
+        EASY(2, 0.85f, 0.90f, 0),
+        NORMAL(3, 1.00f, 1.00f, 0),
+        HARD(4, 1.15f, 1.15f, 0),
+        VERY_HARD(5, 1.30f, 1.25f, 1),
+        EXPERT(6, 1.45f, 1.40f, 1),
+        HARDCORE(7, 1.60f, 1.55f, 2),
     }
 }
