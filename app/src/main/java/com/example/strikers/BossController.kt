@@ -47,17 +47,27 @@ class BossController(private val resources: Resources) {
   private var turretBurstRemaining = 0
   private var turretBurstTimer = 0f
   private var turretBurstAngle = 0f
+  private var s1TurretTimer = 0f
+  private var s1WingTimer = 0f
+  private var s1SweepTimer = 0f
+  private var s1SweepFireTimer = 0f
+  private var s1SweepDirection = 1f
+  private var s2TurretTimer = 0f
+  private var s2SideGunsTimer = 0f
+  private var s2DesperationTimer = 0f
+  private var s2RingTimer = 0f
+  private var s2SniperTimer = 0f
   private var tankBarrelTimer = 0f
   private var tankTreadTimer = 0f
   private var fireLeftBarrel = true
   private var s3FlakTimer = 0f
-  private var s3CannonTimer = 0f
+  private var s3MegaCannonTimer = 0f
+  private var s3DesperationAngle = 0f
   private var s3SpiralTimer = 0f
-  private var s3SpiralSweep = 0f
   private var s4MortarTimer = 0f
   private var s4GatlingTimer = 0f
   private var s4SpiralTimer = 0f
-  private var s4SpiralAng = 0f
+  private var s4SpiralAngle = 0f
   private var entering = false
   private var active = false
   private var isExploding = false
@@ -106,17 +116,27 @@ class BossController(private val resources: Resources) {
     wingFireTimer = WING_FIRE_INTERVAL
     turretBurstRemaining = 0
     turretBurstTimer = 0f
+    s1TurretTimer = 0f
+    s1WingTimer = 0f
+    s1SweepTimer = 0f
+    s1SweepFireTimer = 0f
+    s1SweepDirection = 1f
+    s2TurretTimer = 0f
+    s2SideGunsTimer = 0f
+    s2DesperationTimer = 0f
+    s2RingTimer = 0f
+    s2SniperTimer = 0f
     tankBarrelTimer = TANK_BARREL_INTERVAL
     tankTreadTimer = TANK_TREAD_INTERVAL
     fireLeftBarrel = true
-    s3FlakTimer = S3_FLAK_INTERVAL
-    s3CannonTimer = S3_CANNON_CHARGE
+    s3FlakTimer = 0f
+    s3MegaCannonTimer = 0f
+    s3DesperationAngle = 0f
     s3SpiralTimer = 0f
-    s3SpiralSweep = 0f
-    s4MortarTimer = S4_MORTAR_INTERVAL
-    s4GatlingTimer = S4_GATLING_INTERVAL
+    s4MortarTimer = 0f
+    s4GatlingTimer = 0f
     s4SpiralTimer = 0f
-    s4SpiralAng = 0f
+    s4SpiralAngle = 0f
     turretAngle = 1.5707964f
     coreX = screenW * 0.5f
     coreY = -bodyHalfH - 24f
@@ -161,6 +181,24 @@ class BossController(private val resources: Resources) {
     explosionTimer = 0f
     activeExpFrame = 0
     SoundManager.instance.stopAlarm()
+    s4MortarTimer = 0f
+    s4GatlingTimer = 0f
+    s4SpiralTimer = 0f
+    s4SpiralAngle = 0f
+    s1TurretTimer = 0f
+    s1WingTimer = 0f
+    s1SweepTimer = 0f
+    s1SweepFireTimer = 0f
+    s1SweepDirection = 1f
+    s2TurretTimer = 0f
+    s2SideGunsTimer = 0f
+    s2DesperationTimer = 0f
+    s2RingTimer = 0f
+    s2SniperTimer = 0f
+    s3FlakTimer = 0f
+    s3MegaCannonTimer = 0f
+    s3DesperationAngle = 0f
+    s3SpiralTimer = 0f
   }
 
   fun getComponents(): Array<BossComponent> = parts
@@ -339,43 +377,56 @@ class BossController(private val resources: Resources) {
   private fun updatePlaneCombat(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
     playNewModuleSfx()
     if (entering) return
-    val turret = parts[TYPE_STAGE1_TURRET]
-    if (turret.isDestroyed) {
-      turretBurstRemaining = 0
-    } else if (turretBurstRemaining > 0) {
-      turretBurstTimer -= dt
-      if (turretBurstTimer <= 0f) {
-        fireAimed(weapons, turret.x, turret.y, turretBurstAngle, TURRET_SHOT_SPEED)
-        turretBurstRemaining -= 1
-        turretBurstTimer = TURRET_BURST_GAP
-      }
-    } else {
-      turretFireTimer -= dt
-      if (turretFireTimer <= 0f) {
-        turretBurstAngle = atan2(playerY - turret.y, playerX - turret.x)
-        fireAimed(weapons, turret.x, turret.y, turretBurstAngle, TURRET_SHOT_SPEED)
-        turretBurstRemaining = TURRET_BURST_COUNT - 1
-        turretBurstTimer = TURRET_BURST_GAP
-        turretFireTimer = TURRET_BURST_INTERVAL
+    val chin = parts[S1_PART_CHIN_TURRET]
+    if (!chin.isDestroyed && chin.halfW > 0f) {
+      s1TurretTimer -= dt
+      if (s1TurretTimer <= 0f) {
+        s1TurretTimer = S1_CHIN_INTERVAL
+        val spawnX = coreX
+        val spawnY = coreY + bodyHalfH * 0.95f
+        fireAtPlayer(weapons, spawnX - S1_CHIN_SEP, spawnY, playerX, playerY, S1_CHIN_SPEED)
+        fireAtPlayer(weapons, spawnX + S1_CHIN_SEP, spawnY, playerX, playerY, S1_CHIN_SPEED)
       }
     }
-    wingFireTimer -= dt
-    if (wingFireTimer > 0f) return
-    wingFireTimer = WING_FIRE_INTERVAL
-    val left = parts[TYPE_STAGE1_LEFT_WING]
-    if (!left.isDestroyed) {
-      fireWingVolley(weapons, left.x, left.y)
+    val left = parts[S1_PART_LEFT_WING]
+    val right = parts[S1_PART_RIGHT_WING]
+    val leftLive = !left.isDestroyed && left.halfW > 0f
+    val rightLive = !right.isDestroyed && right.halfW > 0f
+    if (leftLive || rightLive) {
+      s1WingTimer -= dt
+      if (s1WingTimer <= 0f) {
+        s1WingTimer = S1_WING_INTERVAL
+        val spawnY = coreY + bodyHalfH * 0.10f
+        if (leftLive) {
+          fireS1EngineFan(weapons, coreX - bodyHalfW * 0.50f, spawnY)
+        }
+        if (rightLive) {
+          fireS1EngineFan(weapons, coreX + bodyHalfW * 0.50f, spawnY)
+        }
+      }
     }
-    val right = parts[TYPE_STAGE1_RIGHT_WING]
-    if (!right.isDestroyed) {
-      fireWingVolley(weapons, right.x, right.y)
+    if (isCoreVulnerable()) {
+      s1SweepTimer += dt * s1SweepDirection
+      s1SweepFireTimer -= dt
+      if (s1SweepFireTimer <= 0f) {
+        s1SweepFireTimer = S1_SWEEP_INTERVAL
+        val baseAngle = DOWN_ANGLE + sin(s1SweepTimer * S1_SWEEP_FREQ) * S1_SWEEP_AMP
+        val ox = coreX
+        val oy = coreY - bodyHalfH * 0.10f
+        var i = -2
+        while (i <= 2) {
+          val ang = baseAngle + i * S1_SWEEP_ARC_STEP
+          weapons.fireBullet(ox, oy, cos(ang) * S1_SWEEP_SPEED, sin(ang) * S1_SWEEP_SPEED)
+          i++
+        }
+      }
     }
   }
 
-  private fun fireWingVolley(weapons: EnemyWeaponSystem, originX: Float, originY: Float) {
-    fireAimed(weapons, originX, originY, DOWN_ANGLE, WING_SHOT_SPEED)
-    fireAimed(weapons, originX, originY, DOWN_ANGLE + WING_DIAG, WING_SHOT_SPEED)
-    fireAimed(weapons, originX, originY, DOWN_ANGLE - WING_DIAG, WING_SHOT_SPEED)
+  private fun fireS1EngineFan(weapons: EnemyWeaponSystem, spawnX: Float, spawnY: Float) {
+    weapons.fireBullet(spawnX, spawnY, cos(S1_ANG_75) * S1_WING_SPEED, sin(S1_ANG_75) * S1_WING_SPEED)
+    weapons.fireBullet(spawnX, spawnY, cos(S1_ANG_90) * S1_WING_SPEED, sin(S1_ANG_90) * S1_WING_SPEED)
+    weapons.fireBullet(spawnX, spawnY, cos(S1_ANG_105) * S1_WING_SPEED, sin(S1_ANG_105) * S1_WING_SPEED)
   }
 
   private fun fireAimed(weapons: EnemyWeaponSystem, originX: Float, originY: Float, ang: Float, speed: Float) {
@@ -417,48 +468,69 @@ class BossController(private val resources: Resources) {
   ) {
     playNewModuleSfx()
     if (entering) return
-    val leftFlak = parts[TYPE_STAGE3_LEFT_FLAK]
-    val rightFlak = parts[TYPE_STAGE3_RIGHT_FLAK]
-    val cannon = parts[TYPE_STAGE3_MEGA_CANNON]
+    val leftFlak = parts[S3_PART_LEFT_FLAK]
+    val rightFlak = parts[S3_PART_RIGHT_FLAK]
+    val cannon = parts[S3_PART_MEGA_CANNON]
     val leftLive = !leftFlak.isDestroyed && leftFlak.halfW > 0f
     val rightLive = !rightFlak.isDestroyed && rightFlak.halfW > 0f
     if (leftLive || rightLive) {
       s3FlakTimer -= dt
       if (s3FlakTimer <= 0f) {
         s3FlakTimer = S3_FLAK_INTERVAL
+        val spawnY = coreY + bodyHalfH * 0.05f
         if (fireLeftBarrel && leftLive) {
-          fireAtPlayer(weapons, leftFlak.x, leftFlak.y, playerX, playerY, S3_FLAK_SPEED)
+          fireS3FlakBurst(weapons, coreX - bodyHalfW * 0.58f, spawnY, playerX, playerY)
         } else if (!fireLeftBarrel && rightLive) {
-          fireAtPlayer(weapons, rightFlak.x, rightFlak.y, playerX, playerY, S3_FLAK_SPEED)
+          fireS3FlakBurst(weapons, coreX + bodyHalfW * 0.58f, spawnY, playerX, playerY)
         } else if (leftLive) {
-          fireAtPlayer(weapons, leftFlak.x, leftFlak.y, playerX, playerY, S3_FLAK_SPEED)
+          fireS3FlakBurst(weapons, coreX - bodyHalfW * 0.58f, spawnY, playerX, playerY)
         } else {
-          fireAtPlayer(weapons, rightFlak.x, rightFlak.y, playerX, playerY, S3_FLAK_SPEED)
+          fireS3FlakBurst(weapons, coreX + bodyHalfW * 0.58f, spawnY, playerX, playerY)
         }
         fireLeftBarrel = !fireLeftBarrel
       }
     }
     if (!cannon.isDestroyed && cannon.halfW > 0f) {
-      s3CannonTimer -= dt
-      if (s3CannonTimer <= 0f) {
-        s3CannonTimer = S3_CANNON_CHARGE
-        firePlasmaRing(weapons, cannon.x, cannon.y + cannon.halfH)
+      s3MegaCannonTimer -= dt
+      if (s3MegaCannonTimer <= 0f) {
+        s3MegaCannonTimer = S3_CANNON_CHARGE
+        val ox = coreX
+        val oy = coreY + bodyHalfH * 0.92f
+        var i = 0
+        while (i < S3_WALL_COUNT) {
+          val ang = DOWN_ANGLE - S3_WALL_HALF + i * S3_WALL_STEP
+          weapons.fireBullet(ox, oy, cos(ang) * S3_WALL_SPEED, sin(ang) * S3_WALL_SPEED)
+          i++
+        }
       }
     }
-    val flaksAndCannonDown =
-      leftFlak.isDestroyed && rightFlak.isDestroyed && cannon.isDestroyed
-    if (flaksAndCannonDown) {
-      val core = parts[TYPE_CORE]
-      s3SpiralSweep += dt / S3_SPIRAL_SWEEP_SEC
-      if (s3SpiralSweep > 1f) s3SpiralSweep -= 1f
+    if (isCoreVulnerable()) {
+      s3DesperationAngle += S3_SPIRAL_SPIN * dt
       s3SpiralTimer -= dt
       if (s3SpiralTimer <= 0f) {
         s3SpiralTimer = S3_SPIRAL_INTERVAL
-        val targetX = s3SpiralSweep * screenW
-        val targetY = screenH - 28f
-        fireAtPlayer(weapons, core.x, core.y, targetX, targetY, S3_SPIRAL_SPEED)
+        val ox = coreX
+        val oy = coreY - bodyHalfH * 0.12f
+        var k = 0
+        while (k < S3_SPIRAL_COUNT) {
+          val ang = s3DesperationAngle + k * S3_SPIRAL_STEP
+          weapons.fireBullet(ox, oy, cos(ang) * S3_SPIRAL_SPEED, sin(ang) * S3_SPIRAL_SPEED)
+          k++
+        }
       }
     }
+  }
+
+  private fun fireS3FlakBurst(
+    weapons: EnemyWeaponSystem,
+    spawnX: Float,
+    spawnY: Float,
+    playerX: Float,
+    playerY: Float,
+  ) {
+    fireAtPlayer(weapons, spawnX - S3_FLAK_SEP, spawnY, playerX, playerY, S3_FLAK_SPEED)
+    fireAtPlayer(weapons, spawnX, spawnY, playerX, playerY, S3_FLAK_SPEED)
+    fireAtPlayer(weapons, spawnX + S3_FLAK_SEP, spawnY, playerX, playerY, S3_FLAK_SPEED)
   }
 
   private fun updateJungleFortressCombat(
@@ -478,46 +550,43 @@ class BossController(private val resources: Resources) {
       s4MortarTimer -= dt
       if (s4MortarTimer <= 0f) {
         s4MortarTimer = S4_MORTAR_INTERVAL
-        if (fireLeftBarrel && leftLive) {
-          fireMortarFlakPair(weapons, leftMortar.x, leftMortar.y, playerX, playerY)
-        } else if (!fireLeftBarrel && rightLive) {
-          fireMortarFlakPair(weapons, rightMortar.x, rightMortar.y, playerX, playerY)
-        } else if (leftLive) {
-          fireMortarFlakPair(weapons, leftMortar.x, leftMortar.y, playerX, playerY)
-        } else {
-          fireMortarFlakPair(weapons, rightMortar.x, rightMortar.y, playerX, playerY)
+        val spawnY = coreY + bodyHalfH * 0.15f
+        if (leftLive) {
+          val spawnLeftX = coreX - bodyHalfW * 0.40f
+          fireS4MortarFan(weapons, spawnLeftX, spawnY, true)
         }
-        fireLeftBarrel = !fireLeftBarrel
+        if (rightLive) {
+          val spawnRightX = coreX + bodyHalfW * 0.40f
+          fireS4MortarFan(weapons, spawnRightX, spawnY, false)
+        }
       }
     }
     if (!gatling.isDestroyed && gatling.halfW > 0f) {
       s4GatlingTimer -= dt
       if (s4GatlingTimer <= 0f) {
         s4GatlingTimer = S4_GATLING_INTERVAL
-        val mx = gatling.x
-        val my = gatling.y + gatling.halfH
-        val vx = 0f
-        val vy = S4_GATLING_SPEED
-        val spread = S4_GATLING_SPEED * S4_GATLING_SPREAD
-        weapons.fireBullet(mx, my, vx, vy)
-        weapons.fireBullet(mx, my, -spread, vy)
-        weapons.fireBullet(mx, my, spread, vy)
+        val spawnY = gatling.y + gatling.halfH
+        var index = -2
+        while (index <= 2) {
+          val spawnX = coreX + index * S4_GATLING_BARREL_SEP
+          weapons.fireBullet(spawnX, spawnY, 0f, S4_GATLING_SPEED)
+          index++
+        }
       }
     }
     if (isCoreVulnerable()) {
-      val core = parts[TYPE_CORE]
-      s4SpiralTimer += dt * S4_SPIRAL_RATE
-      s4SpiralAng -= dt
-      if (s4SpiralAng <= 0f) {
-        s4SpiralAng = S4_SPIRAL_INTERVAL
-        val ox = core.x
-        val oy = core.y
+      s4SpiralAngle += S4_SPIRAL_SPIN * dt
+      s4SpiralTimer -= dt
+      if (s4SpiralTimer <= 0f) {
+        s4SpiralTimer = S4_SPIRAL_INTERVAL
+        val ox = coreX
+        val oy = coreY
         val spd = S4_SPIRAL_SPEED
         var k = 0
-        while (k < S4_SPIRAL_ARMS) {
-          val offset = k * S4_SPIRAL_STEP
-          val aCw = s4SpiralTimer + offset
-          val aCcw = -s4SpiralTimer + offset
+        while (k < S4_SPIRAL_COUNT) {
+          val step = k * S4_SPIRAL_STEP
+          val aCw = s4SpiralAngle + step
+          val aCcw = -s4SpiralAngle + step
           weapons.fireBullet(ox, oy, cos(aCw) * spd, sin(aCw) * spd)
           weapons.fireBullet(ox, oy, cos(aCcw) * spd, sin(aCcw) * spd)
           k++
@@ -526,22 +595,21 @@ class BossController(private val resources: Resources) {
     }
   }
 
-  private fun fireMortarFlakPair(
+  private fun fireS4MortarFan(
     weapons: EnemyWeaponSystem,
-    originX: Float,
-    originY: Float,
-    playerX: Float,
-    playerY: Float,
+    spawnX: Float,
+    spawnY: Float,
+    downAndRight: Boolean,
   ) {
-    fireAtPlayer(weapons, originX, originY, playerX - S4_FLAK_PAD, playerY, S4_FLAK_SPEED)
-    fireAtPlayer(weapons, originX, originY, playerX + S4_FLAK_PAD, playerY, S4_FLAK_SPEED)
-  }
-
-  private fun firePlasmaRing(weapons: EnemyWeaponSystem, originX: Float, originY: Float) {
-    var i = 0
-    while (i < S3_RING_COUNT) {
-      val ang = i * S3_RING_STEP
-      fireAimed(weapons, originX, originY, ang, S3_RING_SPEED)
+    val base = if (downAndRight) {
+      DOWN_ANGLE - S4_FAN_HALF
+    } else {
+      DOWN_ANGLE + S4_FAN_HALF
+    }
+    var i = -1
+    while (i <= 1) {
+      val ang = base + i * S4_FAN_STEP
+      weapons.fireBullet(spawnX, spawnY, cos(ang) * S4_FLAK_SPEED, sin(ang) * S4_FLAK_SPEED)
       i++
     }
   }
@@ -549,49 +617,74 @@ class BossController(private val resources: Resources) {
   private fun updateTankCombat(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
     playNewModuleSfx()
     if (entering) return
-    tankBarrelTimer -= dt
-    if (tankBarrelTimer <= 0f) {
-      tankBarrelTimer = TANK_BARREL_INTERVAL
-      val tankTurret = parts[TYPE_STAGE2_MAIN_TURRET]
-      if (!tankTurret.isDestroyed) {
-        val muzzleX = if (fireLeftBarrel) tankTurret.x - TANK_BARREL_SEP else tankTurret.x + TANK_BARREL_SEP
-        val muzzleY = tankTurret.y + tankTurret.halfH
-        fireDirect(weapons, muzzleX, muzzleY, playerX, playerY)
-        fireLeftBarrel = !fireLeftBarrel
+    val turret = parts[S2_PART_MAIN_TURRET]
+    if (!turret.isDestroyed && turret.halfW > 0f) {
+      s2TurretTimer -= dt
+      if (s2TurretTimer <= 0f) {
+        s2TurretTimer = S2_TURRET_INTERVAL
+        val spawnY = coreY + bodyHalfH * 0.90f
+        weapons.fireBullet(coreX - S2_TURRET_BARREL_SEP, spawnY, 0f, S2_TURRET_SPEED)
+        weapons.fireBullet(coreX + S2_TURRET_BARREL_SEP, spawnY, 0f, S2_TURRET_SPEED)
       }
     }
-    tankTreadTimer -= dt
-    if (tankTreadTimer > 0f) return
-    tankTreadTimer = TANK_TREAD_INTERVAL
     val leftTread = parts[TYPE_STAGE2_LEFT_TREAD]
-    if (!leftTread.isDestroyed) {
-      fireTreadFan(weapons, leftTread.x, leftTread.y, true)
-    }
     val rightTread = parts[TYPE_STAGE2_RIGHT_TREAD]
-    if (!rightTread.isDestroyed) {
-      fireTreadFan(weapons, rightTread.x, rightTread.y, false)
+    val leftLive = !leftTread.isDestroyed && leftTread.halfW > 0f
+    val rightLive = !rightTread.isDestroyed && rightTread.halfW > 0f
+    if (leftLive || rightLive) {
+      s2SideGunsTimer -= dt
+      if (s2SideGunsTimer <= 0f) {
+        s2SideGunsTimer = S2_SPONSON_INTERVAL
+        val spawnY = coreY + bodyHalfH * 0.20f
+        if (leftLive) {
+          fireS2SponsonFan(weapons, coreX - bodyHalfW * 0.70f, spawnY, true)
+        }
+        if (rightLive) {
+          fireS2SponsonFan(weapons, coreX + bodyHalfW * 0.70f, spawnY, false)
+        }
+      }
+    }
+    if (isCoreVulnerable()) {
+      s2DesperationTimer += dt
+      s2RingTimer -= dt
+      if (s2RingTimer <= 0f) {
+        s2RingTimer = S2_RING_INTERVAL
+        val ox = coreX
+        val oy = coreY - bodyHalfH * 0.40f
+        var k = 0
+        while (k < S2_RING_COUNT) {
+          val ang = k * S2_RING_STEP
+          weapons.fireBullet(ox, oy, cos(ang) * S2_RING_SPEED, sin(ang) * S2_RING_SPEED)
+          k++
+        }
+      }
+      s2SniperTimer -= dt
+      if (s2SniperTimer <= 0f) {
+        s2SniperTimer = S2_SNIPER_INTERVAL
+        val ox = coreX
+        val oy = coreY - bodyHalfH * 0.40f
+        fireAtPlayer(weapons, ox - S2_SNIPER_SEP, oy, playerX, playerY, S2_SNIPER_SPEED)
+        fireAtPlayer(weapons, ox + S2_SNIPER_SEP, oy, playerX, playerY, S2_SNIPER_SPEED)
+      }
     }
   }
 
-  private fun fireTreadFan(weapons: EnemyWeaponSystem, originX: Float, originY: Float, leftSide: Boolean) {
-    fireAimed(weapons, originX, originY, DOWN_ANGLE, TANK_TREAD_SHOT_SPEED)
-    if (leftSide) {
-      fireAimed(weapons, originX, originY, DOWN_ANGLE + DEG_30, TANK_TREAD_SHOT_SPEED)
-      fireAimed(weapons, originX, originY, DOWN_ANGLE + DEG_45, TANK_TREAD_SHOT_SPEED)
-    } else {
-      fireAimed(weapons, originX, originY, DOWN_ANGLE - DEG_30, TANK_TREAD_SHOT_SPEED)
-      fireAimed(weapons, originX, originY, DOWN_ANGLE - DEG_45, TANK_TREAD_SHOT_SPEED)
-    }
-  }
-
-  private fun fireDirect(
+  private fun fireS2SponsonFan(
     weapons: EnemyWeaponSystem,
-    originX: Float,
-    originY: Float,
-    playerX: Float,
-    playerY: Float,
+    spawnX: Float,
+    spawnY: Float,
+    downAndLeft: Boolean,
   ) {
-    fireAtPlayer(weapons, originX, originY, playerX, playerY, TANK_SHOT_SPEED)
+    var i = 0
+    while (i < 4) {
+      val ang = if (downAndLeft) {
+        DOWN_ANGLE + i * S2_SPONSON_STEP
+      } else {
+        DOWN_ANGLE - i * S2_SPONSON_STEP
+      }
+      weapons.fireBullet(spawnX, spawnY, cos(ang) * S2_SPONSON_SPEED, sin(ang) * S2_SPONSON_SPEED)
+      i++
+    }
   }
 
   private fun fireAtPlayer(
@@ -713,6 +806,7 @@ class BossController(private val resources: Resources) {
     p.maxHealth = 0
     p.health = 0
     p.isDestroyed = true
+    partSfxPlayed[type] = true
   }
 
   private fun setupPart(type: Int, ox: Float, oy: Float, hw: Float, hh: Float, hp: Int) {
@@ -839,12 +933,19 @@ class BossController(private val resources: Resources) {
     const val TYPE_STAGE1_LEFT_WING = 1
     const val TYPE_STAGE1_RIGHT_WING = 2
     const val TYPE_STAGE1_TURRET = 3
+    const val S1_PART_LEFT_WING = 1
+    const val S1_PART_RIGHT_WING = 2
+    const val S1_PART_CHIN_TURRET = 3
     const val TYPE_STAGE2_LEFT_TREAD = 4
     const val TYPE_STAGE2_RIGHT_TREAD = 5
     const val TYPE_STAGE2_MAIN_TURRET = 6
+    const val S2_PART_MAIN_TURRET = 6
     const val TYPE_STAGE3_LEFT_FLAK = 7
     const val TYPE_STAGE3_RIGHT_FLAK = 8
     const val TYPE_STAGE3_MEGA_CANNON = 9
+    const val S3_PART_LEFT_FLAK = 7
+    const val S3_PART_RIGHT_FLAK = 8
+    const val S3_PART_MEGA_CANNON = 9
     const val TYPE_STAGE4_LEFT_MORTAR = 10
     const val TYPE_STAGE4_RIGHT_MORTAR = 11
     const val TYPE_STAGE4_HEAVY_GATLING = 12
@@ -876,35 +977,66 @@ class BossController(private val resources: Resources) {
     const val S1_CORE_HP = 240
     const val S1_WING_HP = 55
     const val S1_TURRET_HP = 45
+    const val S1_CHIN_INTERVAL = 0.70f
+    const val S1_CHIN_SPEED = 620f
+    const val S1_CHIN_SEP = 6f
+    const val S1_WING_INTERVAL = 1.80f
+    const val S1_WING_SPEED = 420f
+    const val S1_ANG_75 = 1.309f
+    const val S1_ANG_90 = 1.5707964f
+    const val S1_ANG_105 = 1.8326f
+    const val S1_SWEEP_INTERVAL = 0.16f
+    const val S1_SWEEP_SPEED = 480f
+    const val S1_SWEEP_FREQ = 3.5f
+    const val S1_SWEEP_AMP = 0.6f
+    const val S1_SWEEP_ARC_STEP = 0.12f
     const val S2_CORE_HP = 330
     const val S2_TREAD_HP = 80
     const val S2_TURRET_HP = 70
+    const val S2_TURRET_INTERVAL = 1.50f
+    const val S2_TURRET_BARREL_SEP = 32f
+    const val S2_TURRET_SPEED = 700f
+    const val S2_SPONSON_INTERVAL = 2.20f
+    const val S2_SPONSON_SPEED = 480f
+    const val S2_SPONSON_STEP = 0.2617994f
+    const val S2_RING_INTERVAL = 0.80f
+    const val S2_RING_SPEED = 340f
+    const val S2_RING_COUNT = 16
+    const val S2_RING_STEP = (Math.PI * 2.0 / S2_RING_COUNT).toFloat()
+    const val S2_SNIPER_INTERVAL = 0.25f
+    const val S2_SNIPER_SPEED = 600f
+    const val S2_SNIPER_SEP = 8f
     const val S3_CORE_HP = 480
     const val S3_FLAK_HP = 100
     const val S3_CANNON_HP = 160
-    const val S3_FLAK_INTERVAL = 0.40f
-    const val S3_FLAK_SPEED = 640f
-    const val S3_CANNON_CHARGE = 2.2f
-    const val S3_RING_COUNT = 16
-    const val S3_RING_STEP = (Math.PI * 2.0 / S3_RING_COUNT).toFloat()
-    const val S3_RING_SPEED = 260f
-    const val S3_SPIRAL_INTERVAL = 0.08f
-    const val S3_SPIRAL_SPEED = 400f
-    const val S3_SPIRAL_SWEEP_SEC = 1.5f
+    const val S3_FLAK_INTERVAL = 0.60f
+    const val S3_FLAK_SPEED = 560f
+    const val S3_FLAK_SEP = 8f
+    const val S3_CANNON_CHARGE = 3.00f
+    const val S3_WALL_COUNT = 7
+    const val S3_WALL_HALF = 0.5235988f
+    const val S3_WALL_STEP = 0.1745329f
+    const val S3_WALL_SPEED = 400f
+    const val S3_SPIRAL_INTERVAL = 0.10f
+    const val S3_SPIRAL_SPEED = 440f
+    const val S3_SPIRAL_SPIN = 5.2f
+    const val S3_SPIRAL_COUNT = 4
+    const val S3_SPIRAL_STEP = (Math.PI * 2.0 / S3_SPIRAL_COUNT).toFloat()
     const val S4_CORE_HP = 600
     const val S4_MORTAR_HP = 140
     const val S4_GATLING_HP = 200
     const val S4_FLAK_SPEED = 580f
-    const val S4_FLAK_PAD = 22f
     const val S4_GATLING_SPEED = 720f
     const val S4_GATLING_INTERVAL = 0.90f
+    const val S4_GATLING_BARREL_SEP = 24f
     const val S4_MORTAR_INTERVAL = 1.20f
-    const val S4_GATLING_SPREAD = 0.08f
-    const val S4_SPIRAL_INTERVAL = 0.09f
-    const val S4_SPIRAL_SPEED = 380f
-    const val S4_SPIRAL_RATE = 2.4f
-    const val S4_SPIRAL_ARMS = 4
-    const val S4_SPIRAL_STEP = (Math.PI * 0.5).toFloat()
+    const val S4_FAN_STEP = 0.2617994f
+    const val S4_FAN_HALF = 0.2617994f
+    const val S4_SPIRAL_INTERVAL = 0.12f
+    const val S4_SPIRAL_SPEED = 310f
+    const val S4_SPIRAL_SPIN = 4.5f
+    const val S4_SPIRAL_COUNT = 6
+    const val S4_SPIRAL_STEP = (Math.PI * 2.0 / S4_SPIRAL_COUNT).toFloat()
     const val EXPLODE_FRAME_COUNT = 8
     const val EXPLODE_FRAME_SEC = 0.13f
     const val EXPLODE_HIDE_BODY_FRAME = 3
