@@ -569,6 +569,7 @@ class EnemyPoolManager(private val resources: Resources) {
     const val TYPE_HEAVY = 3
     const val PATTERN_V_HOLD = 1
     const val PATTERN_WEAVE = 2
+    const val PATTERN_DIAGONAL_SWEEP = 3
     const val HOLD_Y_FRAC = 0.30f
     const val HOLD_SEC = 1.15f
     const val HEAVY_HOLD_Y_FRAC = 0.25f

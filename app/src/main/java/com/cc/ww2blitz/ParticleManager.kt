@@ -10,6 +10,10 @@ import android.graphics.RectF
 
 class ParticleManager(private val resources: Resources) {
 
+  init {
+    instanceRef = this
+  }
+
   private val pool = Array(POOL_SIZE) { ActiveExplosion() }
   private val sparks = Array(SPARK_POOL) { GrazeSpark() }
   private val srcRects = Array(FRAME_COUNT) { Rect() }
@@ -60,6 +64,10 @@ class ParticleManager(private val resources: Resources) {
         i++
       }
     }
+  }
+
+  fun spawnExplosion(centerX: Float, centerY: Float) {
+    triggerExplosion(centerX, centerY, false)
   }
 
   fun triggerExplosion(centerX: Float, centerY: Float, playSound: Boolean = true) {
@@ -199,8 +207,11 @@ class ParticleManager(private val resources: Resources) {
     }
   }
 
-  private companion object {
-    const val POOL_SIZE = 20
+  companion object {
+    private var instanceRef: ParticleManager? = null
+    val instance: ParticleManager
+      get() = instanceRef!!
+    const val POOL_SIZE = 28
     const val FRAME_COUNT = 8
     const val LAST_FRAME = 7
     const val FRAME_SEC = 0.05f

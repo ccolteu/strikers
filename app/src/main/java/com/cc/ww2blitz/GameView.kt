@@ -33,12 +33,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val timeline = SpawnTimeline()
   private val particles = ParticleManager(resources)
   private val boss = BossController(resources)
-  private val scorecard = VictoryScorecard()
+  private val uiController = UIController()
   private var campaignScore: Int
     get() = ScoreManager.instance.getScore()
     set(value) { ScoreManager.instance.setScore(value) }
   private val panicBomb = PanicBomb()
-  private val powerUpItem = PowerUpItem()
+  private val powerUpItem = PowerUpManager.instance.items
   private val scorePool = Array(12) { FloatingScore() }
   private val stageManager = StageData()
   private val srcCore = Rect()
@@ -71,6 +71,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var bgStage2Bmp: Bitmap? = null
   private var bgStage3Bmp: Bitmap? = null
   private var bgStage4Bmp: Bitmap? = null
+  private var bgStage5Layer1Bmp: Bitmap? = null
+  private var bgStage5Layer2Bmp: Bitmap? = null
   private var lastTapUpMs = 0L
   private var touchDownMs = 0L
   private var touchDownX = 0f
@@ -113,6 +115,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var shakeDuration = 0f
   private var shakeIntensity = 0f
   private var flashDuration = 0f
+  private var flashPeak = 0.25f
+  private var flashWhiteDecay = false
   private var shakeSeed = 14352451L
   private val flashPaint = Paint().apply {
     color = 0x66FFFFFF.toInt()
@@ -232,6 +236,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     accentShadowPaint.typeface = face
     popupPaint.typeface = face
     popupShadowPaint.typeface = face
+    uiController.bindTypeface(face)
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -243,13 +248,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     homingMissiles.onSizeChanged(w, h)
     particles.onSizeChanged(w, h)
     boss.onSizeChanged(w, h)
+    uiController.onSizeChanged(w, h)
     screenW = w
     screenH = h
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
-    loadStage2Background(w, h)
-    loadStage3Background(w, h)
-    loadStage4Background(w, h)
+    reloadStageBackgrounds(w, h)
   }
 
   override fun surfaceCreated(holder: SurfaceHolder) {
@@ -275,9 +279,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     screenH = height
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
-    loadStage2Background(width, height)
-    loadStage3Background(width, height)
-    loadStage4Background(width, height)
+    reloadStageBackgrounds(width, height)
   }
 
   override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -293,7 +295,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     lastNanos = frameTimeNanos
     when (gameState) {
       STATE_TITLE -> {
-        parallax.update(TITLE_SCROLL_PX * dt)
+        tickParallax(TITLE_SCROLL_PX, dt)
         if (!isSettingsMenuOpen) {
           attractCycleTimer += dt
           when (attractCycleState) {
@@ -314,13 +316,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
       }
       STATE_CLEAR -> {
-        parallax.update(0f)
-        scorecard.update(dt)
+        tickParallax(0f, dt)
+        ScoreManager.instance.updateRecap(dt)
         updateFloatingScores(dt)
         particles.update(dt)
       }
       STATE_GAMEOVER -> {
-        parallax.update(0f)
+        tickParallax(0f, dt)
         particles.update(dt)
         gameOverT += dt
         if (gameOverT >= GAMEOVER_SECS) {
@@ -328,18 +330,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
       }
       STATE_REGISTRATION -> {
-        parallax.update(TITLE_SCROLL_PX * dt)
+        tickParallax(TITLE_SCROLL_PX, dt)
         registrationTextFlashTimer += dt
       }
       STATE_CAMPAIGN_COMPLETE -> {
-        parallax.update(0f)
+        tickParallax(0f, dt)
         particles.update(dt)
         updateFloatingScores(dt)
         campaignCompleteT += dt
       }
       else -> {
-        parallax.update(stageManager.scrollSpeedY * dt)
-        scorecard.update(dt)
+        if (boss.locksWorldScroll()) {
+          stageManager.scrollSpeedY = 0f
+          tickParallax(0f, dt)
+        } else {
+          tickParallax(stageManager.scrollSpeedY, dt)
+        }
         if (gameState == STATE_DEMO) {
           demoPilot(dt)
         }
@@ -358,9 +364,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           stageManager.targetBossTimelineSeconds,
           true,
           player.getWeaponPower(),
+          stageManager,
         )
         enemies.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
-        boss.update(dt, player.getHitboxX(), player.getHitboxY(), enemyShots)
+        boss.update(
+          dt,
+          player.getHitboxX(),
+          player.getHitboxY(),
+          enemyShots,
+          player.getWeaponPower(),
+          availableBombs,
+        )
         if (boss.isActive() || boss.isExploding()) {
           bossFought = true
         }
@@ -378,6 +392,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           triggerScreenShake(0.42f, 22f)
           triggerScreenFlash(0.14f)
         }
+        if ((pulse and BossController.FX_VICTORY_CASCADE) != 0) {
+          triggerScreenShake(0.1f, 8.0f)
+        }
+        if ((pulse and BossController.FX_VICTORY_SHATTER) != 0) {
+          triggerWhiteFlash(0.25f)
+        }
         bossWasExploding = boss.isExploding()
         if (
           gameState == STATE_PLAYING &&
@@ -385,8 +405,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           !boss.isActive() &&
           !boss.isExploding()
         ) {
-          scorecard.trigger(player.getHealth(), availableBombs, campaignScore)
-          campaignScore = scorecard.totalStageScore
+          ScoreManager.instance.beginRecap(player.getHealth(), availableBombs)
           if (stageManager.currentStage > maxStageCleared) {
             maxStageCleared = stageManager.currentStage
           }
@@ -414,16 +433,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           canvas.save()
           canvas.translate(dx, dy)
         }
-        parallax.draw(
-          canvas,
-          when {
-            gameState == STATE_REGISTRATION -> null
-            gameState == STATE_CAMPAIGN_COMPLETE -> bgStage4Bmp
-            else -> stageGroundBitmap()
-          },
-          gameState == STATE_REGISTRATION ||
-            (gameState != STATE_CAMPAIGN_COMPLETE && stageManager.currentStage == 1),
-        )
+        if (isStage5Backdrop()) {
+          if (
+            gameState == STATE_TITLE ||
+            gameState == STATE_CLEAR ||
+            gameState == STATE_CAMPAIGN_COMPLETE
+          ) {
+            parallax.drawStage5(canvas, bgStage5Layer1Bmp, bgStage5Layer2Bmp)
+          } else {
+            parallax.drawStage5Floor(canvas, bgStage5Layer1Bmp)
+          }
+        } else {
+          parallax.draw(
+            canvas,
+            when {
+              gameState == STATE_REGISTRATION -> null
+              gameState == STATE_CAMPAIGN_COMPLETE -> bgStage5Layer1Bmp ?: bgStage4Bmp
+              else -> stageGroundBitmap()
+            },
+            gameState == STATE_REGISTRATION ||
+              (gameState != STATE_CAMPAIGN_COMPLETE && stageManager.currentStage == 1),
+          )
+        }
         if (
           gameState != STATE_TITLE &&
           gameState != STATE_CLEAR &&
@@ -432,11 +463,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         ) {
           enemies.draw(canvas)
           boss.draw(canvas)
+          enemyShots.draw(canvas)
+          if (isStage5Backdrop()) {
+            parallax.drawStage5Canopy(canvas, bgStage5Layer2Bmp)
+          }
           player.draw(canvas)
           drawPowerUpItem(canvas)
           bullets.draw(canvas)
           homingMissiles.draw(canvas)
-          enemyShots.draw(canvas)
           particles.draw(canvas)
           drawPanicBomb(canvas)
         }
@@ -447,9 +481,21 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
         if (flashDuration > 0f) {
           flashRect.set(0f, 0f, screenW.toFloat(), screenH.toFloat())
+          if (flashWhiteDecay) {
+            var a = (flashDuration / flashPeak * 255f).toInt()
+            if (a < 0) a = 0
+            if (a > 255) a = 255
+            flashPaint.color = Color.WHITE
+            flashPaint.alpha = a
+          } else {
+            flashPaint.color = 0x66FFFFFF.toInt()
+          }
           canvas.drawRect(flashRect, flashPaint)
           flashDuration -= dt
-          if (flashDuration < 0f) flashDuration = 0f
+          if (flashDuration < 0f) {
+            flashDuration = 0f
+            flashWhiteDecay = false
+          }
         }
         if (gameState == STATE_CLEAR) {
           canvas.drawColor(0x66000000.toInt())
@@ -472,6 +518,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   fun triggerScreenFlash(duration: Float) {
     val dur = duration
     flashDuration = if (dur < 0f) 0f else dur
+    flashWhiteDecay = false
+  }
+
+  fun triggerWhiteFlash(duration: Float) {
+    val dur = if (duration < 0f) 0f else duration
+    flashDuration = dur
+    flashPeak = if (dur <= 0f) 0.25f else dur
+    flashWhiteDecay = true
   }
 
   fun addScreenShake(intensity: Float) {
@@ -572,7 +626,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val startEnd = uiStringBuilder.length
     drawHudTextAt(canvas, uiStringBuilder, 0, startEnd, 30f, topTextY, uiTextPaint, uiShadowPaint)
     uiStringBuilder.setLength(0)
-    var score = if (gameState == STATE_CLEAR) scorecard.visibleTotalScore else campaignScore
+    var score = campaignScore
     if (score < 0) score = 0
     if (score > 99_999_999) score = 99_999_999
     var digits = 1
@@ -620,37 +674,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       return
     }
     if (gameState != STATE_CLEAR) return
-    val cx = screenW * 0.5f
-    if (scorecard.currentDisplayLine >= 1) {
-      uiStringBuilder.setLength(0)
-      uiStringBuilder.append("STAGE ")
-      uiStringBuilder.append(stageManager.currentStage)
-      uiStringBuilder.append(" CLEAR")
-      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.22f, uiGoldPaint, uiGoldShadowPaint)
-    }
-    if (scorecard.currentDisplayLine >= 2) {
-      uiStringBuilder.setLength(0)
-      uiStringBuilder.append("LIFE BONUS: ")
-      uiStringBuilder.append(scorecard.visibleLifeBonus)
-      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.34f, uiTextPaint, uiShadowPaint)
-    }
-    if (scorecard.currentDisplayLine >= 3) {
-      uiStringBuilder.setLength(0)
-      uiStringBuilder.append("BOMB BONUS: ")
-      uiStringBuilder.append(scorecard.visibleBombBonus)
-      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.44f, uiTextPaint, uiShadowPaint)
-    }
-    if (scorecard.currentDisplayLine >= 4) {
-      uiStringBuilder.setLength(0)
-      uiStringBuilder.append("TOTAL SCORE: ")
-      uiStringBuilder.append(scorecard.visibleTotalScore)
-      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.54f, uiGoldPaint, uiGoldShadowPaint)
-    }
-    if (scorecard.isCountingDone && ((scorecard.elapsedTime * 3f).toInt() and 1) == 0) {
-      uiStringBuilder.setLength(0)
-      uiStringBuilder.append("TOUCH SCREEN TO CONTINUE")
-      drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.82f, uiTextPaint, uiShadowPaint)
-    }
+    uiController.drawStageClear(canvas, screenW, screenH, ScoreManager.instance, stageManager.currentStage)
   }
 
   private fun drawTitleScreen(canvas: Canvas) {
@@ -1011,30 +1035,37 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         bossBombDmgBank -= raw
         var dmg = raw
         if (dmg > BOMB_BOSS_DPS_FRAME_CAP) dmg = BOMB_BOSS_DPS_FRAME_CAP
-        val parts = boss.getComponents()
-        val partCount = boss.getComponentCount()
-        var pi = partCount - 1
-        while (pi >= 0) {
-          val part = parts[pi]
-          if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
-            if (
-              part.x + part.halfW >= bombLeft && part.x - part.halfW <= bombRight &&
-              part.y + part.halfH >= bombTop && part.y - part.halfH <= bombBottom
-            ) {
-              if (part.componentType == BossController.TYPE_CORE && !bombCoreWasOpen) {
-                pi--
-                continue
-              }
-              part.health -= dmg
-              part.triggerMicroShudder()
-              if (part.health <= 0) {
-                part.health = 0
-                part.isDestroyed = true
-                particles.triggerExplosion(part.x, part.y)
+        if (boss.usesStage5Hitboxes()) {
+          boss.applyStage5AreaDamage(bombLeft, bombTop, bombRight, bombBottom, dmg)
+          if (boss.consumeStage5Break()) {
+            particles.triggerExplosion(boss.stage5BreakX(), boss.stage5BreakY())
+          }
+        } else {
+          val parts = boss.getComponents()
+          val partCount = boss.getComponentCount()
+          var pi = partCount - 1
+          while (pi >= 0) {
+            val part = parts[pi]
+            if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
+              if (
+                part.x + part.halfW >= bombLeft && part.x - part.halfW <= bombRight &&
+                part.y + part.halfH >= bombTop && part.y - part.halfH <= bombBottom
+              ) {
+                if (part.componentType == BossController.TYPE_CORE && !bombCoreWasOpen) {
+                  pi--
+                  continue
+                }
+                part.health -= dmg
+                part.triggerMicroShudder()
+                if (part.health <= 0) {
+                  part.health = 0
+                  part.isDestroyed = true
+                  particles.triggerExplosion(part.x, part.y)
+                }
               }
             }
+            pi--
           }
-          pi--
         }
       }
     }
@@ -1095,11 +1126,26 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
+  private fun isStage5Backdrop(): Boolean {
+    if (gameState == STATE_REGISTRATION) return false
+    if (gameState == STATE_CAMPAIGN_COMPLETE) return bgStage5Layer1Bmp != null
+    return stageManager.currentStage == StageData.STAGE_5
+  }
+
+  private fun tickParallax(scrollSpeedY: Float, dt: Float) {
+    if (isStage5Backdrop()) {
+      parallax.updateStage5(scrollSpeedY, dt)
+    } else {
+      parallax.update(scrollSpeedY * dt)
+    }
+  }
+
   private fun stageGroundBitmap(): Bitmap? {
     return when (stageManager.currentStage) {
       2 -> bgStage2Bmp
       3 -> bgStage3Bmp
       4 -> bgStage4Bmp
+      StageData.STAGE_5 -> bgStage5Layer1Bmp
       else -> null
     }
   }
@@ -1135,6 +1181,87 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     if (existing != null && !existing.isRecycled) existing.recycle()
     bgStage4Bmp = null
     bgStage4Bmp = decodeCoverScaled(resources, R.drawable.stage4_bg_layer1_ground, width, height)
+  }
+
+  private fun recycleStageBitmap(bitmap: Bitmap?) {
+    if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
+  }
+
+  private fun reloadStageBackgrounds(width: Int, height: Int) {
+    if (width <= 0 || height <= 0) return
+    if (stageManager.currentStage == StageData.STAGE_5) {
+      loadStage5Bitmaps(width, height)
+    } else {
+      recycleStageBitmap(bgStage5Layer1Bmp)
+      bgStage5Layer1Bmp = null
+      recycleStageBitmap(bgStage5Layer2Bmp)
+      bgStage5Layer2Bmp = null
+      loadStage2Background(width, height)
+      loadStage3Background(width, height)
+      loadStage4Background(width, height)
+    }
+  }
+
+  private fun loadStage5Bitmaps(width: Int, height: Int) {
+    if (width <= 0 || height <= 0) return
+    val ready1 = bgStage5Layer1Bmp
+    val ready2 = bgStage5Layer2Bmp
+    if (
+      ready1 != null && !ready1.isRecycled && ready1.width == width && ready1.height == height &&
+      ready2 != null && !ready2.isRecycled
+    ) {
+      return
+    }
+    recycleStageBitmap(bgStage4Bmp)
+    bgStage4Bmp = null
+    recycleStageBitmap(bgStage2Bmp)
+    bgStage2Bmp = null
+    recycleStageBitmap(bgStage3Bmp)
+    bgStage3Bmp = null
+    recycleStageBitmap(bgStage5Layer1Bmp)
+    bgStage5Layer1Bmp = null
+    recycleStageBitmap(bgStage5Layer2Bmp)
+    bgStage5Layer2Bmp = null
+    bgStage5Layer1Bmp = decodeCoverScaled(
+      resources,
+      R.drawable.stage5_bg_layer1_facility,
+      width,
+      height,
+    )
+    bgStage5Layer2Bmp = loadChromaKeyedBitmap(
+      R.drawable.stage5_bg_layer2_giant_structures,
+      0xFF00FF00.toInt(),
+    )
+  }
+
+  /**
+   * Decode once at layout time. Punches [targetColor] (typically opaque neon green)
+   * to alpha 0 so [Canvas.drawBitmap] can composite with the default SRC_OVER paint.
+   */
+  private fun loadChromaKeyedBitmap(resId: Int, targetColor: Int): Bitmap {
+    val opts = BitmapFactory.Options().apply {
+      inScaled = false
+    }
+    val originalBitmap = BitmapFactory.decodeResource(resources, resId, opts)
+      ?: error("Missing drawable $resId")
+    val mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+    originalBitmap.recycle()
+    val width = mutableBitmap.width
+    val height = mutableBitmap.height
+    val pixels = IntArray(width * height)
+    mutableBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+    val rgbMask = 0x00FFFFFF
+    val want = targetColor and rgbMask
+    var i = 0
+    val n = pixels.size
+    while (i < n) {
+      if ((pixels[i] and rgbMask) == want) {
+        pixels[i] = 0x00000000
+      }
+      i++
+    }
+    mutableBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+    return mutableBitmap
   }
 
   private fun decodeKeyed(drawableId: Int): Bitmap {
@@ -1250,69 +1377,94 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     if (boss.isActive()) {
-      val parts = boss.getComponents()
-      val partCount = boss.getComponentCount()
-      bi = 0
-      while (bi < bulletCount) {
-        val bullet = bulletPool[bi]
-        if (bullet.isActive) {
-          var pi = partCount - 1
-          while (pi >= 0) {
-            val part = parts[pi]
-            if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
-              val hw = part.halfW + BOSS_BULLET_PAD_X
-              val hh = part.halfH + BOSS_BULLET_PAD_Y
-              val dx = (bullet.x - part.x) / hw
-              val dy = (bullet.y - part.y) / hh
-              if ((dx * dx) + (dy * dy) <= 1f) {
-                bullet.isActive = false
-                if (part.componentType != BossController.TYPE_CORE || boss.isCoreVulnerable()) {
-                  part.health -= 1
-                  part.triggerMicroShudder()
-                  if (part.health <= 0) {
-                    part.health = 0
-                    part.isDestroyed = true
-                    particles.triggerExplosion(part.x, part.y, false)
-                  }
-                }
-                break
-              }
+      if (boss.usesStage5Hitboxes()) {
+        bi = 0
+        while (bi < bulletCount) {
+          val bullet = bulletPool[bi]
+          if (bullet.isActive && boss.checkStage5Collision(bullet)) {
+            bullet.isActive = false
+            if (boss.consumeStage5Break()) {
+              particles.triggerExplosion(boss.stage5BreakX(), boss.stage5BreakY(), false)
             }
-            pi--
           }
+          bi++
         }
-        bi++
-      }
-      mi = 0
-      while (mi < missileCount) {
-        val missile = missilePool[mi]
-        if (missile.isActive) {
-          var pi = partCount - 1
-          while (pi >= 0) {
-            val part = parts[pi]
-            if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
-              val hw = part.halfW + BOSS_BULLET_PAD_X
-              val hh = part.halfH + BOSS_BULLET_PAD_Y
-              val dx = (missile.x - part.x) / hw
-              val dy = (missile.y - part.y) / hh
-              if ((dx * dx) + (dy * dy) <= 1f) {
-                missile.isActive = false
-                if (part.componentType != BossController.TYPE_CORE || boss.isCoreVulnerable()) {
-                  part.health -= 1
-                  part.triggerMicroShudder()
-                  if (part.health <= 0) {
-                    part.health = 0
-                    part.isDestroyed = true
-                    particles.triggerExplosion(part.x, part.y, false)
-                  }
-                }
-                break
-              }
+        mi = 0
+        while (mi < missileCount) {
+          val missile = missilePool[mi]
+          if (missile.isActive && boss.checkCollisionAt(missile.x, missile.y, 1)) {
+            missile.isActive = false
+            if (boss.consumeStage5Break()) {
+              particles.triggerExplosion(boss.stage5BreakX(), boss.stage5BreakY(), false)
             }
-            pi--
           }
+          mi++
         }
-        mi++
+      } else {
+        val parts = boss.getComponents()
+        val partCount = boss.getComponentCount()
+        bi = 0
+        while (bi < bulletCount) {
+          val bullet = bulletPool[bi]
+          if (bullet.isActive) {
+            var pi = partCount - 1
+            while (pi >= 0) {
+              val part = parts[pi]
+              if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
+                val hw = part.halfW + BOSS_BULLET_PAD_X
+                val hh = part.halfH + BOSS_BULLET_PAD_Y
+                val dx = (bullet.x - part.x) / hw
+                val dy = (bullet.y - part.y) / hh
+                if ((dx * dx) + (dy * dy) <= 1f) {
+                  bullet.isActive = false
+                  if (part.componentType != BossController.TYPE_CORE || boss.isCoreVulnerable()) {
+                    part.health -= 1
+                    part.triggerMicroShudder()
+                    if (part.health <= 0) {
+                      part.health = 0
+                      part.isDestroyed = true
+                      particles.triggerExplosion(part.x, part.y, false)
+                    }
+                  }
+                  break
+                }
+              }
+              pi--
+            }
+          }
+          bi++
+        }
+        mi = 0
+        while (mi < missileCount) {
+          val missile = missilePool[mi]
+          if (missile.isActive) {
+            var pi = partCount - 1
+            while (pi >= 0) {
+              val part = parts[pi]
+              if (!part.isDestroyed && part.halfW > 0f && part.halfH > 0f) {
+                val hw = part.halfW + BOSS_BULLET_PAD_X
+                val hh = part.halfH + BOSS_BULLET_PAD_Y
+                val dx = (missile.x - part.x) / hw
+                val dy = (missile.y - part.y) / hh
+                if ((dx * dx) + (dy * dy) <= 1f) {
+                  missile.isActive = false
+                  if (part.componentType != BossController.TYPE_CORE || boss.isCoreVulnerable()) {
+                    part.health -= 1
+                    part.triggerMicroShudder()
+                    if (part.health <= 0) {
+                      part.health = 0
+                      part.isDestroyed = true
+                      particles.triggerExplosion(part.x, part.y, false)
+                    }
+                  }
+                  break
+                }
+              }
+              pi--
+            }
+          }
+          mi++
+        }
       }
     }
 
@@ -1359,7 +1511,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
     }
 
-    if (!player.isGameOver() && boss.isActive()) {
+    if (!player.isGameOver() && boss.isActive() && !boss.isExploding()) {
       val playerRadius = PLAYER_HIT_RADIUS
       val parts = boss.getComponents()
       val partCount = boss.getComponentCount()
@@ -1403,6 +1555,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             collectMedal(item)
           } else if (item.itemType == PowerUpItem.ITEM_TYPE_BOMB) {
             collectBomb(item.x, item.y)
+          } else if (item.itemType == PowerUpItem.ITEM_TYPE_SHIELD) {
+            player.restoreHits()
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
           } else {
             player.upgradeWeapon()
             SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
@@ -1467,7 +1622,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun collectMedal(item: PowerUpSlot) {
-    val points = if (item.medalFrameIndex == 0) MEDAL_SCORE_FACE else MEDAL_SCORE_EDGE
+    val points = if (item.pickupPoints > 0) {
+      item.pickupPoints
+    } else if (item.medalFrameIndex == 0) {
+      MEDAL_SCORE_FACE
+    } else {
+      MEDAL_SCORE_EDGE
+    }
     campaignScore += points
     if (campaignScore > 99_999_999) campaignScore = 99_999_999
     triggerFloatingScore(item.x, item.y, points)
@@ -1494,6 +1655,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun updateFloatingScores(dt: Float) {
+    val scores = ScoreManager.instance
+    while (scores.hasPopup()) {
+      triggerFloatingScore(scores.popupX(), scores.popupY(), scores.popupValue())
+      scores.consumePopup()
+    }
     var i = 0
     while (i < 12) {
       val p = scorePool[i]
@@ -1595,6 +1761,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val stage4 = bgStage4Bmp
     if (stage4 != null && !stage4.isRecycled) stage4.recycle()
     bgStage4Bmp = null
+    recycleStageBitmap(bgStage5Layer1Bmp)
+    bgStage5Layer1Bmp = null
+    recycleStageBitmap(bgStage5Layer2Bmp)
+    bgStage5Layer2Bmp = null
     super.onDetachedFromWindow()
   }
 
@@ -1610,23 +1780,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     shakeDuration = 0f
     shakeIntensity = 0f
     flashDuration = 0f
+    flashWhiteDecay = false
   }
 
   private fun resetStage() {
-    // FORCE-CLEAR SCORING FLAGS TO PREVENT INSTANT TICKER SKIPPING ON NEXT LEVELS
-    scorecard.isActive = false
-    scorecard.isCountingDone = false
-    scorecard.currentDisplayLine = 0
-    scorecard.elapsedTime = 0f
-    scorecard.visibleLifeBonus = 0
-    scorecard.visibleBombBonus = 0
-    scorecard.visibleTotalScore = 0
-
+    ScoreManager.instance.resetStageCounters()
     panicBomb.isActive = false
     bossWasExploding = false
     shakeDuration = 0f
     shakeIntensity = 0f
     flashDuration = 0f
+    flashWhiteDecay = false
     enemyBombDmgBank = 0f
     bossBombDmgBank = 0f
     bombCoreWasOpen = false
@@ -1646,6 +1810,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     parallax.resetScroll()
     lastBgmRes = 0
     resetRegistration()
+    reloadStageBackgrounds(screenW, screenH)
   }
 
   private fun resetRegistration() {
@@ -1665,7 +1830,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     var lcgSeed = System.nanoTime()
     while (nextDemoStage == lastDemoStage) {
       lcgSeed = lcgSeed * 1664525L + 1013904223L
-      nextDemoStage = (((lcgSeed ushr 16) and 0xFFFFL).toInt() % 4) + 1
+      nextDemoStage = (((lcgSeed ushr 16) and 0xFFFFL).toInt() % 5) + 1
     }
     lastDemoStage = nextDemoStage
     stageManager.setCurrentStage(nextDemoStage)
@@ -1865,7 +2030,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             player.resetWeaponPower()
             player.restoreLives()
             availableBombs = 3
-            campaignScore = 0
+            ScoreManager.instance.reset()
             maxStageCleared = 0
             resetStage()
             attractCycleTimer = 0f
@@ -1879,8 +2044,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         return true
       }
       STATE_CLEAR -> {
-        if (scorecard.isCountingDone && down) {
-          if (stageManager.currentStage >= 4) {
+        val up = event.actionMasked == MotionEvent.ACTION_UP ||
+          event.actionMasked == MotionEvent.ACTION_POINTER_UP
+        if (ScoreManager.instance.isRecapReady() && up) {
+          ScoreManager.instance.resetStageCounters()
+          if (stageManager.isLastInSequence()) {
             campaignCompleteT = 0f
             lastBgmRes = 0
             gameState = STATE_CAMPAIGN_COMPLETE
@@ -1960,17 +2128,24 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       STATE_TITLE -> R.raw.bgm_title
       STATE_CLEAR, STATE_REGISTRATION, STATE_CAMPAIGN_COMPLETE -> R.raw.bgm_victory
       STATE_PLAYING, STATE_DEMO -> {
-        if (boss.isActive()) {
+        if (boss.isVictorySequence()) {
+          0
+        } else if (boss.isActive()) {
           R.raw.bgm_boss
-        } else if (stageManager.currentStage >= 2) {
-          R.raw.bgm_stage2
         } else {
-          R.raw.bgm_stage1
+          stageManager.stageMusicTrack
         }
       }
       else -> 0
     }
-    if (want != 0 && want != lastBgmRes) {
+    if (want == 0) {
+      if (lastBgmRes != 0) {
+        SoundManager.instance.stopBGM()
+        lastBgmRes = 0
+      }
+      return
+    }
+    if (want != lastBgmRes) {
       if (SoundManager.instance.switchBGM(want)) {
         lastBgmRes = want
       }

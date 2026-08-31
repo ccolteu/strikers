@@ -7,12 +7,17 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.graphics.RectF
+import kotlin.math.sin
 
 class PowerUpSlot {
   var x = 0f
   var y = 0f
   var vx = 0f
   var vy = 0f
+  var homeX = 0f
+  var swayT = 0f
+  var swayDrop = false
+  var pickupPoints = 0
   var isActive = false
   var itemType = PowerUpItem.ITEM_TYPE_POWERUP
   var medalFrameTime = 0f
@@ -65,6 +70,42 @@ class PowerUpItem {
     }
   }
 
+  fun spawnSway(startX: Float, startY: Float, type: Int) {
+    var i = 0
+    while (i < POOL_SIZE) {
+      val s = pool[i]
+      if (!s.isActive) {
+        fillSlot(s, startX, startY, type)
+        s.vx = 0f
+        s.vy = SWAY_VY
+        s.homeX = startX
+        s.swayT = 0f
+        s.swayDrop = true
+        if (type != ITEM_TYPE_MEDAL) {
+          syncLegacy(s)
+        }
+        return
+      }
+      i++
+    }
+  }
+
+  fun spawnStationaryMedal(startX: Float, startY: Float, points: Int): Boolean {
+    var i = 0
+    while (i < POOL_SIZE) {
+      val s = pool[i]
+      if (!s.isActive) {
+        fillSlot(s, startX, startY, ITEM_TYPE_MEDAL)
+        s.vx = 0f
+        s.vy = 0f
+        s.pickupPoints = points
+        return true
+      }
+      i++
+    }
+    return false
+  }
+
   fun update(dt: Float, screenW: Int) {
     update(dt, screenW, 2500)
   }
@@ -76,9 +117,15 @@ class PowerUpItem {
     while (i < POOL_SIZE) {
       val s = pool[i]
       if (s.isActive) {
-        s.x += s.vx * dt
-        s.y += s.vy * dt
-        if (s.itemType != ITEM_TYPE_MEDAL) {
+        if (s.swayDrop) {
+          s.swayT += dt
+          s.x = s.homeX + sin(s.swayT * SWAY_RATE) * SWAY_AMP
+          s.y += s.vy * dt
+        } else {
+          s.x += s.vx * dt
+          s.y += s.vy * dt
+        }
+        if (s.itemType != ITEM_TYPE_MEDAL && !s.swayDrop) {
           if (s.x <= 30f) {
             s.x = 30f
             s.vx = -s.vx
@@ -144,6 +191,12 @@ class PowerUpItem {
             itemDst.set(s.x - hx, s.y - hx, s.x + hx, s.y + hx)
             blitOutlined(canvas, bombBmp, powerPaint)
           }
+        } else if (s.itemType == ITEM_TYPE_SHIELD) {
+          if (powerUpBmp != null) {
+            val hx = POWERUP_HALF
+            itemDst.set(s.x - hx, s.y - hx, s.x + hx, s.y + hx)
+            blitOutlined(canvas, powerUpBmp, powerPaint)
+          }
         } else if (powerUpBmp != null) {
           val hx = POWERUP_HALF
           itemDst.set(s.x - hx, s.y - hx, s.x + hx, s.y + hx)
@@ -188,6 +241,10 @@ class PowerUpItem {
     s.itemType = type
     s.medalFrameTime = 0f
     s.medalFrameIndex = 0
+    s.homeX = startX
+    s.swayT = 0f
+    s.swayDrop = false
+    s.pickupPoints = 0
     s.isActive = true
   }
 
@@ -206,12 +263,16 @@ class PowerUpItem {
     const val ITEM_TYPE_POWERUP = 0
     const val ITEM_TYPE_MEDAL = 1
     const val ITEM_TYPE_BOMB = 2
-    const val POOL_SIZE = 16
+    const val ITEM_TYPE_SHIELD = 3
+    const val POOL_SIZE = 48
     const val MEDAL_FRAME_COUNT = 8
     const val MEDAL_FRAME_SEC = 1f / 15f
     const val POWERUP_HALF = 78f
     const val MEDAL_HALF = 36f
     const val OUTLINE_PX = 3f
     const val SHADOW_PX = 2f
+    const val SWAY_VY = 72f
+    const val SWAY_RATE = 3.2f
+    const val SWAY_AMP = 28f
   }
 }

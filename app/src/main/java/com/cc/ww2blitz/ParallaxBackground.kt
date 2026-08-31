@@ -30,8 +30,14 @@ class ParallaxBackground(private val resources: Resources) {
   private var yGround = 0f
   private var yMid = 0f
   private var yHigh = 0f
+  private var stage5Layer1Y = 0f
+  private var stage5Layer2Y = 0f
 
   private val paintGround = Paint()
+  private val paintStructures = Paint().apply {
+    isFilterBitmap = false
+    isAntiAlias = false
+  }
   private val paintMid = Paint().apply {
     isFilterBitmap = false
     alpha = MID_ALPHA
@@ -57,6 +63,8 @@ class ParallaxBackground(private val resources: Resources) {
     yGround = 0f
     yMid = 0f
     yHigh = 0f
+    stage5Layer1Y = 0f
+    stage5Layer2Y = 0f
   }
 
   /** [baseSpeed] is pixels this frame for layer 1. Layers 2/3 use 1.5x and 2.2x. */
@@ -68,10 +76,30 @@ class ParallaxBackground(private val resources: Resources) {
     yHigh = wrap(yHigh + baseSpeed * SPEED_HIGH, h)
   }
 
+  /**
+   * Stage 5: floor at [scrollSpeedY], canopy at 1.5x. Wrap by canvas height.
+   */
+  fun updateStage5(scrollSpeedY: Float, dt: Float) {
+    val canvasHeight = screenH.toFloat()
+    if (canvasHeight <= 0f) return
+    val speed = scrollSpeedY
+    val frame = dt
+    stage5Layer1Y += speed * frame
+    if (stage5Layer1Y >= canvasHeight) {
+      stage5Layer1Y -= canvasHeight
+    }
+    stage5Layer2Y += (speed * SPEED_S5_LAYER2) * frame
+    if (stage5Layer2Y >= canvasHeight) {
+      stage5Layer2Y -= canvasHeight
+    }
+  }
+
   fun resetScroll() {
     yGround = 0f
     yMid = 0f
     yHigh = 0f
+    stage5Layer1Y = 0f
+    stage5Layer2Y = 0f
   }
 
   fun draw(canvas: Canvas, groundOverride: Bitmap?, overlayClouds: Boolean) {
@@ -82,6 +110,23 @@ class ParallaxBackground(private val resources: Resources) {
     if (!overlayClouds) return
     blit(canvas, mid, yMid, h, paintMid)
     blit(canvas, high, yHigh, h, paintHigh)
+  }
+
+  fun drawStage5Floor(canvas: Canvas, floor: Bitmap?) {
+    if (floor != null) {
+      blitStage5(canvas, floor, stage5Layer1Y, paintGround)
+    }
+  }
+
+  fun drawStage5Canopy(canvas: Canvas, canopy: Bitmap?) {
+    if (canopy != null) {
+      blitStage5(canvas, canopy, stage5Layer2Y, paintStructures)
+    }
+  }
+
+  fun drawStage5(canvas: Canvas, floor: Bitmap?, canopy: Bitmap?) {
+    drawStage5Floor(canvas, floor)
+    drawStage5Canopy(canvas, canopy)
   }
 
   fun release() {
@@ -101,6 +146,13 @@ class ParallaxBackground(private val resources: Resources) {
     canvas.drawBitmap(bitmap, 0f, y - h, paint)
   }
 
+  private fun blitStage5(canvas: Canvas, bitmap: Bitmap, y: Float, paint: Paint) {
+    val canvasHeight = screenH.toFloat()
+    if (canvasHeight <= 0f) return
+    canvas.drawBitmap(bitmap, 0f, y, paint)
+    canvas.drawBitmap(bitmap, 0f, y - canvasHeight, paint)
+  }
+
   private fun recycle(bitmap: Bitmap?) {
     if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
   }
@@ -109,6 +161,7 @@ class ParallaxBackground(private val resources: Resources) {
     const val SPEED_GROUND = 1.0f
     const val SPEED_MID = 1.5f
     const val SPEED_HIGH = 2.2f
+    const val SPEED_S5_LAYER2 = 1.5f
     const val MID_ALPHA = 140
     const val HIGH_ALPHA = 36
 

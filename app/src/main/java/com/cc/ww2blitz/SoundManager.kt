@@ -135,6 +135,23 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
     }
   }
 
+  fun stopBGM() {
+    synchronized(lock) {
+      if (!initialized) return
+      cancelChainNextLoopLocked()
+      bgmWasPlaying = false
+      currentBgmRes = 0
+      val active = activeBgmPlayer
+      val next = nextBgmPlayer
+      if (active != null) {
+        resetPlayerLocked(active)
+      }
+      if (next != null) {
+        resetPlayerLocked(next)
+      }
+    }
+  }
+
   fun switchBGM(resId: Int): Boolean {
     synchronized(lock) {
       if (!initialized || resId == 0) return false
@@ -511,6 +528,7 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
 
     @JvmField val BGM_STAGE1 = R.raw.bgm_stage1
     @JvmField val BGM_STAGE2 = R.raw.bgm_stage2
+    @JvmField val MUSIC_STAGE_5 = R.raw.bgm_stage2
     @JvmField val BGM_TITLE = R.raw.bgm_title
     @JvmField val BGM_BOSS = R.raw.bgm_boss
     @JvmField val BGM_VICTORY = R.raw.bgm_victory

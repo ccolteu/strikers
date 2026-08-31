@@ -1,8 +1,6 @@
 package com.cc.ww2blitz
 
 class StageData {
-    // Dev playlist: change order to jump into a stage (e.g. intArrayOf(3, 2, 1)).
-    private val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4)
     private var sequenceIndex = 0
 
     private var stageId = STAGE_SEQUENCE[0]
@@ -10,9 +8,14 @@ class StageData {
         get() = stageId
     var scrollSpeedY = 180f
     var targetBossTimelineSeconds = 38f
+    var stageMusicTrack = SoundManager.BGM_STAGE1
 
     init {
-        applyStageMetrics()
+        applyStageMetrics(stageId)
+    }
+
+    fun isLastInSequence(): Boolean {
+        return sequenceIndex >= STAGE_SEQUENCE.size - 1
     }
 
     fun advanceToNextStage() {
@@ -21,13 +24,13 @@ class StageData {
             sequenceIndex = 0
         }
         stageId = STAGE_SEQUENCE[sequenceIndex]
-        applyStageMetrics()
+        applyStageMetrics(stageId)
     }
 
     fun setCurrentStage(stage: Int) {
         var s = stage
         if (s < 1) s = 1
-        if (s > 4) s = 4
+        if (s > STAGE_5) s = STAGE_5
         stageId = s
         var i = 0
         sequenceIndex = 0
@@ -38,33 +41,47 @@ class StageData {
             }
             i++
         }
-        applyStageMetrics()
+        applyStageMetrics(stageId)
     }
 
     fun resetToStart() {
         sequenceIndex = 0
         stageId = STAGE_SEQUENCE[0]
-        applyStageMetrics()
+        applyStageMetrics(stageId)
     }
 
-    private fun applyStageMetrics() {
-        when (currentStage) {
+    fun applyStageMetrics(stage: Int) {
+        when (stage) {
             2 -> {
                 scrollSpeedY = 260f
                 targetBossTimelineSeconds = 30f
+                stageMusicTrack = SoundManager.BGM_STAGE2
             }
             3 -> {
                 scrollSpeedY = 200f
                 targetBossTimelineSeconds = 25f
+                stageMusicTrack = SoundManager.BGM_STAGE2
             }
             4 -> {
                 scrollSpeedY = 310f
                 targetBossTimelineSeconds = 45f
+                stageMusicTrack = SoundManager.BGM_STAGE2
+            }
+            STAGE_5 -> {
+                scrollSpeedY = 280f
+                targetBossTimelineSeconds = 45f
+                stageMusicTrack = SoundManager.MUSIC_STAGE_5
             }
             else -> {
                 scrollSpeedY = 180f
                 targetBossTimelineSeconds = 38f
+                stageMusicTrack = SoundManager.BGM_STAGE1
             }
         }
+    }
+
+    companion object {
+        const val STAGE_5 = 5
+        val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4, 5)
     }
 }

@@ -40,6 +40,16 @@ class SpawnTimeline {
   private var openingPowerVSpawned = false
   private var powerUpWaveQueued = false
   private var powerUpWaveTimer = 0f
+  private var stageTimer = 0f
+  private var s5FlankGap = 0f
+  private var s5FlankFromLeft = true
+  private var s5KamiVSpawned = false
+  private var s5HeavyLeftSpawned = false
+  private var s5HeavyRightSpawned = false
+  private var s5DrizzleGap = 0f
+  private var s5DrizzleSeed = 1L
+  private var s5PowerWaveSpawned = false
+  private var s5KamiWallSpawned = false
 
   fun update(
     dt: Float,
@@ -51,15 +61,16 @@ class SpawnTimeline {
     bossEnterSeconds: Float,
     allowBoss: Boolean,
     playerWeaponPower: Int,
+    stageData: StageData,
   ) {
     if (screenWidth <= 0 || screenHeight <= 0) return
-    // Stages 3–4 lock the cursor at the boss gate until the fight ends.
-    if (!((currentStage == 3 || currentStage == 4) && bossCueFired)) {
+    // Stages 3–5 lock the cursor at the boss gate until the fight ends.
+    if (!((currentStage == 3 || currentStage == 4 || currentStage == 5) && bossCueFired)) {
       elapsedTime += dt
     }
     val w = screenWidth.toFloat()
     val h = screenHeight.toFloat()
-    if (!openingPowerVSpawned && elapsedTime >= 0f && elapsedTime <= OPENING_END) {
+    if (currentStage != 5 && !openingPowerVSpawned && elapsedTime >= 0f && elapsedTime <= OPENING_END) {
       openingPowerVSpawned = true
       spawnOpeningPowerV(enemyManager, w, h)
     }
@@ -72,8 +83,10 @@ class SpawnTimeline {
       updateStage3(dt, enemyManager, w, h)
     } else if (currentStage == 4) {
       updateStage4(dt, enemyManager, w, h)
+    } else if (currentStage == 5) {
+      updateStage5(dt, enemyManager, w, h, boss, allowBoss, stageData)
     }
-    if (allowBoss && !bossCueFired) {
+    if (allowBoss && !bossCueFired && currentStage != 5) {
       val bossAt = when (currentStage) {
         4 -> S4_BOSS_AT
         3 -> S3_BOSS_AT
@@ -121,6 +134,16 @@ class SpawnTimeline {
     openingPowerVSpawned = false
     powerUpWaveQueued = false
     powerUpWaveTimer = 0f
+    stageTimer = 0f
+    s5FlankGap = S5_FLANK_SPACING
+    s5FlankFromLeft = true
+    s5KamiVSpawned = false
+    s5HeavyLeftSpawned = false
+    s5HeavyRightSpawned = false
+    s5DrizzleGap = 0f
+    s5DrizzleSeed = 1L
+    s5PowerWaveSpawned = false
+    s5KamiWallSpawned = false
   }
 
   private fun updateStage1(
@@ -527,6 +550,151 @@ class SpawnTimeline {
     }
   }
 
+  private fun updateStage5(
+    dt: Float,
+    enemies: EnemyPoolManager,
+    w: Float,
+    h: Float,
+    boss: BossController,
+    allowBoss: Boolean,
+    stageData: StageData,
+  ) {
+    if (!bossCueFired) {
+      stageTimer += dt
+    } else {
+      return
+    }
+    if (stageTimer <= S5_FLANK_END) {
+      s5FlankGap += dt
+      var safeguard = 0
+      while (s5FlankGap >= S5_FLANK_SPACING && safeguard < 2) {
+        s5FlankGap -= S5_FLANK_SPACING
+        safeguard++
+        if (s5FlankFromLeft) {
+          spawnS5FlankCascade(enemies, w, h, true)
+        } else {
+          spawnS5FlankCascade(enemies, w, h, false)
+        }
+        s5FlankFromLeft = !s5FlankFromLeft
+      }
+    }
+    if (!s5KamiVSpawned && stageTimer >= S5_KAMI_V_AT) {
+      s5KamiVSpawned = true
+      spawnS5CenterKamiV(enemies, w, h)
+    }
+    if (!s5HeavyLeftSpawned && stageTimer >= S5_HEAVY_LEFT_AT) {
+      s5HeavyLeftSpawned = true
+      enemies.spawnEnemy(
+        0.20f * w,
+        -0.10f * h,
+        0f,
+        HEAVY_VY,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S5_HEAVY_HP,
+      )
+    }
+    if (!s5HeavyRightSpawned && stageTimer >= S5_HEAVY_RIGHT_AT) {
+      s5HeavyRightSpawned = true
+      enemies.spawnEnemy(
+        0.80f * w,
+        -0.10f * h,
+        0f,
+        HEAVY_VY,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S5_HEAVY_HP,
+      )
+    }
+    if (stageTimer >= S5_DRIZZLE_START && stageTimer <= S5_DRIZZLE_END) {
+      s5DrizzleGap += dt
+      var safeguard = 0
+      while (s5DrizzleGap >= S5_DRIZZLE_SPACING && safeguard < 2) {
+        s5DrizzleGap -= S5_DRIZZLE_SPACING
+        safeguard++
+        s5DrizzleSeed = s5DrizzleSeed * 1664525L + 1013904223L
+        val u = ((s5DrizzleSeed ushr 8) and 0xFFFFFFL).toFloat() / 16777215f
+        val xFrac = 0.30f + u * 0.40f
+        enemies.spawnEnemy(
+          xFrac * w,
+          -0.04f * h,
+          0f,
+          S5_DRIZZLE_VY,
+          TYPE_INTERCEPTOR,
+          PATTERN_WEAVE,
+        )
+      }
+    }
+    if (!s5PowerWaveSpawned && stageTimer >= S5_POWER_WAVE_AT) {
+      s5PowerWaveSpawned = true
+      enemies.spawnEnemy(
+        0.25f * w, -0.05f * h, 0f, S5_POWER_VY, TYPE_DRONE,
+        isRedShipAnchor = true,
+      )
+      enemies.spawnEnemy(
+        0.50f * w, -0.05f * h, 0f, S5_POWER_VY, TYPE_DRONE,
+        isRedShipAnchor = true,
+      )
+      enemies.spawnEnemy(
+        0.75f * w, -0.05f * h, 0f, S5_POWER_VY, TYPE_DRONE,
+        isRedShipAnchor = true,
+      )
+    }
+    if (!s5KamiWallSpawned && stageTimer >= S5_KAMI_WALL_AT) {
+      s5KamiWallSpawned = true
+      var n = 0
+      while (n < 6) {
+        val xFrac = (n + 0.5f) / 6f
+        enemies.spawnEnemy(xFrac * w, -0.06f * h, 0f, S5_KAMI_VY, TYPE_KAMIKAZE)
+        n++
+      }
+    }
+    if (stageTimer >= S5_SCROLL_DECAY_AT) {
+      var u = (stageTimer - S5_SCROLL_DECAY_AT) / S5_SCROLL_DECAY_SPAN
+      if (u < 0f) u = 0f
+      if (u > 1f) u = 1f
+      stageData.scrollSpeedY = S5_SCROLL_START * (1f - u)
+    }
+    if (allowBoss && stageTimer >= S5_BOSS_AT) {
+      boss.beginEntranceForStage(5)
+      bossCueFired = true
+      stageData.scrollSpeedY = 0f
+    }
+  }
+
+  private fun spawnS5FlankCascade(
+    enemies: EnemyPoolManager,
+    w: Float,
+    h: Float,
+    fromLeft: Boolean,
+  ) {
+    var n = 0
+    while (n < 4) {
+      val t = n / 3f
+      if (fromLeft) {
+        val x = (0f + t * 0.20f) * w
+        enemies.spawnEnemy(x, -0.05f * h, S5_SWEEP_VX, S5_SWEEP_VY, TYPE_DRONE, PATTERN_DIAGONAL_SWEEP)
+      } else {
+        val x = (1f - t * 0.20f) * w
+        enemies.spawnEnemy(x, -0.05f * h, -S5_SWEEP_VX, S5_SWEEP_VY, TYPE_DRONE, PATTERN_DIAGONAL_SWEEP)
+      }
+      n++
+    }
+  }
+
+  private fun spawnS5CenterKamiV(enemies: EnemyPoolManager, w: Float, h: Float) {
+    val gapX = formGapX(enemies, TYPE_KAMIKAZE)
+    val gapY = formGapY(enemies, TYPE_KAMIKAZE)
+    val cx = 0.50f * w
+    val cy = -0.04f * h
+    val vy = S5_KAMI_VY
+    enemies.spawnEnemy(cx, cy, 0f, vy, TYPE_KAMIKAZE)
+    enemies.spawnEnemy(cx - gapX, cy - gapY, 0f, vy, TYPE_KAMIKAZE)
+    enemies.spawnEnemy(cx + gapX, cy - gapY, 0f, vy, TYPE_KAMIKAZE)
+    enemies.spawnEnemy(cx - gapX * 2f, cy - gapY * 2f, 0f, vy, TYPE_KAMIKAZE)
+    enemies.spawnEnemy(cx + gapX * 2f, cy - gapY * 2f, 0f, vy, TYPE_KAMIKAZE)
+  }
+
   private fun spawnStage3ScoutV(enemies: EnemyPoolManager, w: Float, h: Float) {
     val vx = 0f
     val vy = WEAVE_VY * 1.7f
@@ -554,6 +722,7 @@ class SpawnTimeline {
     const val TYPE_HEAVY = 3
     const val PATTERN_WEAVE = 2
     const val PATTERN_V_HOLD = 1
+    const val PATTERN_DIAGONAL_SWEEP = 3
     const val FAST_DOWN = 320f
     const val BASE_STAGE2_SPEED = FAST_DOWN
     const val SWEEP_VX = 210f
@@ -625,6 +794,26 @@ class SpawnTimeline {
     const val S4_WALL_COUNT = 4
     const val S4_WALL_VY = 440f
     const val S4_BOSS_AT = 45.0f
+    const val S5_FLANK_END = 12.0f
+    const val S5_FLANK_SPACING = 1.5f
+    const val S5_SWEEP_VX = 260f
+    const val S5_SWEEP_VY = 280f
+    const val S5_KAMI_V_AT = 8.0f
+    const val S5_KAMI_VY = 550f
+    const val S5_HEAVY_LEFT_AT = 14.0f
+    const val S5_HEAVY_RIGHT_AT = 22.0f
+    const val S5_HEAVY_HP = 25
+    const val S5_DRIZZLE_START = 14.0f
+    const val S5_DRIZZLE_END = 28.0f
+    const val S5_DRIZZLE_SPACING = 2.0f
+    const val S5_DRIZZLE_VY = 170f
+    const val S5_POWER_WAVE_AT = 32.0f
+    const val S5_POWER_VY = 140f
+    const val S5_KAMI_WALL_AT = 36.0f
+    const val S5_SCROLL_DECAY_AT = 40.0f
+    const val S5_SCROLL_DECAY_SPAN = 5.0f
+    const val S5_SCROLL_START = 280f
+    const val S5_BOSS_AT = 45.0f
     const val FORM_CLEAR = 2.4f
   }
 }

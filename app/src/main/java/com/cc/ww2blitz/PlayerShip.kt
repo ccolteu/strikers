@@ -191,6 +191,10 @@ class PlayerShip(private val resources: Resources) {
     weaponPowerLevel = 1
   }
 
+  fun restoreHits() {
+    hitsLeft = HITS_PER_LIFE
+  }
+
   fun restoreLives() {
     lives = START_LIVES
     hitsLeft = HITS_PER_LIFE
