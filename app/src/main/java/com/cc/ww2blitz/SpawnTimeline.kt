@@ -55,7 +55,7 @@ class SpawnTimeline {
   fun elapsedSeconds(): Float = elapsedTime
 
   fun forceAdvanceStage6Timeline(targetSeconds: Float) {
-    if (activeStage == 6) {
+    if (activeStage == StageData.STAGE_6) {
       elapsedTime = targetSeconds
     }
   }
@@ -66,55 +66,55 @@ class SpawnTimeline {
     screenWidth: Int,
     screenHeight: Int,
     boss: BossController,
-    currentStage: Int,
     bossEnterSeconds: Float,
     allowBoss: Boolean,
     playerWeaponPower: Int,
     stageData: StageData,
   ) {
     if (screenWidth <= 0 || screenHeight <= 0) return
-    activeStage = currentStage
-    if (currentStage == 6) {
+    activeStage = stageData.currentStage
+    if (stageData.isStage6Backdrop) {
       if (!bossCueFired) {
         elapsedTime += dt
         if (allowBoss && elapsedTime >= S6_INTRO_SECS) {
-          boss.beginEntranceForStage(6)
+          boss.beginEntranceForStage(StageData.STAGE_6)
           bossCueFired = true
           elapsedTime = S6_INTRO_SECS
         }
       }
       return
     }
-    // Stages 3–5 lock the cursor at the boss gate until the fight ends.
-    if (!((currentStage == 3 || currentStage == 4 || currentStage == 5) && bossCueFired)) {
+    if (!(stageData.locksElapsedAtBoss && bossCueFired)) {
       elapsedTime += dt
     }
     val w = screenWidth.toFloat()
     val h = screenHeight.toFloat()
-    if (currentStage != 5 && currentStage != 6 && !openingPowerVSpawned && elapsedTime >= 0f && elapsedTime <= OPENING_END) {
+    if (stageData.usesOpeningPowerV && !openingPowerVSpawned && elapsedTime >= 0f && elapsedTime <= OPENING_END) {
       openingPowerVSpawned = true
       spawnOpeningPowerV(enemyManager, w, h)
     }
     updatePowerSafeguard(dt, enemyManager, w, h, playerWeaponPower, boss)
-    if (currentStage == 1) {
+    if (stageData.isStage1Script) {
       updateStage1(dt, enemyManager, w, h)
-    } else if (currentStage == 2) {
+    } else if (stageData.isStage2Script) {
       updateStage2(dt, enemyManager, w, h)
-    } else if (currentStage == 3) {
+    } else if (stageData.isStage3Script) {
       updateStage3(dt, enemyManager, w, h)
-    } else if (currentStage == 4) {
+    } else if (stageData.isStage4Script) {
       updateStage4(dt, enemyManager, w, h)
-    } else if (currentStage == 5) {
+    } else if (stageData.isStage5Backdrop) {
       updateStage5(dt, enemyManager, w, h, boss, allowBoss, stageData)
     }
-    if (allowBoss && !bossCueFired && currentStage != 5 && currentStage != 6) {
-      val bossAt = when (currentStage) {
-        4 -> S4_BOSS_AT
-        3 -> S3_BOSS_AT
-        else -> bossEnterSeconds
+    if (allowBoss && !bossCueFired && stageData.usesSharedBossEntranceCue) {
+      val bossAt = if (stageData.isStage4Script) {
+        S4_BOSS_AT
+      } else if (stageData.isStage3Script) {
+        S3_BOSS_AT
+      } else {
+        bossEnterSeconds
       }
       if (elapsedTime >= bossAt) {
-        boss.beginEntranceForStage(currentStage)
+        boss.beginEntranceForStage(stageData.currentStage)
         bossCueFired = true
       }
     }

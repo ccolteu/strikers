@@ -367,7 +367,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           screenW,
           screenH,
           boss,
-          stageManager.currentStage,
           stageManager.targetBossTimelineSeconds,
           true,
           player.getWeaponPower(),
@@ -443,7 +442,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           canvas.save()
           canvas.translate(dx, dy)
         }
-        if (isStage5Backdrop()) {
+        if (stageManager.isStage5Backdrop && gameState != STATE_REGISTRATION) {
           if (
             gameState == STATE_TITLE ||
             gameState == STATE_CLEAR ||
@@ -464,7 +463,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               else -> stageGroundBitmap()
             },
             gameState == STATE_REGISTRATION ||
-              (gameState != STATE_CAMPAIGN_COMPLETE && stageManager.currentStage == 1),
+              (gameState != STATE_CAMPAIGN_COMPLETE && stageManager.hasOverlayClouds),
           )
         }
         if (
@@ -476,13 +475,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           enemies.draw(canvas)
           boss.draw(canvas)
           enemyShots.draw(canvas)
-          val currentStage = stageManager.currentStage
-          if (currentStage == 5) {
-            parallax.drawStage5Canopy(canvas, bgStage5Layer2Bmp, currentStage)
-          } else if (currentStage == 6 && timeline.elapsedSeconds() >= S6_CANOPY_AT) {
+          if (stageManager.isStage5Backdrop) {
+            parallax.drawStage5Canopy(canvas, bgStage5Layer2Bmp, stageManager.currentStage)
+          } else if (stageManager.isStage6Backdrop && timeline.elapsedSeconds() >= S6_CANOPY_AT) {
             val canopyAsset = bgStage6Layer2Bmp
             if (canopyAsset != null && !canopyAsset.isRecycled) {
-              parallax.drawStage6Canopy(canvas, canopyAsset, currentStage)
+              parallax.drawStage6Canopy(canvas, canopyAsset, stageManager.currentStage)
             }
           }
           player.draw(canvas)
@@ -581,6 +579,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if ((campaignCompleteT * 3f).toInt() % 2 == 0) {
           uiStringBuilder.setLength(0)
           uiStringBuilder.append("TOUCH SCREEN TO REGISTER SCORE")
+          val originalSize = uiGoldPaint.textSize
+          uiGoldPaint.textSize = originalSize * 0.65f
+          uiGoldShadowPaint.textSize = originalSize * 0.65f
           uiController.drawCenteredHud(
             canvas,
             uiStringBuilder,
@@ -589,6 +590,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             uiGoldPaint,
             uiGoldShadowPaint,
           )
+          uiGoldPaint.textSize = originalSize
+          uiGoldShadowPaint.textSize = originalSize
         }
       }
       return
@@ -1136,17 +1139,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
-  private fun isStage5Backdrop(): Boolean {
-    if (gameState == STATE_REGISTRATION) return false
-    if (stageManager.currentStage != StageData.STAGE_5) return false
-    if (gameState == STATE_CAMPAIGN_COMPLETE) return bgStage5Layer1Bmp != null
-    return true
-  }
-
   private fun tickParallax(scrollSpeedY: Float, dt: Float) {
-    if (isStage5Backdrop()) {
+    if (stageManager.isStage5Backdrop) {
       parallax.updateStage5(scrollSpeedY, dt)
-    } else if (stageManager.currentStage == StageData.STAGE_6) {
+    } else if (stageManager.isStage6Backdrop) {
       parallax.updateStage6(scrollSpeedY, dt, timeline.elapsedSeconds())
     } else {
       parallax.update(scrollSpeedY * dt)
@@ -1212,14 +1208,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun reloadStageBackgrounds(width: Int, height: Int) {
     if (width <= 0 || height <= 0) return
-    val currentStage = stageManager.currentStage
-    if (currentStage == 6) {
+    if (stageManager.isStage6Backdrop) {
       recycleStageBitmap(bgStage5Layer1Bmp)
       bgStage5Layer1Bmp = null
       recycleStageBitmap(bgStage5Layer2Bmp)
       bgStage5Layer2Bmp = null
       loadStage6Resources(width, height)
-    } else if (currentStage == 5) {
+    } else if (stageManager.isStage5Backdrop) {
       recycleStage6Bitmaps()
       loadStage5Bitmaps(width, height)
     } else {
@@ -1326,7 +1321,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun maybeSwapStage6Floor() {
-    if (stageManager.currentStage != StageData.STAGE_6) return
+    if (!stageManager.isStage6Backdrop) return
     if (stage6FloorSwapped) return
     if (timeline.elapsedSeconds() < S6_SPACE_SWAP_AT) return
     val space = bgStage6Phase2Bmp
@@ -2180,12 +2175,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           event.actionMasked == MotionEvent.ACTION_POINTER_UP
         if (ScoreManager.instance.isRecapReady() && up) {
           ScoreManager.instance.resetStageCounters()
-          if (stageManager.isLastInSequence()) {
+          stageManager.advanceToNextStage()
+          if (stageManager.isCampaignFinished) {
             campaignCompleteT = 0f
             lastBgmRes = 0
             gameState = STATE_CAMPAIGN_COMPLETE
           } else {
-            stageManager.advanceToNextStage()
             resetStage()
             gameState = STATE_PLAYING
           }

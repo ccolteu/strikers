@@ -7,6 +7,7 @@ import android.graphics.RectF
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 class EnemyWeaponSystem {
 
@@ -55,6 +56,17 @@ class EnemyWeaponSystem {
   private var s6RingTimer = S6_RING_INTERVAL
   private var s6BurstRemaining = 0
   private var s6BurstGap = S6_BURST_GAP
+  private var s6ColumnRemaining = 0
+  private var s6ColumnGap = S6_BURST_GAP
+  private var s1NoseTimer = 0f
+  private var s1WingTimer = 0f
+  private var s2MainTimer = 0f
+  private var s2TreadTimer = 0f
+  private var s3FlakTimer = 0f
+  private var s3CannonTimer = 0f
+  private var s3FlakLeft = true
+  private var s4MortarTimer = 0f
+  private var s4GatlingTimer = 0f
 
   fun onSizeChanged(width: Int, height: Int) {
     screenW = width.toFloat()
@@ -131,6 +143,27 @@ class EnemyWeaponSystem {
     }
   }
 
+  fun resetStage1Boss() {
+    s1NoseTimer = S1_NOSE_INTERVAL
+    s1WingTimer = S1_WING_INTERVAL
+  }
+
+  fun resetStage2Boss() {
+    s2MainTimer = S2_MAIN_INTERVAL
+    s2TreadTimer = S2_TREAD_INTERVAL
+  }
+
+  fun resetStage3Boss() {
+    s3FlakTimer = S3_FLAK_INTERVAL
+    s3CannonTimer = S3_CANNON_INTERVAL
+    s3FlakLeft = true
+  }
+
+  fun resetStage4Boss() {
+    s4MortarTimer = S4_MORTAR_INTERVAL
+    s4GatlingTimer = S4_GATLING_INTERVAL
+  }
+
   fun resetStage5Boss() {
     turretTimer = S5_VOLLEY_INTERVAL
     coreVentTimer = S5_RING_INTERVAL
@@ -149,6 +182,208 @@ class EnemyWeaponSystem {
     s6RailAlt = 0
     s6BurstRemaining = 0
     s6BurstGap = S6_BURST_GAP
+    s6ColumnRemaining = 0
+    s6ColumnGap = S6_BURST_GAP
+  }
+
+  fun updateStage1Boss(
+    dt: Float,
+    centerX: Float,
+    centerY: Float,
+    bossW: Float,
+    playerX: Float,
+    playerY: Float,
+    leftWingDead: Boolean,
+    rightWingDead: Boolean,
+  ) {
+    s1NoseTimer -= dt
+    if (s1NoseTimer <= 0f) {
+      s1NoseTimer = S1_NOSE_INTERVAL
+      val noseX = centerX
+      val noseY = centerY + bossW * 0.48f
+      val ang = atan2(playerY - noseY, playerX - noseX)
+      fireBullet(noseX, noseY, cos(ang) * S1_NOSE_SPEED, sin(ang) * S1_NOSE_SPEED)
+    }
+    val leftLive = !leftWingDead
+    val rightLive = !rightWingDead
+    if (!leftLive && !rightLive) return
+    s1WingTimer -= dt
+    if (s1WingTimer > 0f) return
+    s1WingTimer = S1_WING_INTERVAL
+    val wingY = centerY + bossW * 0.05f
+    if (leftLive) {
+      fireS1WingSpread(centerX - bossW * 0.25f, wingY)
+    }
+    if (rightLive) {
+      fireS1WingSpread(centerX + bossW * 0.25f, wingY)
+    }
+  }
+
+  private fun fireS1WingSpread(spawnX: Float, spawnY: Float) {
+    val spd = S1_WING_SPEED
+    fireBullet(spawnX, spawnY, cos(S1_ANG_75) * spd, sin(S1_ANG_75) * spd)
+    fireBullet(spawnX, spawnY, cos(S1_ANG_90) * spd, sin(S1_ANG_90) * spd)
+    fireBullet(spawnX, spawnY, cos(S1_ANG_105) * spd, sin(S1_ANG_105) * spd)
+  }
+
+  fun updateStage2Boss(
+    dt: Float,
+    cX: Float,
+    cY: Float,
+    w: Float,
+    pX: Float,
+    pY: Float,
+    leftTreadDead: Boolean,
+    rightTreadDead: Boolean,
+    turretDead: Boolean,
+  ) {
+    if (!turretDead) {
+      s2MainTimer -= dt
+      if (s2MainTimer <= 0f) {
+        s2MainTimer = S2_MAIN_INTERVAL
+        val barrelY = cY + w * 0.45f
+        fireBullet(cX - TANK_BARREL_SEP, barrelY, 0f, TANK_SHOT_SPEED)
+        fireBullet(cX + TANK_BARREL_SEP, barrelY, 0f, TANK_SHOT_SPEED)
+      }
+    }
+    val leftLive = !leftTreadDead
+    val rightLive = !rightTreadDead
+    if (!leftLive && !rightLive) return
+    s2TreadTimer -= dt
+    if (s2TreadTimer > 0f) return
+    s2TreadTimer = S2_TREAD_INTERVAL
+    val treadY = cY + w * 0.10f
+    if (leftLive) {
+      fireS2SponsonFan(cX - w * 0.35f, treadY, true)
+    }
+    if (rightLive) {
+      fireS2SponsonFan(cX + w * 0.35f, treadY, false)
+    }
+  }
+
+  private fun fireS2SponsonFan(spawnX: Float, spawnY: Float, downAndLeft: Boolean) {
+    val spd = S2_SPONSON_SPEED
+    var i = 0
+    while (i < 4) {
+      val ang = if (downAndLeft) {
+        S2_DOWN_ANGLE + i * S2_SPONSON_STEP
+      } else {
+        S2_DOWN_ANGLE - i * S2_SPONSON_STEP
+      }
+      fireBullet(spawnX, spawnY, cos(ang) * spd, sin(ang) * spd)
+      i++
+    }
+  }
+
+  fun updateStage3Boss(
+    dt: Float,
+    cX: Float,
+    cY: Float,
+    w: Float,
+    pX: Float,
+    pY: Float,
+    leftFlakDead: Boolean,
+    rightFlakDead: Boolean,
+    cannonDead: Boolean,
+  ) {
+    val leftLive = !leftFlakDead
+    val rightLive = !rightFlakDead
+    if (leftLive || rightLive) {
+      s3FlakTimer -= dt
+      if (s3FlakTimer <= 0f) {
+        s3FlakTimer = S3_FLAK_INTERVAL
+        val spawnY = cY + w * 0.025f
+        if (s3FlakLeft && leftLive) {
+          fireS3FlakBurst(cX - w * 0.29f, spawnY, pX, pY)
+        } else if (!s3FlakLeft && rightLive) {
+          fireS3FlakBurst(cX + w * 0.29f, spawnY, pX, pY)
+        } else if (leftLive) {
+          fireS3FlakBurst(cX - w * 0.29f, spawnY, pX, pY)
+        } else {
+          fireS3FlakBurst(cX + w * 0.29f, spawnY, pX, pY)
+        }
+        s3FlakLeft = !s3FlakLeft
+      }
+    }
+    if (cannonDead) return
+    s3CannonTimer -= dt
+    if (s3CannonTimer > 0f) return
+    s3CannonTimer = S3_CANNON_INTERVAL
+    val ox = cX
+    val oy = cY + w * 0.46f
+    var i = 0
+    while (i < S3_WALL_COUNT) {
+      val ang = S2_DOWN_ANGLE - S3_WALL_HALF + i * S3_WALL_STEP
+      fireBullet(ox, oy, cos(ang) * S3_WALL_SPEED, sin(ang) * S3_WALL_SPEED)
+      i++
+    }
+  }
+
+  private fun fireS3FlakBurst(spawnX: Float, spawnY: Float, playerX: Float, playerY: Float) {
+    fireS3Aimed(spawnX - S3_FLAK_SEP, spawnY, playerX, playerY)
+    fireS3Aimed(spawnX, spawnY, playerX, playerY)
+    fireS3Aimed(spawnX + S3_FLAK_SEP, spawnY, playerX, playerY)
+  }
+
+  private fun fireS3Aimed(originX: Float, originY: Float, targetX: Float, targetY: Float) {
+    val dx = targetX - originX
+    val dy = targetY - originY
+    val lenSq = dx * dx + dy * dy
+    if (lenSq < 0.0001f) return
+    val inv = S3_FLAK_SPEED / sqrt(lenSq)
+    fireBullet(originX, originY, dx * inv, dy * inv)
+  }
+
+  fun updateStage4Boss(
+    dt: Float,
+    cX: Float,
+    cY: Float,
+    bossW: Float,
+    bossHalfH: Float,
+    pX: Float,
+    pY: Float,
+    leftMortarDead: Boolean,
+    rightMortarDead: Boolean,
+    gatlingDead: Boolean,
+  ) {
+    if (!leftMortarDead || !rightMortarDead) {
+      s4MortarTimer -= dt
+      if (s4MortarTimer <= 0f) {
+        s4MortarTimer = S4_MORTAR_INTERVAL
+        if (!leftMortarDead) {
+          fireS4MortarFan(cX - bossW * 0.16f, cY + bossHalfH * 0.28f, true)
+        }
+        if (!rightMortarDead) {
+          fireS4MortarFan(cX + bossW * 0.16f, cY + bossHalfH * 0.28f, false)
+        }
+      }
+    }
+    if (gatlingDead) return
+    s4GatlingTimer -= dt
+    if (s4GatlingTimer > 0f) return
+    s4GatlingTimer = S4_GATLING_INTERVAL
+    val spawnY = cY + (bossHalfH * 0.88f)
+    var index = -2
+    while (index <= 2) {
+      val spawnX = cX + index * 24f
+      fireBullet(spawnX, spawnY, 0f, 720f)
+      index++
+    }
+  }
+
+  private fun fireS4MortarFan(spawnX: Float, spawnY: Float, downAndRight: Boolean) {
+    val base = if (downAndRight) {
+      S2_DOWN_ANGLE - S4_FAN_HALF
+    } else {
+      S2_DOWN_ANGLE + S4_FAN_HALF
+    }
+    val spd = S4_MORTAR_SPEED
+    var i = -1
+    while (i <= 1) {
+      val ang = base + i * S4_FAN_STEP
+      fireBullet(spawnX, spawnY, cos(ang) * spd, sin(ang) * spd)
+      i++
+    }
   }
 
   fun updateStage5Boss(
@@ -264,99 +499,124 @@ class EnemyWeaponSystem {
     val leftLive = !leftDestroyed
     val rightLive = !rightDestroyed
     if (leftLive && rightLive) {
-      if (s6BurstRemaining <= 0) {
-        turretTimer -= dt
-        if (turretTimer <= 0f) {
-          turretTimer = S6_RAIL_INTERVAL
-          s6BurstRemaining = S6_BURST_COUNT
-          s6BurstGap = S6_BURST_GAP
-        }
-      }
-      if (s6BurstRemaining > 0) {
-        s6BurstGap -= dt
-        if (s6BurstGap <= 0f) {
-          val ox = if (s6RailAlt == 0) leftX else rightX
-          val oy = if (s6RailAlt == 0) leftY else rightY
-          fireS6AimedTriple(ox, oy, playerX, playerY)
-          s6BurstRemaining -= 1
-          s6BurstGap = S6_BURST_GAP
-          if (s6BurstRemaining == 0) {
-            s6RailAlt = if (s6RailAlt == 0) 1 else 0
-          }
-        }
-      }
-      if (s6LaserTimer <= 0f) {
-        s6LaserTimer = S6_WAVE_INTERVAL
-      }
-      s6LaserTimer -= dt
-      if (s6LaserTimer <= 0f) {
-        s6LaserTimer = S6_WAVE_INTERVAL
-        fireS6CoreColumn(lensX, lensY)
-      }
+      tickStage6CyanBurstGate(dt, leftX, leftY, rightX, rightY, playerX, playerY)
+      tickStage6PinkColumnGate(dt, lensX, lensY)
       return
     }
     if (leftLive || rightLive) {
-      turretTimer -= dt
-      if (turretTimer <= 0f) {
-        turretTimer = S6_OVERCHARGE_INTERVAL
-        val ox = if (leftLive) leftX else rightX
-        val oy = if (leftLive) leftY else rightY
-        fireBullet(ox, oy, 0f, S6_STREAM_SPEED, EnemyBullet.FLAG_CYAN)
-      }
-      s6RingTimer -= dt
-      if (s6RingTimer <= 0f) {
-        s6RingTimer = S6_RING_INTERVAL
-        fireS6CoreRing(lensX, lensY)
+      tickStage6CyanStreamGate(dt, leftLive, leftX, leftY, rightX, rightY)
+      tickStage6PinkRingGate(dt, lensX, lensY)
+      return
+    }
+    tickStage6PinkSpiralGate(dt, lensX, lensY)
+  }
+
+  /** Rail charge XOR burst gap: one cyan array consumes dt per step. */
+  private fun tickStage6CyanBurstGate(
+    dt: Float,
+    leftX: Float,
+    leftY: Float,
+    rightX: Float,
+    rightY: Float,
+    playerX: Float,
+    playerY: Float,
+  ) {
+    if (s6BurstRemaining > 0) {
+      s6BurstGap -= dt
+      if (s6BurstGap > 0f) return
+      val ox = if (s6RailAlt == 0) leftX else rightX
+      val oy = if (s6RailAlt == 0) leftY else rightY
+      fireS6AimedTriple(ox, oy, playerX, playerY)
+      s6BurstRemaining -= 1
+      s6BurstGap = S6_BURST_GAP
+      if (s6BurstRemaining == 0) {
+        s6RailAlt = if (s6RailAlt == 0) 1 else 0
       }
       return
     }
+    turretTimer -= dt
+    if (turretTimer > 0f) return
+    turretTimer = S6_RAIL_INTERVAL
+    s6BurstRemaining = S6_BURST_COUNT
+    s6BurstGap = S6_BURST_GAP
+  }
+
+  private fun tickStage6PinkColumnGate(dt: Float, lensX: Float, lensY: Float) {
+    if (s6ColumnRemaining > 0) {
+      s6ColumnGap -= dt
+      if (s6ColumnGap > 0f) return
+      fireS6CoreColumn(lensX, lensY)
+      s6ColumnRemaining -= 1
+      s6ColumnGap = S6_BURST_GAP
+      return
+    }
+    s6LaserTimer -= dt
+    if (s6LaserTimer > 0f) return
+    s6LaserTimer = S6_WAVE_INTERVAL
+    s6ColumnRemaining = S6_CORE_SHOTS
+    s6ColumnGap = S6_BURST_GAP
+  }
+
+  private fun tickStage6CyanStreamGate(
+    dt: Float,
+    leftLive: Boolean,
+    leftX: Float,
+    leftY: Float,
+    rightX: Float,
+    rightY: Float,
+  ) {
+    turretTimer -= dt
+    if (turretTimer > 0f) return
+    turretTimer = S6_OVERCHARGE_INTERVAL
+    val ox = if (leftLive) leftX else rightX
+    val oy = if (leftLive) leftY else rightY
+    fireBullet(ox, oy, 0f, S6_STREAM_SPEED, EnemyBullet.FLAG_CYAN)
+  }
+
+  private fun tickStage6PinkRingGate(dt: Float, lensX: Float, lensY: Float) {
+    s6RingTimer -= dt
+    if (s6RingTimer > 0f) return
+    s6RingTimer = S6_RING_INTERVAL
+    fireS6CoreRing(lensX, lensY)
+  }
+
+  private fun tickStage6PinkSpiralGate(dt: Float, lensX: Float, lensY: Float) {
     spiralAngle += S6_SPIRAL_SPIN * dt
     if (spiralAngle > 6.2831855f) {
       spiralAngle -= 6.2831855f
     }
     spiralGate -= dt
-    if (spiralGate <= 0f) {
-      spiralGate = S6_SPIRAL_INTERVAL
-      val a0 = spiralAngle
-      val a1 = spiralAngle + S6_HELIX_A1
-      val a2 = spiralAngle + S6_HELIX_A2
-      val a3 = spiralAngle + S6_HELIX_A3
-      val spd = S6_SPIRAL_SPEED
-      fireBullet(lensX, lensY, cos(a0) * spd, sin(a0) * spd, EnemyBullet.FLAG_PINK)
-      fireBullet(lensX, lensY, cos(a1) * spd, sin(a1) * spd, EnemyBullet.FLAG_PINK)
-      fireBullet(lensX, lensY, cos(a2) * spd, sin(a2) * spd, EnemyBullet.FLAG_PINK)
-      fireBullet(lensX, lensY, cos(a3) * spd, sin(a3) * spd, EnemyBullet.FLAG_PINK)
-      val cc0 = -spiralAngle
-      val cc1 = -spiralAngle + S6_HELIX_A1
-      val cc2 = -spiralAngle + S6_HELIX_A2
-      val cc3 = -spiralAngle + S6_HELIX_A3
-      fireBullet(lensX, lensY, cos(cc0) * spd, sin(cc0) * spd, EnemyBullet.FLAG_PINK)
-      fireBullet(lensX, lensY, cos(cc1) * spd, sin(cc1) * spd, EnemyBullet.FLAG_PINK)
-      fireBullet(lensX, lensY, cos(cc2) * spd, sin(cc2) * spd, EnemyBullet.FLAG_PINK)
-      fireBullet(lensX, lensY, cos(cc3) * spd, sin(cc3) * spd, EnemyBullet.FLAG_PINK)
-    }
+    if (spiralGate > 0f) return
+    spiralGate = S6_SPIRAL_INTERVAL
+    val a0 = spiralAngle
+    val a1 = spiralAngle + S6_HELIX_A1
+    val a2 = spiralAngle + S6_HELIX_A2
+    val a3 = spiralAngle + S6_HELIX_A3
+    val spd = S6_SPIRAL_SPEED
+    fireBullet(lensX, lensY, cos(a0) * spd, sin(a0) * spd, EnemyBullet.FLAG_PINK)
+    fireBullet(lensX, lensY, cos(a1) * spd, sin(a1) * spd, EnemyBullet.FLAG_PINK)
+    fireBullet(lensX, lensY, cos(a2) * spd, sin(a2) * spd, EnemyBullet.FLAG_PINK)
+    fireBullet(lensX, lensY, cos(a3) * spd, sin(a3) * spd, EnemyBullet.FLAG_PINK)
+    val cc0 = -spiralAngle
+    val cc1 = -spiralAngle + S6_HELIX_A1
+    val cc2 = -spiralAngle + S6_HELIX_A2
+    val cc3 = -spiralAngle + S6_HELIX_A3
+    fireBullet(lensX, lensY, cos(cc0) * spd, sin(cc0) * spd, EnemyBullet.FLAG_PINK)
+    fireBullet(lensX, lensY, cos(cc1) * spd, sin(cc1) * spd, EnemyBullet.FLAG_PINK)
+    fireBullet(lensX, lensY, cos(cc2) * spd, sin(cc2) * spd, EnemyBullet.FLAG_PINK)
+    fireBullet(lensX, lensY, cos(cc3) * spd, sin(cc3) * spd, EnemyBullet.FLAG_PINK)
   }
 
   private fun fireS6AimedTriple(muzzleX: Float, muzzleY: Float, playerX: Float, playerY: Float) {
-    val dx = playerX - muzzleX
-    val dy = playerY - muzzleY
-    val angle = atan2(dy, dx)
-    val vx = cos(angle) * S6_BURST_SPEED
-    val vy = sin(angle) * S6_BURST_SPEED
-    val px = -sin(angle) * S6_PARALLEL_SEP
-    val py = cos(angle) * S6_PARALLEL_SEP
-    fireBullet(muzzleX - px, muzzleY - py, vx, vy, EnemyBullet.FLAG_CYAN)
-    fireBullet(muzzleX, muzzleY, vx, vy, EnemyBullet.FLAG_CYAN)
-    fireBullet(muzzleX + px, muzzleY + py, vx, vy, EnemyBullet.FLAG_CYAN)
+    val angle = atan2(playerY - muzzleY, playerX - muzzleX)
+    val spd = S6_BURST_SPEED
+    fireBullet(muzzleX, muzzleY, cos(angle) * spd, sin(angle) * spd, EnemyBullet.FLAG_CYAN)
+    fireBullet(muzzleX, muzzleY, cos(angle - 0.08f) * spd, sin(angle - 0.08f) * spd, EnemyBullet.FLAG_CYAN)
+    fireBullet(muzzleX, muzzleY, cos(angle + 0.08f) * spd, sin(angle + 0.08f) * spd, EnemyBullet.FLAG_CYAN)
   }
 
   private fun fireS6CoreColumn(lensX: Float, lensY: Float) {
-    var i = 0
-    while (i < S6_CORE_SHOTS) {
-      val ox = lensX + (i.toFloat() - 1.5f) * S6_CORE_SEP
-      fireBullet(ox, lensY, 0f, S6_CORE_VY, EnemyBullet.FLAG_PINK)
-      i++
-    }
+    fireBullet(lensX, lensY, 0f, S6_CORE_VY, EnemyBullet.FLAG_PINK)
   }
 
   private fun fireS6CoreRing(originX: Float, originY: Float) {
@@ -466,6 +726,33 @@ class EnemyWeaponSystem {
     const val CLEAR_SLOTS = 4
     const val CLEAR_RADIUS = 150f
     const val CLEAR_LIFE = 0.15f
+    const val S1_NOSE_INTERVAL = 0.22f
+    const val S1_WING_INTERVAL = 1.5f
+    const val S1_NOSE_SPEED = 620f
+    const val S1_WING_SPEED = 420f
+    const val S1_ANG_75 = 1.309f
+    const val S1_ANG_90 = 1.5707964f
+    const val S1_ANG_105 = 1.8326f
+    const val S2_MAIN_INTERVAL = 1.50f
+    const val S2_TREAD_INTERVAL = 2.20f
+    const val TANK_SHOT_SPEED = 700f
+    const val TANK_BARREL_SEP = 32f
+    const val S2_DOWN_ANGLE = 1.5707964f
+    const val S2_SPONSON_SPEED = 480f
+    const val S2_SPONSON_STEP = 0.2617994f
+    const val S3_FLAK_INTERVAL = 0.60f
+    const val S3_CANNON_INTERVAL = 3.00f
+    const val S3_FLAK_SPEED = 560f
+    const val S3_FLAK_SEP = 8f
+    const val S3_WALL_COUNT = 7
+    const val S3_WALL_HALF = 0.5235988f
+    const val S3_WALL_STEP = 0.1745329f
+    const val S3_WALL_SPEED = 400f
+    const val S4_MORTAR_INTERVAL = 1.20f
+    const val S4_GATLING_INTERVAL = 0.90f
+    const val S4_FAN_STEP = 0.2618f
+    const val S4_FAN_HALF = 0.2618f
+    const val S4_MORTAR_SPEED = 580f
     const val S5_VOLLEY_INTERVAL = 1.8f
     const val S5_PANIC_INTERVAL = 0.9f
     const val S5_RING_INTERVAL = 3.0f
@@ -481,14 +768,12 @@ class EnemyWeaponSystem {
     const val S5_SPIRAL_SPEED = 440f
     const val S6_RAIL_INTERVAL = 1.4f
     const val S6_BURST_COUNT = 3
-    const val S6_BURST_GAP = 0.08f
+    const val S6_BURST_GAP = 0.22f
     const val S6_BURST_SPEED = 500f
     const val S6_OVERCHARGE_INTERVAL = 0.4f
     const val S6_STREAM_SPEED = 500f
     const val S6_WAVE_INTERVAL = 2.5f
-    const val S6_PARALLEL_SEP = 10f
     const val S6_CORE_SHOTS = 4
-    const val S6_CORE_SEP = 11f
     const val S6_CORE_VY = 220f
     const val S6_RING_INTERVAL = 1.8f
     const val S6_SPIRAL_INTERVAL = 0.08f

@@ -46,6 +46,7 @@ class UIController {
     textSize = 32f
     isAntiAlias = true
   }
+  private val creditBreakWidth = FloatArray(1)
 
   fun bindTypeface(face: Typeface) {
     fillPaint.typeface = face
@@ -74,25 +75,80 @@ class UIController {
   ) {
     val cx = screenW * 0.5f
     val h = screenH.toFloat()
-    val startY = h - (elapsedSeconds * CREDIT_SCROLL_PX)
+    val maxWidth = screenW * CREDIT_MAX_WIDTH_FRAC
+    var y = h - (elapsedSeconds * CREDIT_SCROLL_PX)
     var index = 0
     val count = CREDIT_LINES.size
     while (index < count) {
-      val lineY = startY + index * CREDIT_LINE_GAP
-      if (lineY >= -60f && lineY <= h + 60f) {
-        val src = CREDIT_CHARS[index]
-        val n = src.size
-        if (n > 0) {
-          val gold = index == 0 || index == CREDIT_THANK_INDEX
-          if (gold) {
-            drawCentered(canvas, src, n, cx, lineY, goldPaint, goldShadowPaint)
-          } else {
-            drawCentered(canvas, src, n, cx, lineY, fillPaint, shadowPaint)
-          }
-        }
+      val src = CREDIT_CHARS[index]
+      val gold = index == 0 || index == CREDIT_THANK_INDEX
+      if (gold) {
+        y = wrapCreditLine(canvas, src, cx, y, h, maxWidth, goldPaint, goldShadowPaint)
+      } else {
+        y = wrapCreditLine(canvas, src, cx, y, h, maxWidth, fillPaint, shadowPaint)
       }
       index++
     }
+  }
+
+  /**
+   * Word-wraps a pre-cached char row with [Paint.breakText]. No String, split,
+   * StaticLayout, or iterator on the frame path.
+   */
+  private fun wrapCreditLine(
+    canvas: Canvas,
+    src: CharArray,
+    centerX: Float,
+    originY: Float,
+    screenH: Float,
+    maxWidth: Float,
+    fill: Paint,
+    shadow: Paint,
+  ): Float {
+    val n = src.size
+    val gap = CREDIT_LINE_GAP
+    var start = 0
+    var y = originY
+    var drew = false
+    while (start < n) {
+      while (start < n && src[start] == ' ') {
+        start++
+      }
+      if (start >= n) break
+      val remaining = n - start
+      var fit = fill.breakText(src, start, remaining, maxWidth, creditBreakWidth)
+      if (fit <= 0) {
+        fit = 1
+      }
+      var end = start + fit
+      if (fit < remaining) {
+        var space = -1
+        var i = end - 1
+        while (i > start) {
+          if (src[i] == ' ') {
+            space = i
+            break
+          }
+          i--
+        }
+        if (space > start) {
+          end = space
+        }
+      }
+      val len = end - start
+      if (len > 0) {
+        if (y >= -60f && y <= screenH + 60f) {
+          drawCentered(canvas, src, start, len, centerX, y, fill, shadow)
+        }
+        y += gap
+        drew = true
+      }
+      start = end
+    }
+    if (!drew) {
+      y += gap
+    }
+    return y
   }
 
   fun drawStageClear(canvas: Canvas, screenW: Int, screenH: Int, scores: ScoreManager, stage: Int) {
@@ -160,8 +216,21 @@ class UIController {
     fill: Paint,
     shadow: Paint,
   ) {
+    drawCentered(canvas, buf, 0, count, centerX, y, fill, shadow)
+  }
+
+  private fun drawCentered(
+    canvas: Canvas,
+    buf: CharArray,
+    offset: Int,
+    count: Int,
+    centerX: Float,
+    y: Float,
+    fill: Paint,
+    shadow: Paint,
+  ) {
     if (count <= 0) return
-    val w = fill.measureText(buf, 0, count)
+    val w = fill.measureText(buf, offset, count)
     val x = centerX - w * 0.5f
     accentPaint.textSize = fill.textSize
     accentPaint.typeface = fill.typeface
@@ -170,9 +239,9 @@ class UIController {
     } else {
       accentPaint.color = 0xFF3A3A3A.toInt()
     }
-    canvas.drawText(buf, 0, count, x + 4f, y + 4f, shadow)
-    canvas.drawText(buf, 0, count, x + 2f, y + 2f, accentPaint)
-    canvas.drawText(buf, 0, count, x, y, fill)
+    canvas.drawText(buf, offset, count, x + 4f, y + 4f, shadow)
+    canvas.drawText(buf, offset, count, x + 2f, y + 2f, accentPaint)
+    canvas.drawText(buf, offset, count, x, y, fill)
   }
 
   private fun writeChars(dst: CharArray, offset: Int, src: CharArray): Int {
@@ -240,9 +309,10 @@ class UIController {
     )
     private const val CREDIT_SCROLL_PX = 75f
     private const val CREDIT_LINE_GAP = 55f
+    private const val CREDIT_MAX_WIDTH_FRAC = 0.85f
     private const val CREDIT_THANK_INDEX = 18
     private val CREDIT_LINES = arrayOf(
-      "STRIKERS BLITZ 2026",
+      "WW2 BLITZ",
       "ALL STAGES COMPLETED",
       "---------------------",
       "PRODUCER",

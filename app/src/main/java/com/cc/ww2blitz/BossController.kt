@@ -120,7 +120,7 @@ class BossController(private val resources: Resources) {
   }
 
   fun bindStage(stage: Int) {
-    currentStage = if (stage >= 6) 6 else if (stage >= 5) 5 else if (stage >= 4) 4 else if (stage >= 3) 3 else if (stage >= 2) 2 else 1
+    currentStage = stage
     if (screenW <= 0f) return
     loadKeyedSheet(currentStage)
     cacheSrcRects()
@@ -424,7 +424,7 @@ class BossController(private val resources: Resources) {
     val coreR: Float
     val coreT: Float
     val coreB: Float
-    if (currentStage >= 6) {
+    if (currentStage == 6) {
       leftL = S6_LEFT_L
       leftR = S6_LEFT_R
       rightL = S6_RIGHT_L
@@ -692,58 +692,55 @@ class BossController(private val resources: Resources) {
     val leftWreck = leftWreckSheet
     val rightWreck = rightWreckSheet
     val centerWreck = centerWreckSheet
-    if (currentStage == 4) {
-      if (leftWreck != null && parts[TYPE_STAGE4_LEFT_MORTAR].isDestroyed) {
-        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+
+    when (currentStage) {
+      6, 5 -> {
+        // Multi-part module wrecks are handled independently via drawStage5()
+        return
       }
-      if (rightWreck != null && parts[TYPE_STAGE4_RIGHT_MORTAR].isDestroyed) {
-        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+      4 -> {
+        if (leftWreck != null && parts[TYPE_STAGE4_LEFT_MORTAR].isDestroyed) {
+          canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (rightWreck != null && parts[TYPE_STAGE4_RIGHT_MORTAR].isDestroyed) {
+          canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (centerWreck != null && (parts[TYPE_STAGE4_HEAVY_GATLING].isDestroyed || parts[TYPE_CORE].isDestroyed)) {
+          canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+        }
       }
-      if (
-        centerWreck != null &&
-        (parts[TYPE_STAGE4_HEAVY_GATLING].isDestroyed || parts[TYPE_CORE].isDestroyed)
-      ) {
-        canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+      3 -> {
+        if (leftWreck != null && parts[TYPE_STAGE3_LEFT_FLAK].isDestroyed) {
+          canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (rightWreck != null && parts[TYPE_STAGE3_RIGHT_FLAK].isDestroyed) {
+          canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (centerWreck != null && (parts[TYPE_STAGE3_MEGA_CANNON].isDestroyed || parts[TYPE_CORE].isDestroyed)) {
+          canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+        }
       }
-    } else if (currentStage == 3) {
-      if (leftWreck != null && parts[TYPE_STAGE3_LEFT_FLAK].isDestroyed) {
-        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+      2 -> {
+        if (leftWreck != null && parts[TYPE_STAGE2_LEFT_TREAD].isDestroyed) {
+          canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (rightWreck != null && parts[TYPE_STAGE2_RIGHT_TREAD].isDestroyed) {
+          canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (centerWreck != null && (parts[TYPE_STAGE2_MAIN_TURRET].isDestroyed || parts[TYPE_CORE].isDestroyed)) {
+          canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+        }
       }
-      if (rightWreck != null && parts[TYPE_STAGE3_RIGHT_FLAK].isDestroyed) {
-        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
-      }
-      if (
-        centerWreck != null &&
-        (parts[TYPE_STAGE3_MEGA_CANNON].isDestroyed || parts[TYPE_CORE].isDestroyed)
-      ) {
-        canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
-      }
-    } else if (currentStage >= 2) {
-      if (leftWreck != null && parts[TYPE_STAGE2_LEFT_TREAD].isDestroyed) {
-        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
-      }
-      if (rightWreck != null && parts[TYPE_STAGE2_RIGHT_TREAD].isDestroyed) {
-        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
-      }
-      if (
-        centerWreck != null &&
-        (parts[TYPE_STAGE2_MAIN_TURRET].isDestroyed || parts[TYPE_CORE].isDestroyed)
-      ) {
-        canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
-      }
-    } else {
-      // Wreck overlays are torn-edge PNGs; an outline would halo leftover chroma.
-      if (leftWreck != null && parts[TYPE_LEFT_WING].isDestroyed) {
-        canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
-      }
-      if (rightWreck != null && parts[TYPE_RIGHT_WING].isDestroyed) {
-        canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
-      }
-      if (
-        centerWreck != null &&
-        (parts[TYPE_TURRET].isDestroyed || parts[TYPE_CORE].isDestroyed)
-      ) {
-        canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+      1 -> {
+        if (leftWreck != null && parts[TYPE_LEFT_WING].isDestroyed) {
+          canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (rightWreck != null && parts[TYPE_RIGHT_WING].isDestroyed) {
+          canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (centerWreck != null && (parts[TYPE_TURRET].isDestroyed || parts[TYPE_CORE].isDestroyed)) {
+          canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+        }
       }
     }
   }
@@ -788,35 +785,24 @@ class BossController(private val resources: Resources) {
 
   private fun updatePlaneCombat(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
     playNewModuleSfx()
-    if (entering) return
-    val chin = parts[S1_PART_CHIN_TURRET]
-    if (!chin.isDestroyed && chin.halfW > 0f) {
-      s1TurretTimer -= dt
-      if (s1TurretTimer <= 0f) {
-        s1TurretTimer = S1_CHIN_INTERVAL
-        val spawnX = coreX
-        val spawnY = coreY + bodyHalfH * 0.95f
-        fireAtPlayer(weapons, spawnX - S1_CHIN_SEP, spawnY, playerX, playerY, S1_CHIN_SPEED)
-        fireAtPlayer(weapons, spawnX + S1_CHIN_SEP, spawnY, playerX, playerY, S1_CHIN_SPEED)
-      }
+    if (entering) {
+      weapons.resetStage1Boss()
+      return
     }
     val left = parts[S1_PART_LEFT_WING]
     val right = parts[S1_PART_RIGHT_WING]
-    val leftLive = !left.isDestroyed && left.halfW > 0f
-    val rightLive = !right.isDestroyed && right.halfW > 0f
-    if (leftLive || rightLive) {
-      s1WingTimer -= dt
-      if (s1WingTimer <= 0f) {
-        s1WingTimer = S1_WING_INTERVAL
-        val spawnY = coreY + bodyHalfH * 0.10f
-        if (leftLive) {
-          fireS1EngineFan(weapons, coreX - bodyHalfW * 0.50f, spawnY)
-        }
-        if (rightLive) {
-          fireS1EngineFan(weapons, coreX + bodyHalfW * 0.50f, spawnY)
-        }
-      }
-    }
+    val leftDead = left.isDestroyed || left.halfW <= 0f
+    val rightDead = right.isDestroyed || right.halfW <= 0f
+    weapons.updateStage1Boss(
+      dt,
+      coreX,
+      coreY,
+      bodyHalfW * 2f,
+      playerX,
+      playerY,
+      leftDead,
+      rightDead,
+    )
     if (isCoreVulnerable()) {
       s1SweepTimer += dt * s1SweepDirection
       s1SweepFireTimer -= dt
@@ -833,12 +819,6 @@ class BossController(private val resources: Resources) {
         }
       }
     }
-  }
-
-  private fun fireS1EngineFan(weapons: EnemyWeaponSystem, spawnX: Float, spawnY: Float) {
-    weapons.fireBullet(spawnX, spawnY, cos(S1_ANG_75) * S1_WING_SPEED, sin(S1_ANG_75) * S1_WING_SPEED)
-    weapons.fireBullet(spawnX, spawnY, cos(S1_ANG_90) * S1_WING_SPEED, sin(S1_ANG_90) * S1_WING_SPEED)
-    weapons.fireBullet(spawnX, spawnY, cos(S1_ANG_105) * S1_WING_SPEED, sin(S1_ANG_105) * S1_WING_SPEED)
   }
 
   private fun updateStage5Combat(
@@ -1039,43 +1019,27 @@ class BossController(private val resources: Resources) {
     weapons: EnemyWeaponSystem,
   ) {
     playNewModuleSfx()
-    if (entering) return
+    if (entering) {
+      weapons.resetStage3Boss()
+      return
+    }
     val leftFlak = parts[S3_PART_LEFT_FLAK]
     val rightFlak = parts[S3_PART_RIGHT_FLAK]
     val cannon = parts[S3_PART_MEGA_CANNON]
-    val leftLive = !leftFlak.isDestroyed && leftFlak.halfW > 0f
-    val rightLive = !rightFlak.isDestroyed && rightFlak.halfW > 0f
-    if (leftLive || rightLive) {
-      s3FlakTimer -= dt
-      if (s3FlakTimer <= 0f) {
-        s3FlakTimer = S3_FLAK_INTERVAL
-        val spawnY = coreY + bodyHalfH * 0.05f
-        if (fireLeftBarrel && leftLive) {
-          fireS3FlakBurst(weapons, coreX - bodyHalfW * 0.58f, spawnY, playerX, playerY)
-        } else if (!fireLeftBarrel && rightLive) {
-          fireS3FlakBurst(weapons, coreX + bodyHalfW * 0.58f, spawnY, playerX, playerY)
-        } else if (leftLive) {
-          fireS3FlakBurst(weapons, coreX - bodyHalfW * 0.58f, spawnY, playerX, playerY)
-        } else {
-          fireS3FlakBurst(weapons, coreX + bodyHalfW * 0.58f, spawnY, playerX, playerY)
-        }
-        fireLeftBarrel = !fireLeftBarrel
-      }
-    }
-    if (!cannon.isDestroyed && cannon.halfW > 0f) {
-      s3MegaCannonTimer -= dt
-      if (s3MegaCannonTimer <= 0f) {
-        s3MegaCannonTimer = S3_CANNON_CHARGE
-        val ox = coreX
-        val oy = coreY + bodyHalfH * 0.92f
-        var i = 0
-        while (i < S3_WALL_COUNT) {
-          val ang = DOWN_ANGLE - S3_WALL_HALF + i * S3_WALL_STEP
-          weapons.fireBullet(ox, oy, cos(ang) * S3_WALL_SPEED, sin(ang) * S3_WALL_SPEED)
-          i++
-        }
-      }
-    }
+    val leftDead = leftFlak.isDestroyed || leftFlak.halfW <= 0f
+    val rightDead = rightFlak.isDestroyed || rightFlak.halfW <= 0f
+    val cannonDead = cannon.isDestroyed || cannon.halfW <= 0f
+    weapons.updateStage3Boss(
+      dt,
+      coreX,
+      coreY,
+      bodyHalfW * 2f,
+      playerX,
+      playerY,
+      leftDead,
+      rightDead,
+      cannonDead,
+    )
     if (isCoreVulnerable()) {
       s3DesperationAngle += S3_SPIRAL_SPIN * dt
       s3SpiralTimer -= dt
@@ -1093,18 +1057,6 @@ class BossController(private val resources: Resources) {
     }
   }
 
-  private fun fireS3FlakBurst(
-    weapons: EnemyWeaponSystem,
-    spawnX: Float,
-    spawnY: Float,
-    playerX: Float,
-    playerY: Float,
-  ) {
-    fireAtPlayer(weapons, spawnX - S3_FLAK_SEP, spawnY, playerX, playerY, S3_FLAK_SPEED)
-    fireAtPlayer(weapons, spawnX, spawnY, playerX, playerY, S3_FLAK_SPEED)
-    fireAtPlayer(weapons, spawnX + S3_FLAK_SEP, spawnY, playerX, playerY, S3_FLAK_SPEED)
-  }
-
   private fun updateJungleFortressCombat(
     dt: Float,
     playerX: Float,
@@ -1112,40 +1064,28 @@ class BossController(private val resources: Resources) {
     weapons: EnemyWeaponSystem,
   ) {
     playNewModuleSfx()
-    if (entering) return
+    if (entering) {
+      weapons.resetStage4Boss()
+      return
+    }
     val leftMortar = parts[TYPE_STAGE4_LEFT_MORTAR]
     val rightMortar = parts[TYPE_STAGE4_RIGHT_MORTAR]
     val gatling = parts[TYPE_STAGE4_HEAVY_GATLING]
-    val leftLive = !leftMortar.isDestroyed && leftMortar.halfW > 0f
-    val rightLive = !rightMortar.isDestroyed && rightMortar.halfW > 0f
-    if (leftLive || rightLive) {
-      s4MortarTimer -= dt
-      if (s4MortarTimer <= 0f) {
-        s4MortarTimer = S4_MORTAR_INTERVAL
-        val spawnY = coreY + bodyHalfH * 0.15f
-        if (leftLive) {
-          val spawnLeftX = coreX - bodyHalfW * 0.40f
-          fireS4MortarFan(weapons, spawnLeftX, spawnY, true)
-        }
-        if (rightLive) {
-          val spawnRightX = coreX + bodyHalfW * 0.40f
-          fireS4MortarFan(weapons, spawnRightX, spawnY, false)
-        }
-      }
-    }
-    if (!gatling.isDestroyed && gatling.halfW > 0f) {
-      s4GatlingTimer -= dt
-      if (s4GatlingTimer <= 0f) {
-        s4GatlingTimer = S4_GATLING_INTERVAL
-        val spawnY = gatling.y + gatling.halfH
-        var index = -2
-        while (index <= 2) {
-          val spawnX = coreX + index * S4_GATLING_BARREL_SEP
-          weapons.fireBullet(spawnX, spawnY, 0f, S4_GATLING_SPEED)
-          index++
-        }
-      }
-    }
+    val leftDead = leftMortar.isDestroyed || leftMortar.halfW <= 0f
+    val rightDead = rightMortar.isDestroyed || rightMortar.halfW <= 0f
+    val gatlingDead = gatling.isDestroyed || gatling.halfW <= 0f
+    weapons.updateStage4Boss(
+      dt,
+      coreX,
+      coreY,
+      bodyHalfW * 2f,
+      bodyHalfH,
+      playerX,
+      playerY,
+      leftDead,
+      rightDead,
+      gatlingDead,
+    )
     if (isCoreVulnerable()) {
       s4SpiralAngle += S4_SPIRAL_SPIN * dt
       s4SpiralTimer -= dt
@@ -1167,55 +1107,29 @@ class BossController(private val resources: Resources) {
     }
   }
 
-  private fun fireS4MortarFan(
-    weapons: EnemyWeaponSystem,
-    spawnX: Float,
-    spawnY: Float,
-    downAndRight: Boolean,
-  ) {
-    val base = if (downAndRight) {
-      DOWN_ANGLE - S4_FAN_HALF
-    } else {
-      DOWN_ANGLE + S4_FAN_HALF
-    }
-    var i = -1
-    while (i <= 1) {
-      val ang = base + i * S4_FAN_STEP
-      weapons.fireBullet(spawnX, spawnY, cos(ang) * S4_FLAK_SPEED, sin(ang) * S4_FLAK_SPEED)
-      i++
-    }
-  }
-
   private fun updateTankCombat(dt: Float, playerX: Float, playerY: Float, weapons: EnemyWeaponSystem) {
     playNewModuleSfx()
-    if (entering) return
-    val turret = parts[S2_PART_MAIN_TURRET]
-    if (!turret.isDestroyed && turret.halfW > 0f) {
-      s2TurretTimer -= dt
-      if (s2TurretTimer <= 0f) {
-        s2TurretTimer = S2_TURRET_INTERVAL
-        val spawnY = coreY + bodyHalfH * 0.90f
-        weapons.fireBullet(coreX - S2_TURRET_BARREL_SEP, spawnY, 0f, S2_TURRET_SPEED)
-        weapons.fireBullet(coreX + S2_TURRET_BARREL_SEP, spawnY, 0f, S2_TURRET_SPEED)
-      }
+    if (entering) {
+      weapons.resetStage2Boss()
+      return
     }
+    val turret = parts[S2_PART_MAIN_TURRET]
     val leftTread = parts[TYPE_STAGE2_LEFT_TREAD]
     val rightTread = parts[TYPE_STAGE2_RIGHT_TREAD]
-    val leftLive = !leftTread.isDestroyed && leftTread.halfW > 0f
-    val rightLive = !rightTread.isDestroyed && rightTread.halfW > 0f
-    if (leftLive || rightLive) {
-      s2SideGunsTimer -= dt
-      if (s2SideGunsTimer <= 0f) {
-        s2SideGunsTimer = S2_SPONSON_INTERVAL
-        val spawnY = coreY + bodyHalfH * 0.20f
-        if (leftLive) {
-          fireS2SponsonFan(weapons, coreX - bodyHalfW * 0.70f, spawnY, true)
-        }
-        if (rightLive) {
-          fireS2SponsonFan(weapons, coreX + bodyHalfW * 0.70f, spawnY, false)
-        }
-      }
-    }
+    val turretDead = turret.isDestroyed || turret.halfW <= 0f
+    val leftDead = leftTread.isDestroyed || leftTread.halfW <= 0f
+    val rightDead = rightTread.isDestroyed || rightTread.halfW <= 0f
+    weapons.updateStage2Boss(
+      dt,
+      coreX,
+      coreY,
+      bodyHalfW * 2f,
+      playerX,
+      playerY,
+      leftDead,
+      rightDead,
+      turretDead,
+    )
     if (isCoreVulnerable()) {
       s2DesperationTimer += dt
       s2RingTimer -= dt
@@ -1238,24 +1152,6 @@ class BossController(private val resources: Resources) {
         fireAtPlayer(weapons, ox - S2_SNIPER_SEP, oy, playerX, playerY, S2_SNIPER_SPEED)
         fireAtPlayer(weapons, ox + S2_SNIPER_SEP, oy, playerX, playerY, S2_SNIPER_SPEED)
       }
-    }
-  }
-
-  private fun fireS2SponsonFan(
-    weapons: EnemyWeaponSystem,
-    spawnX: Float,
-    spawnY: Float,
-    downAndLeft: Boolean,
-  ) {
-    var i = 0
-    while (i < 4) {
-      val ang = if (downAndLeft) {
-        DOWN_ANGLE + i * S2_SPONSON_STEP
-      } else {
-        DOWN_ANGLE - i * S2_SPONSON_STEP
-      }
-      weapons.fireBullet(spawnX, spawnY, cos(ang) * S2_SPONSON_SPEED, sin(ang) * S2_SPONSON_SPEED)
-      i++
     }
   }
 
@@ -1299,116 +1195,115 @@ class BossController(private val resources: Resources) {
         i++
       }
     }
-    disablePart(TYPE_CORE)
-    disablePart(TYPE_LEFT_WING)
-    disablePart(TYPE_RIGHT_WING)
-    disablePart(TYPE_TURRET)
-    disablePart(TYPE_STAGE2_LEFT_TREAD)
-    disablePart(TYPE_STAGE2_RIGHT_TREAD)
-    disablePart(TYPE_STAGE2_MAIN_TURRET)
-    disablePart(TYPE_STAGE3_LEFT_FLAK)
-    disablePart(TYPE_STAGE3_RIGHT_FLAK)
-    disablePart(TYPE_STAGE3_MEGA_CANNON)
-    disablePart(TYPE_STAGE4_LEFT_MORTAR)
-    disablePart(TYPE_STAGE4_RIGHT_MORTAR)
-    disablePart(TYPE_STAGE4_HEAVY_GATLING)
-    if (stage >= 6) {
-      val bw = bodyHalfW * 2f
-      val bh = bodyHalfH * 2f
-      setupPart(
-        TYPE_CORE,
-        (S6_CORE_L + S6_CORE_R) * 0.5f * bw,
-        (S6_CORE_T + S6_CORE_B) * 0.5f * bh,
-        (S6_CORE_R - S6_CORE_L) * 0.5f * bw,
-        (S6_CORE_B - S6_CORE_T) * 0.5f * bh,
-        S6_CORE_HP,
-      )
-      setupPart(
-        TYPE_LEFT_FLANK,
-        (S6_LEFT_L + S6_LEFT_R) * 0.5f * bw,
-        (S6_FLANK_T + S6_FLANK_B) * 0.5f * bh,
-        (S6_LEFT_R - S6_LEFT_L) * 0.5f * bw,
-        (S6_FLANK_B - S6_FLANK_T) * 0.5f * bh,
-        S6_FLANK_HP,
-      )
-      setupPart(
-        TYPE_RIGHT_FLANK,
-        (S6_RIGHT_L + S6_RIGHT_R) * 0.5f * bw,
-        (S6_FLANK_T + S6_FLANK_B) * 0.5f * bh,
-        (S6_RIGHT_R - S6_RIGHT_L) * 0.5f * bw,
-        (S6_FLANK_B - S6_FLANK_T) * 0.5f * bh,
-        S6_FLANK_HP,
-      )
-      syncStage5Hitboxes()
-    } else if (stage >= 5) {
-      val bw = bodyHalfW * 2f
-      val bh = bodyHalfH * 2f
-      setupPart(
-        TYPE_CORE,
-        (S5_CORE_L + S5_CORE_R) * 0.5f * bw,
-        (S5_CORE_T + S5_CORE_B) * 0.5f * bh,
-        (S5_CORE_R - S5_CORE_L) * 0.5f * bw,
-        (S5_CORE_B - S5_CORE_T) * 0.5f * bh,
-        S5_CORE_HP,
-      )
-      setupPart(
-        TYPE_LEFT_FLANK,
-        (S5_LEFT_L + S5_LEFT_R) * 0.5f * bw,
-        (S5_FLANK_T + S5_FLANK_B) * 0.5f * bh,
-        (S5_LEFT_R - S5_LEFT_L) * 0.5f * bw,
-        (S5_FLANK_B - S5_FLANK_T) * 0.5f * bh,
-        S5_FLANK_HP,
-      )
-      setupPart(
-        TYPE_RIGHT_FLANK,
-        (S5_RIGHT_L + S5_RIGHT_R) * 0.5f * bw,
-        (S5_FLANK_T + S5_FLANK_B) * 0.5f * bh,
-        (S5_RIGHT_R - S5_RIGHT_L) * 0.5f * bw,
-        (S5_FLANK_B - S5_FLANK_T) * 0.5f * bh,
-        S5_FLANK_HP,
-      )
-      syncStage5Hitboxes()
-    } else if (stage >= 4) {
-      setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.30f, bodyHalfH * 0.40f, S4_CORE_HP)
-      setupPart(
-        TYPE_STAGE4_LEFT_MORTAR,
-        -bodyHalfW * 0.75f,
-        -bodyHalfH * 0.10f,
-        bodyHalfW * 0.18f,
-        bodyHalfH * 0.22f,
-        S4_MORTAR_HP,
-      )
-      setupPart(
-        TYPE_STAGE4_RIGHT_MORTAR,
-        bodyHalfW * 0.75f,
-        -bodyHalfH * 0.10f,
-        bodyHalfW * 0.18f,
-        bodyHalfH * 0.22f,
-        S4_MORTAR_HP,
-      )
-      setupPart(
-        TYPE_STAGE4_HEAVY_GATLING,
-        0f,
-        bodyHalfH * 0.48f,
-        bodyHalfW * 0.22f,
-        bodyHalfH * 0.26f,
-        S4_GATLING_HP,
-      )
-    } else if (stage >= 3) {
-      setupPart(TYPE_CORE, 0f, -bodyHalfH * 0.1f, bodyHalfW * 0.35f, bodyHalfH * 0.40f, S3_CORE_HP)
-      setupPart(TYPE_STAGE3_LEFT_FLAK, -bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
-      setupPart(TYPE_STAGE3_RIGHT_FLAK, bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
-      setupPart(TYPE_STAGE3_MEGA_CANNON, 0f, bodyHalfH * 0.45f, bodyHalfW * 0.30f, bodyHalfH * 0.25f, S3_CANNON_HP)
-    } else if (stage >= 2) {
-      setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S2_CORE_HP)
-      setupPart(TYPE_STAGE2_LEFT_TREAD, -bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
-      setupPart(TYPE_STAGE2_RIGHT_TREAD, bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
-      setupPart(TYPE_STAGE2_MAIN_TURRET, 0f, bodyHalfH * 0.18f, bodyHalfW * 0.16f, bodyHalfH * 0.28f, S2_TURRET_HP)
-    } else {
-      setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.52f, S1_CORE_HP)
-      setupPart(TYPE_LEFT_WING, -bodyHalfW * 0.5f, -bodyHalfH * 0.08f, bodyHalfW * 0.30f, bodyHalfH * 0.20f, S1_WING_HP)
-      setupPart(TYPE_RIGHT_WING, bodyHalfW * 0.5f, -bodyHalfH * 0.08f, bodyHalfW * 0.30f, bodyHalfH * 0.20f, S1_WING_HP)
-      setupPart(TYPE_TURRET, 0f, bodyHalfH * 0.46f, bodyHalfW * 0.12f, bodyHalfW * 0.12f, S1_TURRET_HP)
+    var idx = 0
+    while (idx < MAX_PART_COUNT) {
+      disablePart(idx)
+      idx++
+    }
+    when (stage) {
+      6 -> {
+        val bw = bodyHalfW * 2f
+        val bh = bodyHalfH * 2f
+        setupPart(
+          TYPE_CORE,
+          (S6_CORE_L + S6_CORE_R) * 0.5f * bw,
+          (S6_CORE_T + S6_CORE_B) * 0.5f * bh,
+          (S6_CORE_R - S6_CORE_L) * 0.5f * bw,
+          (S6_CORE_B - S6_CORE_T) * 0.5f * bh,
+          S6_CORE_HP,
+        )
+        setupPart(
+          TYPE_LEFT_FLANK,
+          (S6_LEFT_L + S6_LEFT_R) * 0.5f * bw,
+          (S6_FLANK_T + S6_FLANK_B) * 0.5f * bh,
+          (S6_LEFT_R - S6_LEFT_L) * 0.5f * bw,
+          (S6_FLANK_B - S6_FLANK_T) * 0.5f * bh,
+          S6_FLANK_HP,
+        )
+        setupPart(
+          TYPE_RIGHT_FLANK,
+          (S6_RIGHT_L + S6_RIGHT_R) * 0.5f * bw,
+          (S6_FLANK_T + S6_FLANK_B) * 0.5f * bh,
+          (S6_RIGHT_R - S6_RIGHT_L) * 0.5f * bw,
+          (S6_FLANK_B - S6_FLANK_T) * 0.5f * bh,
+          S6_FLANK_HP,
+        )
+        syncStage5Hitboxes()
+      }
+      5 -> {
+        val bw = bodyHalfW * 2f
+        val bh = bodyHalfH * 2f
+        setupPart(
+          TYPE_CORE,
+          (S5_CORE_L + S5_CORE_R) * 0.5f * bw,
+          (S5_CORE_T + S5_CORE_B) * 0.5f * bh,
+          (S5_CORE_R - S5_CORE_L) * 0.5f * bw,
+          (S5_CORE_B - S5_CORE_T) * 0.5f * bh,
+          S5_CORE_HP,
+        )
+        setupPart(
+          TYPE_LEFT_FLANK,
+          (S5_LEFT_L + S5_LEFT_R) * 0.5f * bw,
+          (S5_FLANK_T + S5_FLANK_B) * 0.5f * bh,
+          (S5_LEFT_R - S5_LEFT_L) * 0.5f * bw,
+          (S5_FLANK_B - S5_FLANK_T) * 0.5f * bh,
+          S5_FLANK_HP,
+        )
+        setupPart(
+          TYPE_RIGHT_FLANK,
+          (S5_RIGHT_L + S5_RIGHT_R) * 0.5f * bw,
+          (S5_FLANK_T + S5_FLANK_B) * 0.5f * bh,
+          (S5_RIGHT_R - S5_RIGHT_L) * 0.5f * bw,
+          (S5_FLANK_B - S5_FLANK_T) * 0.5f * bh,
+          S5_FLANK_HP,
+        )
+        syncStage5Hitboxes()
+      }
+      4 -> {
+        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.30f, bodyHalfH * 0.40f, S4_CORE_HP)
+        setupPart(
+          TYPE_STAGE4_LEFT_MORTAR,
+          -bodyHalfW * 0.75f,
+          -bodyHalfH * 0.10f,
+          bodyHalfW * 0.18f,
+          bodyHalfH * 0.22f,
+          S4_MORTAR_HP,
+        )
+        setupPart(
+          TYPE_STAGE4_RIGHT_MORTAR,
+          bodyHalfW * 0.75f,
+          -bodyHalfH * 0.10f,
+          bodyHalfW * 0.18f,
+          bodyHalfH * 0.22f,
+          S4_MORTAR_HP,
+        )
+        setupPart(
+          TYPE_STAGE4_HEAVY_GATLING,
+          0f,
+          bodyHalfH * 0.48f,
+          bodyHalfW * 0.22f,
+          bodyHalfH * 0.26f,
+          S4_GATLING_HP,
+        )
+      }
+      3 -> {
+        setupPart(TYPE_CORE, 0f, -bodyHalfH * 0.1f, bodyHalfW * 0.35f, bodyHalfH * 0.40f, S3_CORE_HP)
+        setupPart(TYPE_STAGE3_LEFT_FLAK, -bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
+        setupPart(TYPE_STAGE3_RIGHT_FLAK, bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
+        setupPart(TYPE_STAGE3_MEGA_CANNON, 0f, bodyHalfH * 0.45f, bodyHalfW * 0.30f, bodyHalfH * 0.25f, S3_CANNON_HP)
+      }
+      2 -> {
+        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S2_CORE_HP)
+        setupPart(TYPE_STAGE2_LEFT_TREAD, -bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
+        setupPart(TYPE_STAGE2_RIGHT_TREAD, bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
+        setupPart(TYPE_STAGE2_MAIN_TURRET, 0f, bodyHalfH * 0.18f, bodyHalfW * 0.16f, bodyHalfH * 0.28f, S2_TURRET_HP)
+      }
+      else -> {
+        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.52f, S1_CORE_HP)
+        setupPart(TYPE_LEFT_WING, -bodyHalfW * 0.5f, -bodyHalfH * 0.08f, bodyHalfW * 0.30f, bodyHalfH * 0.20f, S1_WING_HP)
+        setupPart(TYPE_RIGHT_WING, bodyHalfW * 0.5f, -bodyHalfH * 0.08f, bodyHalfW * 0.30f, bodyHalfH * 0.20f, S1_WING_HP)
+        setupPart(TYPE_TURRET, 0f, bodyHalfH * 0.46f, bodyHalfW * 0.12f, bodyHalfW * 0.12f, S1_TURRET_HP)
+      }
     }
     if (preserve) {
       var i = 0
@@ -1480,36 +1375,43 @@ class BossController(private val resources: Resources) {
     leftWreckSheet = null
     rightWreckSheet = null
     centerWreckSheet = null
-    if (stage >= 6) {
-      bodySheet = decodeKeyed(R.drawable.boss_stage6_full)
-      leftWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_left)
-      rightWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_right)
-      centerWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_center)
-    } else if (stage >= 5) {
-      bodySheet = decodeKeyed(R.drawable.boss_stage5_full)
-      leftWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_left)
-      rightWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_right)
-      centerWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_center)
-    } else if (stage >= 4) {
-      bodySheet = decodeKeyed(R.drawable.boss_stage4_jungle_full)
-      leftWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_left)
-      rightWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_right)
-      centerWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_center)
-    } else if (stage >= 3) {
-      bodySheet = decodeKeyed(R.drawable.boss_stage3_battleship_full)
-      leftWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_left)
-      rightWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_right)
-      centerWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_center)
-    } else if (stage >= 2) {
-      bodySheet = decodeKeyed(R.drawable.boss_stage2_tank_full)
-      leftWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_left)
-      rightWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_right)
-      centerWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_center)
-    } else {
-      bodySheet = decodeKeyed(R.drawable.boss_stage1_full)
-      leftWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_left)
-      rightWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_right)
-      centerWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_center)
+    when (stage) {
+      6 -> {
+        bodySheet = decodeKeyed(R.drawable.boss_stage6_full)
+        leftWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_left)
+        rightWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_right)
+        centerWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_center)
+      }
+      5 -> {
+        bodySheet = decodeKeyed(R.drawable.boss_stage5_full)
+        leftWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_left)
+        rightWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_right)
+        centerWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_center)
+      }
+      4 -> {
+        bodySheet = decodeKeyed(R.drawable.boss_stage4_jungle_full)
+        leftWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_left)
+        rightWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_right)
+        centerWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_center)
+      }
+      3 -> {
+        bodySheet = decodeKeyed(R.drawable.boss_stage3_battleship_full)
+        leftWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_left)
+        rightWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_right)
+        centerWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_center)
+      }
+      2 -> {
+        bodySheet = decodeKeyed(R.drawable.boss_stage2_tank_full)
+        leftWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_left)
+        rightWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_right)
+        centerWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_center)
+      }
+      else -> {
+        bodySheet = decodeKeyed(R.drawable.boss_stage1_full)
+        leftWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_left)
+        rightWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_right)
+        centerWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_center)
+      }
     }
     loadedStage = stage
   }
