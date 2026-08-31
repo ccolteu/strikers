@@ -44,6 +44,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val srcCore = Rect()
   private val bombDstRect = RectF()
   private val hudIconDst = RectF()
+  private val titleDstRect = RectF()
   private val powerUpDst = RectF()
   private val bgmSliderRect = RectF()
   private val sfxSliderRect = RectF()
@@ -65,6 +66,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var gameState = STATE_TITLE
   private var isSettingsMenuOpen = false
   private var logoBmp: Bitmap? = null
+  private var titleBackdropBmp: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
   private var bombPickupBmp: Bitmap? = null
   private val medalFrames = arrayOfNulls<Bitmap>(PowerUpItem.MEDAL_FRAME_COUNT)
@@ -306,7 +308,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     lastNanos = frameTimeNanos
     when (gameState) {
       STATE_TITLE -> {
-        tickParallax(TITLE_SCROLL_PX, dt)
         if (!isSettingsMenuOpen) {
           attractCycleTimer += dt
           when (attractCycleState) {
@@ -453,7 +454,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           canvas.save()
           canvas.translate(dx, dy)
         }
-        if (gameState == STATE_INTERSTITIAL) {
+        if (gameState == STATE_TITLE) {
+          val bmp = titleBackdropBmp
+          if (bmp != null && !bmp.isRecycled && bmp.width > 0 && bmp.height > 0) {
+            val scaleX = screenW.toFloat() / bmp.width.toFloat()
+            val scaleY = screenH.toFloat() / bmp.height.toFloat()
+            val fillScale = scaleX.coerceAtLeast(scaleY)
+            val finalDrawW = bmp.width.toFloat() * fillScale
+            val finalDrawH = bmp.height.toFloat() * fillScale
+            val leftOffset = (screenW.toFloat() - finalDrawW) * 0.5f
+            val topOffset = (screenH.toFloat() - finalDrawH) * 0.5f
+            titleDstRect.set(leftOffset, topOffset, leftOffset + finalDrawW, topOffset + finalDrawH)
+            canvas.drawBitmap(bmp, null, titleDstRect, bodyPaint)
+          } else {
+            canvas.drawColor(Color.BLACK)
+          }
+        } else if (gameState == STATE_INTERSTITIAL) {
           uiController.drawStageInterstitial(
             canvas,
             screenW.toFloat(),
@@ -463,7 +479,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           )
         } else if (stageManager.isStage5Backdrop && gameState != STATE_REGISTRATION) {
           if (
-            gameState == STATE_TITLE ||
             gameState == STATE_CLEAR ||
             gameState == STATE_CAMPAIGN_COMPLETE
           ) {
@@ -764,19 +779,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, screenH * 0.52f, uiGoldPaint, uiGoldShadowPaint)
     }
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("CREDIT 00")
+    uiStringBuilder.append("CREDIT 2026 CC. All rights reserved.")
     drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, screenH - 88f, uiSmallPaint, uiSmallShadowPaint)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ AUDIO SETTINGS ]")
     val settingsY = screenH * 0.68f
-    drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, settingsY, uiTextPaint, uiShadowPaint)
-    val settingsW = uiTextPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, settingsY, uiGoldPaint, uiGoldShadowPaint)
+    val settingsW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
     val settingsX = screenW * 0.5f - settingsW * 0.5f
     openSettingsButtonRect.set(
       settingsX,
-      settingsY + uiTextPaint.ascent(),
+      settingsY + uiGoldPaint.ascent(),
       settingsX + settingsW,
-      settingsY + uiTextPaint.descent(),
+      settingsY + uiGoldPaint.descent(),
     )
   }
 
@@ -1143,6 +1158,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (logoBmp == null) {
       logoBmp = decodeKeyed(R.drawable.game_logo)
+    }
+    if (titleBackdropBmp == null) {
+      titleBackdropBmp = decodeKeyed(R.drawable.title_screen_backdrop)
     }
     if (powerUpBmp == null) {
       powerUpBmp = decodeKeyed(R.drawable.item_powerup)
@@ -1884,6 +1902,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val logo = logoBmp
     if (logo != null && !logo.isRecycled) logo.recycle()
     logoBmp = null
+    val titleBackdrop = titleBackdropBmp
+    if (titleBackdrop != null && !titleBackdrop.isRecycled) titleBackdrop.recycle()
+    titleBackdropBmp = null
     val powerUp = powerUpBmp
     if (powerUp != null && !powerUp.isRecycled) powerUp.recycle()
     powerUpBmp = null

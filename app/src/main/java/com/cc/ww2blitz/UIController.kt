@@ -407,13 +407,14 @@ class UIController {
     private const val CREDIT_THANK_INDEX = 18
     private val CREDIT_LINES = arrayOf(
       "WW2 BLITZ",
+      " ",
       "ALL STAGES COMPLETED",
       "---------------------",
-      "PRODUCER",
-      "CURSOR ENGINE ARCHITECT",
-      " ",
       "LEAD GAME DESIGNER",
-      "GROK AI SYSTEMS",
+      "CC / GEMINI",
+      " ",
+      "LEAD GAME DEVELOPER",
+      "CURSOR / GROK",
       " ",
       "GRAPHICS ENGINEER",
       "32BIT ART POOL SELECTION",
