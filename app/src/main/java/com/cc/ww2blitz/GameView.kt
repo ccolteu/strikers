@@ -2012,12 +2012,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun onEnemyKilled(enemy: Enemy) {
+    if (gameState == STATE_PLAYING) {
+      awardKillScore(enemy)
+    }
     if (enemy.deathClearBullets) {
       enemyShots.beginDeathClear(enemy.x, enemy.y)
     }
     if (enemy.diamondLeader) {
       enemies.triggerDiamondSplinter()
     }
+  }
+
+  private fun awardKillScore(enemy: Enemy) {
+    val base = when (enemy.type) {
+      ENEMY_TYPE_HEAVY -> KILL_SCORE_HEAVY
+      ENEMY_TYPE_INTERCEPTOR -> KILL_SCORE_INTERCEPTOR
+      else -> KILL_SCORE_DRONE
+    }
+    val awarded = ScoreManager.instance.scalePoints(base)
+    if (awarded <= 0) return
+    campaignScore += awarded
+    if (campaignScore > 99_999_999) campaignScore = 99_999_999
+    triggerFloatingScore(enemy.x, enemy.y, awarded)
   }
 
   private fun fireRevengeIfNeeded(enemy: Enemy) {
@@ -2833,6 +2849,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val ENEMY_RAM_BODY_FRAC = 0.45f
     const val MEDAL_SCORE_FACE = 2000
     const val MEDAL_SCORE_EDGE = 200
+    const val KILL_SCORE_DRONE = 100
+    const val KILL_SCORE_INTERCEPTOR = 300
+    const val KILL_SCORE_HEAVY = 1000
     const val FLOATING_SPEED = 90f
     const val FLOATING_LIFE = 0.75f
     const val BOMB_ENEMY_DPS = 250f
