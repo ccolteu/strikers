@@ -108,19 +108,26 @@ class UIController {
     interstitialCardPaint.alpha = cardA
     val slot = stageId - 1
     val bmp = if (slot >= 0 && slot < 6) interstitialCards[slot] else null
-    canvas.drawColor(Color.BLACK)
-    var calculatedTop = 0f
-    if (bmp != null && !bmp.isRecycled && bmp.width > 0) {
-      val scale = screenW / bmp.width.toFloat()
+    var cardTop = 0f
+    if (bmp != null && !bmp.isRecycled && bmp.width > 0 && bmp.height > 0) {
+      canvas.drawColor(bmp.getPixel(0, 0))
+      val scaleW = screenW / bmp.width.toFloat()
+      val scaleH = screenH / bmp.height.toFloat()
+      val scale = if (scaleW < scaleH) scaleW else scaleH
+      val drawW = bmp.width.toFloat() * scale
       val drawH = bmp.height.toFloat() * scale
-      calculatedTop = (screenH - drawH) * 0.5f
-      interstitialDst.set(0f, calculatedTop, screenW, calculatedTop + drawH)
+      val left = (screenW - drawW) * 0.5f
+      cardTop = (screenH - drawH) * 0.5f
+      interstitialDst.set(left, cardTop, left + drawW, cardTop + drawH)
       canvas.drawBitmap(bmp, null, interstitialDst, interstitialCardPaint)
+    } else {
+      canvas.drawColor(Color.BLACK)
     }
     val mission = operationHeader(stageId)
     val cx = screenW * 0.5f
-    val line1Y = calculatedTop + (goldPaint.textSize * 4.2f)
-    val line2Y = line1Y + goldPaint.textSize * 1.3f
+    val titleSize = goldPaint.textSize
+    val line1Y = cardTop + titleSize * 4.2f
+    val line2Y = line1Y + titleSize * 1.3f
     val goldA = goldPaint.alpha
     val goldShA = goldShadowPaint.alpha
     goldPaint.alpha = cardA

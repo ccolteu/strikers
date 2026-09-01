@@ -106,9 +106,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var touchDownY = 0f
   private var lastTouchX = 0f
   private var lastTouchY = 0f
+  private var pendingSteerDx = 0f
+  private var pendingSteerDy = 0f
   private var isDraggingShip = false
   private var dragPointerId = -1
-  private var lastFrameDt = 0.016f
   private var awaitingSecondTap = false
   private var enemyBombDmgBank = 0f
   private var bossBombDmgBank = 0f
@@ -335,7 +336,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       ((frameTimeNanos - lastNanos).coerceIn(0L, MAX_FRAME_NS) / 1_000_000_000f)
     }
     lastNanos = frameTimeNanos
-    if (dt > 0.0001f) lastFrameDt = dt
     when (gameState) {
       STATE_TITLE -> {
         if (!isSettingsMenuOpen) {
@@ -399,6 +399,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
         if (gameState == STATE_DEMO) {
           demoPilot(dt)
+        } else if (gameState == STATE_PLAYING && dt > 0.0001f) {
+          applyPendingShipSteer(dt)
         }
         player.update(dt)
         bullets.update(dt, player, screenW, homingMissiles)
@@ -2283,6 +2285,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     bombCoreWasOpen = false
     awaitingSecondTap = false
     isDraggingShip = false
+    pendingSteerDx = 0f
+    pendingSteerDy = 0f
     dragPointerId = -1
     bossFought = false
     player.resetForStage()
@@ -2479,6 +2483,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.steerToward(huntX, huntY, dt)
   }
 
+  private fun applyPendingShipSteer(dt: Float) {
+    val dx = pendingSteerDx
+    val dy = pendingSteerDy
+    pendingSteerDx = 0f
+    pendingSteerDy = 0f
+    if (dx != 0f || dy != 0f) {
+      player.moveWithRelativeInput(dx, dy, dt)
+    }
+  }
+
   override fun onTouchEvent(event: MotionEvent): Boolean {
     val down = event.actionMasked == MotionEvent.ACTION_DOWN ||
       event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
@@ -2664,6 +2678,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         touchDownY = event.y
         lastTouchX = event.x
         lastTouchY = event.y
+        pendingSteerDx = 0f
+        pendingSteerDy = 0f
         dragPointerId = event.getPointerId(0)
         val gx = event.x - player.getHitboxX()
         val gy = event.y - player.getHitboxY()
@@ -2692,9 +2708,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       MotionEvent.ACTION_MOVE -> {
         if (isDraggingShip) {
-          val dx = event.x - lastTouchX
-          val dy = event.y - lastTouchY
-          player.moveWithRelativeInput(dx, dy, lastFrameDt)
+          val hist = event.historySize
+          var h = 0
+          while (h < hist) {
+            val hx = event.getHistoricalX(h)
+            val hy = event.getHistoricalY(h)
+            pendingSteerDx += hx - lastTouchX
+            pendingSteerDy += hy - lastTouchY
+            lastTouchX = hx
+            lastTouchY = hy
+            h++
+          }
+          pendingSteerDx += event.x - lastTouchX
+          pendingSteerDy += event.y - lastTouchY
         }
         lastTouchX = event.x
         lastTouchY = event.y
