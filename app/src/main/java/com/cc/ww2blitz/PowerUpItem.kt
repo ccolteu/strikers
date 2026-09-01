@@ -106,7 +106,14 @@ class PowerUpItem {
     return false
   }
 
-  fun update(dt: Float, screenW: Int, screenH: Int, playerX: Float, playerY: Float) {
+  fun update(
+    dt: Float,
+    screenW: Int,
+    screenH: Int,
+    playerX: Float,
+    playerY: Float,
+    magnetOn: Boolean = true,
+  ) {
     isActive = false
     val floor = screenH + 48f
     val edge = screenW * EDGE_STRIP_FRAC
@@ -133,7 +140,9 @@ class PowerUpItem {
           }
         }
         if (s.itemType == ITEM_TYPE_MEDAL) {
-          pullMedalTowardPlayer(s, dt, playerX, playerY, edge, screenW.toFloat())
+          if (magnetOn) {
+            pullMedalTowardPlayer(s, dt, playerX, playerY, edge, screenW.toFloat())
+          }
           s.medalFrameTime += dt
           while (s.medalFrameTime >= MEDAL_FRAME_SEC) {
             s.medalFrameTime -= MEDAL_FRAME_SEC

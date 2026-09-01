@@ -411,6 +411,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           screenH,
           player.getHitboxX(),
           player.getHitboxY(),
+          player.isOnField(),
         )
         updateFloatingScores(dt)
         timeline.update(
@@ -1919,7 +1920,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       enterGameOver()
     }
 
-    if (!player.isGameOver()) {
+    if (!player.isGameOver() && player.isOnField()) {
       val ramBody = ENEMY_RAM_BODY_FRAC
       val playerRadius = PLAYER_HIT_RADIUS
       var ei = 0
@@ -1948,7 +1949,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
     }
 
-    if (!player.isGameOver() && boss.isActive() && !boss.isExploding()) {
+    if (!player.isGameOver() && player.isOnField() && boss.isActive() && !boss.isExploding()) {
       val playerRadius = PLAYER_HIT_RADIUS
       val parts = boss.getComponents()
       val partCount = boss.getComponentCount()
@@ -1975,7 +1976,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val itemPool = powerUpItem.getPool()
     val itemCount = powerUpItem.getPoolSize()
     var ii = 0
-    while (ii < itemCount) {
+    while (ii < itemCount && player.isOnField()) {
       val item = itemPool[ii]
       if (item.isActive) {
         val dx = playerX - item.x
@@ -2101,9 +2102,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     if (player.getWeaponPower() < 3) {
       player.upgradeWeapon()
     } else {
-      campaignScore += POWERUP_FULL_SCORE
+      val awarded = ScoreManager.instance.scalePoints(POWERUP_FULL_SCORE)
+      campaignScore += awarded
       if (campaignScore > 99_999_999) campaignScore = 99_999_999
-      triggerFloatingScore(x, y, POWERUP_FULL_SCORE)
+      triggerFloatingScore(x, y, awarded)
     }
     SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
   }
@@ -2112,9 +2114,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     if (availableBombs < MAX_BOMBS) {
       availableBombs++
     } else {
-      campaignScore += BOMB_FULL_SCORE
+      val awarded = ScoreManager.instance.scalePoints(BOMB_FULL_SCORE)
+      campaignScore += awarded
       if (campaignScore > 99_999_999) campaignScore = 99_999_999
-      triggerFloatingScore(x, y, BOMB_FULL_SCORE)
+      triggerFloatingScore(x, y, awarded)
     }
     SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
   }
@@ -2522,6 +2525,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.followTether(steerFingerX, steerFingerY, grabOffsetX, grabOffsetY, dt)
   }
 
+  private fun tryGrabShip(fingerX: Float, fingerY: Float, pointerId: Int) {
+    if (isDraggingShip) return
+    val gx = fingerX - player.getHitboxX()
+    val gy = fingerY - player.getHitboxY()
+    val grab = player.touchGrabRadius()
+    if ((gx * gx + gy * gy) > grab * grab) return
+    isDraggingShip = true
+    grabOffsetX = gx
+    grabOffsetY = gy
+    steerFingerX = fingerX
+    steerFingerY = fingerY
+    dragPointerId = pointerId
+  }
+
   override fun onTouchEvent(event: MotionEvent): Boolean {
     val down = event.actionMasked == MotionEvent.ACTION_DOWN ||
       event.actionMasked == MotionEvent.ACTION_POINTER_DOWN
@@ -2706,16 +2723,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         touchDownX = event.x
         touchDownY = event.y
         dragPointerId = event.getPointerId(0)
-        val gx = event.x - player.getHitboxX()
-        val gy = event.y - player.getHitboxY()
-        val grab = player.touchGrabRadius()
-        isDraggingShip = (gx * gx + gy * gy) <= grab * grab
-        if (isDraggingShip) {
-          grabOffsetX = gx
-          grabOffsetY = gy
-          steerFingerX = event.x
-          steerFingerY = event.y
-        }
+        tryGrabShip(event.x, event.y, dragPointerId)
       }
       MotionEvent.ACTION_POINTER_DOWN -> {
         val now = event.eventTime
@@ -2734,8 +2742,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           awaitingSecondTap = false
         }
         touchDownMs = now
-        touchDownX = event.x
-        touchDownY = event.y
+        val pIndex = event.actionIndex
+        touchDownX = event.getX(pIndex)
+        touchDownY = event.getY(pIndex)
+        tryGrabShip(touchDownX, touchDownY, event.getPointerId(pIndex))
       }
       MotionEvent.ACTION_MOVE -> {
         if (isDraggingShip) {

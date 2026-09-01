@@ -98,10 +98,17 @@ class PlayerShip(private val resources: Resources) {
       MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
         if (pointerId == MotionEvent.INVALID_POINTER_ID) {
           val index = event.actionIndex
-          pointerId = event.getPointerId(index)
-          lastTouchX = event.getX(index)
-          lastTouchY = event.getY(index)
-          isDragging = true
+          val tx = event.getX(index)
+          val ty = event.getY(index)
+          val gx = tx - x
+          val gy = ty - y
+          val grab = touchGrabRadius()
+          if ((gx * gx + gy * gy) <= grab * grab) {
+            pointerId = event.getPointerId(index)
+            lastTouchX = tx
+            lastTouchY = ty
+            isDragging = true
+          }
         }
       }
       MotionEvent.ACTION_MOVE -> {
@@ -261,6 +268,7 @@ class PlayerShip(private val resources: Resources) {
     dt: Float,
   ) {
     if (isGameOverFlag || lives <= 0 || respawnTimer > 0f) return
+    isDragging = true
     val targetX = fingerX - grabOffsetX
     val targetY = fingerY - grabOffsetY
     var dx = targetX - x
