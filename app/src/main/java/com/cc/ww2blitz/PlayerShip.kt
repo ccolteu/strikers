@@ -253,28 +253,34 @@ class PlayerShip(private val resources: Resources) {
     autoFire = on
   }
 
-  fun moveWithRelativeInput(dx: Float, dy: Float, dt: Float) {
+  fun followTether(
+    fingerX: Float,
+    fingerY: Float,
+    grabOffsetX: Float,
+    grabOffsetY: Float,
+    dt: Float,
+  ) {
     if (isGameOverFlag || lives <= 0 || respawnTimer > 0f) return
-    val distance = kotlin.math.sqrt(dx * dx + dy * dy)
-    if (distance <= 0.001f) return
-    var moveX = dx
-    var moveY = dy
-    var moveDist = distance
-    val tetherLimit = TETHER_LIMIT_PX
-    if (moveDist > tetherLimit) {
-      val tetherScale = tetherLimit / moveDist
-      moveX *= tetherScale
-      moveY *= tetherScale
-      moveDist = tetherLimit
+    val targetX = fingerX - grabOffsetX
+    val targetY = fingerY - grabOffsetY
+    var dx = targetX - x
+    var dy = targetY - y
+    var dist = kotlin.math.sqrt(dx * dx + dy * dy)
+    if (dist <= 0.001f) return
+    if (dist > TETHER_LIMIT_PX) {
+      val tetherScale = TETHER_LIMIT_PX / dist
+      dx *= tetherScale
+      dy *= tetherScale
+      dist = TETHER_LIMIT_PX
     }
     val maxMove = classBaseSpeed * dt
-    if (moveDist > maxMove) {
-      val targetScale = maxMove / moveDist
-      x += moveX * targetScale * responsivenessTether
-      y += moveY * targetScale * responsivenessTether
+    if (dist > maxMove) {
+      val targetScale = maxMove / dist
+      x += dx * targetScale * responsivenessTether
+      y += dy * targetScale * responsivenessTether
     } else {
-      x += moveX
-      y += moveY
+      x += dx
+      y += dy
     }
     targetVelocityX = dx
     if (kotlin.math.abs(dx) > MOVE_THRESHOLD) {

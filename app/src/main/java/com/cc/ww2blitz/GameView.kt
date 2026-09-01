@@ -104,10 +104,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var touchDownMs = 0L
   private var touchDownX = 0f
   private var touchDownY = 0f
-  private var lastTouchX = 0f
-  private var lastTouchY = 0f
-  private var pendingSteerDx = 0f
-  private var pendingSteerDy = 0f
+  private var steerFingerX = 0f
+  private var steerFingerY = 0f
+  private var grabOffsetX = 0f
+  private var grabOffsetY = 0f
   private var isDraggingShip = false
   private var dragPointerId = -1
   private var awaitingSecondTap = false
@@ -400,7 +400,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (gameState == STATE_DEMO) {
           demoPilot(dt)
         } else if (gameState == STATE_PLAYING && dt > 0.0001f) {
-          applyPendingShipSteer(dt)
+          applyShipTether(dt)
         }
         player.update(dt)
         bullets.update(dt, player, screenW, homingMissiles)
@@ -2291,8 +2291,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     bombCoreWasOpen = false
     awaitingSecondTap = false
     isDraggingShip = false
-    pendingSteerDx = 0f
-    pendingSteerDy = 0f
+    grabOffsetX = 0f
+    grabOffsetY = 0f
     dragPointerId = -1
     bossFought = false
     player.resetForStage()
@@ -2489,14 +2489,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.steerToward(huntX, huntY, dt)
   }
 
-  private fun applyPendingShipSteer(dt: Float) {
-    val dx = pendingSteerDx
-    val dy = pendingSteerDy
-    pendingSteerDx = 0f
-    pendingSteerDy = 0f
-    if (dx != 0f || dy != 0f) {
-      player.moveWithRelativeInput(dx, dy, dt)
-    }
+  private fun applyShipTether(dt: Float) {
+    if (!isDraggingShip) return
+    player.followTether(steerFingerX, steerFingerY, grabOffsetX, grabOffsetY, dt)
   }
 
   override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -2682,15 +2677,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         touchDownMs = now
         touchDownX = event.x
         touchDownY = event.y
-        lastTouchX = event.x
-        lastTouchY = event.y
-        pendingSteerDx = 0f
-        pendingSteerDy = 0f
         dragPointerId = event.getPointerId(0)
         val gx = event.x - player.getHitboxX()
         val gy = event.y - player.getHitboxY()
         val grab = player.touchGrabRadius()
         isDraggingShip = (gx * gx + gy * gy) <= grab * grab
+        if (isDraggingShip) {
+          grabOffsetX = gx
+          grabOffsetY = gy
+          steerFingerX = event.x
+          steerFingerY = event.y
+        }
       }
       MotionEvent.ACTION_POINTER_DOWN -> {
         val now = event.eventTime
@@ -2714,22 +2711,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       MotionEvent.ACTION_MOVE -> {
         if (isDraggingShip) {
-          val hist = event.historySize
-          var h = 0
-          while (h < hist) {
-            val hx = event.getHistoricalX(h)
-            val hy = event.getHistoricalY(h)
-            pendingSteerDx += hx - lastTouchX
-            pendingSteerDy += hy - lastTouchY
-            lastTouchX = hx
-            lastTouchY = hy
-            h++
+          val index = if (dragPointerId >= 0) event.findPointerIndex(dragPointerId) else 0
+          if (index >= 0) {
+            steerFingerX = event.getX(index)
+            steerFingerY = event.getY(index)
+          } else {
+            steerFingerX = event.x
+            steerFingerY = event.y
           }
-          pendingSteerDx += event.x - lastTouchX
-          pendingSteerDy += event.y - lastTouchY
         }
-        lastTouchX = event.x
-        lastTouchY = event.y
       }
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_OUTSIDE -> {
         val dx = event.x - touchDownX
