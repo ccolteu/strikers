@@ -293,10 +293,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   override fun surfaceCreated(holder: SurfaceHolder) {
     HighScoreManager.loadHighScores(context)
-    if (gameState == STATE_TITLE) {
-      attractCycleState = ATTRACT_TITLE
-      attractCycleTimer = 0f
-    }
     running = true
     lastNanos = 0L
     choreographer.postFrameCallback(this)
@@ -308,6 +304,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun applyViewportSize(width: Int, height: Int) {
     if (width <= 0 || height <= 0) return
+    val firstViewport = screenW <= 0 || screenH <= 0
     val sizeChanged = width != screenW || height != screenH
     parallax.onSizeChanged(width, height)
     player.onSizeChanged(width, height)
@@ -323,7 +320,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiController.loadInterstitials(resources, width, height)
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
-    bootLaunchStageIfNeeded()
+    if (firstViewport) bootLaunchStageIfNeeded()
     reloadStageBackgrounds(width, height)
   }
 
@@ -1418,7 +1415,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       logoBmp = decodeKeyed(R.drawable.game_logo)
     }
     if (titleBackdropBmp == null) {
-      titleBackdropBmp = decodeKeyed(R.drawable.title_screen_backdrop)
+      titleBackdropBmp = decodeOpaque(R.drawable.title_screen_backdrop)
     }
     if (selectPreviewP38 == null) {
       selectPreviewP38 = decodeKeyed(R.drawable.player_ship_4)
@@ -1703,6 +1700,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val bmp = if (src.isMutable) src else src.copy(Bitmap.Config.ARGB_8888, true).also { src.recycle() }
     keyGreen(bmp)
     return bmp
+  }
+
+  private fun decodeOpaque(drawableId: Int): Bitmap {
+    val opts = BitmapFactory.Options().apply {
+      inScaled = false
+      inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    return BitmapFactory.decodeResource(resources, drawableId, opts)
+      ?: error("Missing drawable $drawableId")
   }
 
   private fun keyGreen(bmp: Bitmap) {
