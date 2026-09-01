@@ -8,15 +8,15 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import kotlin.math.ceil
-import kotlin.math.max
 
 /**
- * Three-layer vertical parallax. Bitmaps are decoded once and **cover-scaled**
- * (uniform scale, center crop) to the surface so 2:3 art is not stretched on
- * 9:16 phones. [update] / [draw] only mutate floats and blit.
+ * Three-layer vertical parallax background system engineered for zero runtime allocation.
  *
- * Mid and high layers are authored on black. [PorterDuff.Mode.SCREEN] drops
- * the black and keeps the clouds. High clouds also use a fixed 40% alpha.
+ * To prevent horizontal tearing on screens with aspect ratios shorter than the native
+ * 1080x2400 artwork, assets are scaled horizontally to match the screen width exactly,
+ * with the vertical height scaled by the identical proportion. Tiling and wrap boundaries
+ * track these scaled asset heights directly rather than the screen viewport bounds,
+ * preserving authored vertical loop seams.
  */
 class ParallaxBackground(private val resources: Resources) {
 
@@ -26,6 +26,16 @@ class ParallaxBackground(private val resources: Resources) {
 
   private var screenW = 0
   private var screenH = 0
+
+  // Cached, proportionally-scaled asset heights to drive accurate stitching loops
+  private var groundHeight = 0f
+  private var midHeight = 0f
+  private var highHeight = 0f
+
+  // Stage 5 & 6 specific height caching structures
+  private var stage5Layer1Height = 0f
+  private var stage5Layer2Height = 0f
+  private var stage6Layer2Height = 0f
 
   private var yGround = 0f
   private var yMid = 0f
@@ -56,12 +66,21 @@ class ParallaxBackground(private val resources: Resources) {
     if (width == screenW && height == screenH && ground != null) return
     screenW = width
     screenH = height
+
     recycle(ground)
     recycle(mid)
     recycle(high)
-    ground = decodeCoverScaled(resources, R.drawable.stage1_bg_layer1_ground, width, height)
-    mid = decodeCoverScaled(resources, R.drawable.stage1_bg_layer2_mid, width, height)
-    high = decodeCoverScaled(resources, R.drawable.stage1_bg_layer3_high, width, height)
+
+    // Decode and apply width-locked scaling configurations to layer artwork
+    ground = decodeWidthLockedScaled(resources, R.drawable.stage1_bg_layer1_ground, width)
+    mid = decodeWidthLockedScaled(resources, R.drawable.stage1_bg_layer2_mid, width)
+    high = decodeWidthLockedScaled(resources, R.drawable.stage1_bg_layer3_high, width)
+
+    // Cache the precise pixel heights of the scaled assets for the wrapping pipeline
+    groundHeight = ground?.height?.toFloat() ?: height.toFloat()
+    midHeight = mid?.height?.toFloat() ?: height.toFloat()
+    highHeight = high?.height?.toFloat() ?: height.toFloat()
+
     yGround = 0f
     yMid = 0f
     yHigh = 0f
@@ -71,37 +90,32 @@ class ParallaxBackground(private val resources: Resources) {
     stage6SpeedModifier = 1.0f
   }
 
-  /** [baseSpeed] is pixels this frame for layer 1. Layers 2/3 use 1.5x and 2.2x. */
+  /** Updates your generic vertical scrolling offsets based on each layer's custom wrap boundaries. */
   fun update(baseSpeed: Float) {
-    val h = screenH.toFloat()
-    if (h <= 0f) return
-    yGround = wrap(yGround + baseSpeed * SPEED_GROUND, h)
-    yMid = wrap(yMid + baseSpeed * SPEED_MID, h)
-    yHigh = wrap(yHigh + baseSpeed * SPEED_HIGH, h)
+    if (screenH <= 0) return
+    yGround = wrap(yGround + baseSpeed * SPEED_GROUND, groundHeight)
+    yMid = wrap(yMid + baseSpeed * SPEED_MID, midHeight)
+    yHigh = wrap(yHigh + baseSpeed * SPEED_HIGH, highHeight)
   }
 
-  /**
-   * Stage 5: floor at [scrollSpeedY], canopy at 1.5x. Wrap by canvas height.
-   */
+  /** Stage 5: floor at scrollSpeedY, canopy at 1.5x. Wrapped strictly by individual asset heights. */
   fun updateStage5(scrollSpeedY: Float, dt: Float) {
-    val canvasHeight = screenH.toFloat()
-    if (canvasHeight <= 0f) return
+    if (screenH <= 0) return
     val speed = scrollSpeedY
     val frame = dt
+
     stage5Layer1Y += speed * frame
-    if (stage5Layer1Y >= canvasHeight) {
-      stage5Layer1Y -= canvasHeight
+    if (stage5Layer1Y >= stage5Layer1Height) {
+      stage5Layer1Y -= stage5Layer1Height
     }
+
     stage5Layer2Y += (speed * SPEED_S5_LAYER2) * frame
-    if (stage5Layer2Y >= canvasHeight) {
-      stage5Layer2Y -= canvasHeight
+    if (stage5Layer2Y >= stage5Layer2Height) {
+      stage5Layer2Y -= stage5Layer2Height
     }
   }
 
-  /**
-   * Stage 6 ascent: [scrollSpeedY] scaled by [stage6SpeedModifier] from the
-   * stage clock [elapsedTime]. Wrap uses the same three-layer blit as other maps.
-   */
+  /** Stage 6 ascent: scrollSpeedY scaled by timeline modifiers. Wrapped by individual asset heights. */
   fun updateStage6(scrollSpeedY: Float, dt: Float, elapsedTime: Float) {
     val t = elapsedTime
     if (t < S6_CLOUD_END) {
@@ -118,13 +132,14 @@ class ParallaxBackground(private val resources: Resources) {
     } else {
       stage6SpeedModifier = 0f
     }
+
     val speed = scrollSpeedY * stage6SpeedModifier
     update(speed * dt)
-    val canvasHeight = screenH.toFloat()
-    if (canvasHeight > 0f) {
+
+    if (stage6Layer2Height > 0f) {
       stage6Layer2Y += (scrollSpeedY * 1.5f) * dt
-      if (stage6Layer2Y >= canvasHeight) {
-        stage6Layer2Y -= canvasHeight
+      if (stage6Layer2Y >= stage6Layer2Height) {
+        stage6Layer2Y -= stage6Layer2Height
       }
     }
   }
@@ -139,32 +154,38 @@ class ParallaxBackground(private val resources: Resources) {
     stage6SpeedModifier = 1.0f
   }
 
+  /** Injects cached asset heights into the layout blitting calculations to preserve stitching boundaries. */
   fun draw(canvas: Canvas, groundOverride: Bitmap?, overlayClouds: Boolean) {
-    val h = screenH.toFloat()
-    if (h <= 0f) return
+    if (screenH <= 0) return
+
     val groundBmp = groundOverride ?: ground
-    blit(canvas, groundBmp, yGround, h, paintGround)
+    val activeGroundH = if (groundOverride != null) groundOverride.height.toFloat() else groundHeight
+
+    blit(canvas, groundBmp, yGround, activeGroundH, paintGround)
     if (!overlayClouds) return
-    blit(canvas, mid, yMid, h, paintMid)
-    blit(canvas, high, yHigh, h, paintHigh)
+    blit(canvas, mid, yMid, midHeight, paintMid)
+    blit(canvas, high, yHigh, highHeight, paintHigh)
   }
 
   fun drawStage5Floor(canvas: Canvas, floor: Bitmap?) {
     if (floor != null) {
-      blitStage5(canvas, floor, stage5Layer1Y, paintGround)
+      stage5Layer1Height = floor.height.toFloat()
+      blit(canvas, floor, stage5Layer1Y, stage5Layer1Height, paintGround)
     }
   }
 
   fun drawStage5Canopy(canvas: Canvas, canopy: Bitmap?, currentStage: Int) {
     if (currentStage != 5) return
     if (canopy == null || canopy.isRecycled) return
-    blitStage5(canvas, canopy, stage5Layer2Y, paintStructures)
+    stage5Layer2Height = canopy.height.toFloat()
+    blit(canvas, canopy, stage5Layer2Y, stage5Layer2Height, paintStructures)
   }
 
   fun drawStage6Canopy(canvas: Canvas, canopy: Bitmap?, currentStage: Int) {
     if (currentStage != 6) return
     if (canopy == null || canopy.isRecycled) return
-    blitStage5(canvas, canopy, stage6Layer2Y, paintStructures)
+    stage6Layer2Height = canopy.height.toFloat()
+    blit(canvas, canopy, stage6Layer2Y, stage6Layer2Height, paintStructures)
   }
 
   fun drawStage5(canvas: Canvas, floor: Bitmap?, canopy: Bitmap?, currentStage: Int) {
@@ -184,17 +205,11 @@ class ParallaxBackground(private val resources: Resources) {
     screenH = 0
   }
 
-  private fun blit(canvas: Canvas, bitmap: Bitmap?, y: Float, h: Float, paint: Paint) {
+  /** Core tiling optimization: offsets secondary slices by asset height footprints instead of display dimensions. */
+  private fun blit(canvas: Canvas, bitmap: Bitmap?, y: Float, assetH: Float, paint: Paint) {
     if (bitmap == null) return
     canvas.drawBitmap(bitmap, 0f, y, paint)
-    canvas.drawBitmap(bitmap, 0f, y - h + 1.0f, paint)
-  }
-
-  private fun blitStage5(canvas: Canvas, bitmap: Bitmap, y: Float, paint: Paint) {
-    val canvasHeight = screenH.toFloat()
-    if (canvasHeight <= 0f) return
-    canvas.drawBitmap(bitmap, 0f, y, paint)
-    canvas.drawBitmap(bitmap, 0f, y - canvasHeight + 1.0f, paint)
+    canvas.drawBitmap(bitmap, 0f, y - assetH, paint)
   }
 
   private fun recycle(bitmap: Bitmap?) {
@@ -218,34 +233,29 @@ class ParallaxBackground(private val resources: Resources) {
     const val MID_ALPHA = 140
     const val HIGH_ALPHA = 36
 
-    fun wrap(y: Float, h: Float): Float {
-      var v = y % h
-      if (v < 0f) v += h
+    fun wrap(y: Float, maxBounds: Float): Float {
+      var v = y % maxBounds
+      if (v < 0f) v += maxBounds
       return v
     }
   }
 }
 
-/** Uniform scale to cover [width]x[height], then center-crop. Does not stretch. */
-internal fun decodeCoverScaled(resources: Resources, id: Int, width: Int, height: Int): Bitmap {
+/** Scales asset to span target width perfectly, preserving uncropped vertical aspect ratio and loop seams. */
+internal fun decodeWidthLockedScaled(resources: Resources, id: Int, targetW: Int): Bitmap {
   val opts = BitmapFactory.Options().apply {
     inScaled = false
     inPreferredConfig = Bitmap.Config.ARGB_8888
   }
   val src = BitmapFactory.decodeResource(resources, id, opts)
     ?: error("Missing drawable $id")
-  if (src.width == width && src.height == height) return src
-  val scale = max(width.toFloat() / src.width, height.toFloat() / src.height)
-  val scaledW = ceil(src.width * scale).toInt().coerceAtLeast(width)
-  val scaledH = ceil(src.height * scale).toInt().coerceAtLeast(height)
+  if (src.width == targetW) return src
+
+  val widthScale = targetW.toFloat() / src.width.toFloat()
+  val scaledW = targetW
+  val scaledH = ceil(src.height * widthScale).toInt()
+
   val scaled = Bitmap.createScaledBitmap(src, scaledW, scaledH, true)
   if (scaled !== src) src.recycle()
-  if (scaled.width == width && scaled.height == height) return scaled
-  val cropX = ((scaled.width - width) / 2).coerceAtLeast(0)
-  val cropY = ((scaled.height - height) / 2).coerceAtLeast(0)
-  val cropW = width.coerceAtMost(scaled.width - cropX)
-  val cropH = height.coerceAtMost(scaled.height - cropY)
-  val cropped = Bitmap.createBitmap(scaled, cropX, cropY, cropW, cropH)
-  if (cropped !== scaled) scaled.recycle()
-  return cropped
+  return scaled
 }

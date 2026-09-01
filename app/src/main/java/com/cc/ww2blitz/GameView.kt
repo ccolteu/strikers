@@ -1473,37 +1473,80 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
+  /**
+   * Scales a raw level background bitmap asset to match the display width exactly,
+   * keeping the vertical loop proportions and seam stitch points completely uncropped.
+   */
+  private fun decodeWidthLockedScaled(width: Int, drawableId: Int): Bitmap {
+    val opts = BitmapFactory.Options().apply {
+      inScaled = false
+      inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    val src = BitmapFactory.decodeResource(resources, drawableId, opts)
+      ?: error("Missing drawable background resource: $drawableId")
+
+    // Scale asset horizontally to fit viewport, then compute matching proportional height
+    val scale = width.toFloat() / src.width.toFloat()
+    val scaledW = width
+    val scaledH = kotlin.math.ceil(src.height * scale).toInt()
+
+    val scaledBmp = Bitmap.createScaledBitmap(src, scaledW, scaledH, true)
+    if (scaledBmp !== src) {
+      src.recycle()
+    }
+    return scaledBmp
+  }
+
   private fun loadStage2Background(width: Int, height: Int) {
     if (width <= 0 || height <= 0) return
     val existing = bgStage2Bmp
-    if (existing != null && !existing.isRecycled && existing.width == width && existing.height == height) {
+    if (existing != null && !existing.isRecycled && existing.width == width) {
       return
     }
-    if (existing != null && !existing.isRecycled) existing.recycle()
-    bgStage2Bmp = null
-    bgStage2Bmp = decodeCoverScaled(resources, R.drawable.stage2_bg_layer1_ground, width, height)
+    recycleStageBitmap(existing)
+    bgStage2Bmp = decodeWidthLockedScaled(width, R.drawable.stage2_bg_layer1_ground)
   }
 
   private fun loadStage3Background(width: Int, height: Int) {
     if (width <= 0 || height <= 0) return
     val existing = bgStage3Bmp
-    if (existing != null && !existing.isRecycled && existing.width == width && existing.height == height) {
+    if (existing != null && !existing.isRecycled && existing.width == width) {
       return
     }
-    if (existing != null && !existing.isRecycled) existing.recycle()
-    bgStage3Bmp = null
-    bgStage3Bmp = decodeCoverScaled(resources, R.drawable.stage3_bg_layer1_ocean, width, height)
+    recycleStageBitmap(existing)
+    bgStage3Bmp = decodeWidthLockedScaled(width, R.drawable.stage3_bg_layer1_ocean)
   }
 
   private fun loadStage4Background(width: Int, height: Int) {
     if (width <= 0 || height <= 0) return
     val existing = bgStage4Bmp
-    if (existing != null && !existing.isRecycled && existing.width == width && existing.height == height) {
+    if (existing != null && !existing.isRecycled && existing.width == width) {
       return
     }
-    if (existing != null && !existing.isRecycled) existing.recycle()
+    recycleStageBitmap(existing)
+    bgStage4Bmp = decodeWidthLockedScaled(width, R.drawable.stage4_bg_layer1_ground)
+  }
+
+  private fun loadStage5Bitmaps(width: Int, height: Int) {
+    if (width <= 0 || height <= 0) return
+    recycleStageBitmap(bgStage6Layer2Bmp)
+    bgStage6Layer2Bmp = null
+    val ready1 = bgStage5Layer1Bmp
+    val ready2 = bgStage5Layer2Bmp
+    if (ready1 != null && !ready1.isRecycled && ready1.width == width && ready2 != null && !ready2.isRecycled) {
+      return
+    }
+    recycleStageBitmap(bgStage4Bmp)
     bgStage4Bmp = null
-    bgStage4Bmp = decodeCoverScaled(resources, R.drawable.stage4_bg_layer1_ground, width, height)
+    recycleStageBitmap(bgStage2Bmp)
+    bgStage2Bmp = null
+    recycleStageBitmap(bgStage3Bmp)
+    bgStage3Bmp = null
+    recycleStageBitmap(bgStage5Layer1Bmp)
+    recycleStageBitmap(bgStage5Layer2Bmp)
+
+    bgStage5Layer1Bmp = decodeWidthLockedScaled(width, R.drawable.stage5_bg_layer1_facility)
+    bgStage5Layer2Bmp = loadChromaKeyedBitmap(R.drawable.stage5_bg_layer2_giant_structures, 0xFF00FF00.toInt())
   }
 
   private fun recycleStageBitmap(bitmap: Bitmap?) {
@@ -1541,40 +1584,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       loadStage3Background(width, height)
       loadStage4Background(width, height)
     }
-  }
-
-  private fun loadStage5Bitmaps(width: Int, height: Int) {
-    if (width <= 0 || height <= 0) return
-    recycleStageBitmap(bgStage6Layer2Bmp)
-    bgStage6Layer2Bmp = null
-    val ready1 = bgStage5Layer1Bmp
-    val ready2 = bgStage5Layer2Bmp
-    if (
-      ready1 != null && !ready1.isRecycled && ready1.width == width && ready1.height == height &&
-      ready2 != null && !ready2.isRecycled
-    ) {
-      return
-    }
-    recycleStageBitmap(bgStage4Bmp)
-    bgStage4Bmp = null
-    recycleStageBitmap(bgStage2Bmp)
-    bgStage2Bmp = null
-    recycleStageBitmap(bgStage3Bmp)
-    bgStage3Bmp = null
-    recycleStageBitmap(bgStage5Layer1Bmp)
-    bgStage5Layer1Bmp = null
-    recycleStageBitmap(bgStage5Layer2Bmp)
-    bgStage5Layer2Bmp = null
-    bgStage5Layer1Bmp = decodeCoverScaled(
-      resources,
-      R.drawable.stage5_bg_layer1_facility,
-      width,
-      height,
-    )
-    bgStage5Layer2Bmp = loadChromaKeyedBitmap(
-      R.drawable.stage5_bg_layer2_giant_structures,
-      0xFF00FF00.toInt(),
-    )
   }
 
   private fun loadStage6Resources(w: Int, h: Int) {
