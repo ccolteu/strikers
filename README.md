@@ -31,7 +31,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 11 | Operator dipswitch for ship | Persisted `chosen_fighter`; `applyFighterConfiguration` | [Fighter](#9-fighter-dipswitch) |
 | 12 | Settings survive power cycle | `SharedPreferences` primitives, load once, `apply()` | [Persistence](#10-persistence) |
 | 13 | Sell the next map, freeze combat | `STATE_INTERSTITIAL`, 3 s, timer only | [Briefing](#11-briefing-interstitial) |
-| 14 | Thumb must not hide the plane | Relative drag, speed-capped by `classBaseSpeed * dt` | [Player motion](#12-player-motion) |
+| 14 | Thumb must not hide the plane; finger must not drift off the sprite | Relative drag + spring-velocity tether (40 px cap, class `responsivenessTether`) | [Player motion](#12-player-motion) |
 | 15 | Bank must read at a glance | Seven-frame strip, lerp toward hard left or hard right | [Player motion](#12-player-motion) |
 | 16 | Hold-to-fire, two ship identities | Class vulcan in `BulletManager`; no trig on the fire path | [Vulcan](#13-vulcan-and-missiles) |
 | 17 | Missiles are a power reward, not the gun | Separate missile cooldown at weapon power ≥ 3 | [Vulcan](#13-vulcan-and-missiles) |
@@ -243,7 +243,7 @@ Stage table (metrics as coded):
 
 **Why.** Mutating live stats + sprites in one function keeps demo, play, and title tags coherent. Staying in the select scene matches difficulty: dip first, credit from the title.
 
-**Implementation.** P-38: `player_ship_1…7`, speed 1200, fire 0.090 s, dual columns. Hellcat: `player_b_1…7`, speed 750, fire 0.125 s, 3-way. `applyFighterConfiguration` recycles the seven frames, `loadFrames()`, `refreshDrawSize()`. `GameView` init loads prefs then applies. Panel tap saves immediately. Gold focus stroke (4 px, 8 px corners, blinking alpha) reads `selectedFighterIndex`, synced from `chosenFighterIndex` when the scene opens.
+**Implementation.** P-38: `player_ship_1…7`, `classBaseSpeed` 1600, `responsivenessTether` 1.0, fire 0.090 s, dual columns. Hellcat: `player_b_1…7`, speed 1150, tether 0.82, fire 0.125 s, 3-way. `applyFighterConfiguration` recycles the seven frames, `loadFrames()`, `refreshDrawSize()`. `GameView` init loads prefs then applies. Panel tap saves immediately. Gold focus stroke (4 px, 8 px corners, blinking alpha) reads `selectedFighterIndex`, synced from `chosenFighterIndex` when the scene opens.
 
 ---
 
@@ -273,13 +273,20 @@ Stage table (metrics as coded):
 
 ## 12. Player motion
 
-**Need.** Putting the plane under the thumb hides the sprite. Absolute “stick-to-finger” also breaks relative muscle memory from a joystick.
+**Need.** Putting the plane under the thumb hides the sprite. Absolute “stick-to-finger” also breaks joystick muscle memory. A raw speed clamp that discards leftover delta lets the finger run an unbounded distance ahead of the ship: control lag, visual decoupling, and dead precision in corners.
 
-**Choice.** Relative drag: ship += finger delta, capped at class speed × `dt`. Seven bank frames from velocity sign.
+**Choice.** Relative drag plus a **spring-velocity relaxation loop**. The finger is a tight rubber band, not an infinite leash. Maximum tracking distance is clamped (`TETHER_LIMIT_PX = 40`). Each class has a speed budget (`classBaseSpeed`) and a tether factor (`responsivenessTether`). Micro-moves inside the budget stay 1:1. Viewport `clamp()` runs in the same call so an edge hit drops leftover delta instead of accumulating grab error.
 
-**Why.** The sprite stays visible. Speed cap is the analog of a stick’s max throw. Banking is a Toaplan/Psikyo tell, not a physics sim.
+**Why.** The rubber band gives a heavy aircraft authentic mechanical weight (Hellcat 0.82) while a light interceptor stays instant (P-38 1.0). Sudden micro-dodges in a bullet cluster never wait for catch-up, because those deltas are applied 1:1. Large flicks cannot yank the grab point 200 px off the sprite.
 
-**Implementation.** `onTouch` stores `pointerId`, last XY. Move computes `dx, dy` from the same pointer. `moveWithRelativeInput`: length ≤ 0.0001 return; if length > `classBaseSpeed * dt`, scale; else add raw. `|dx| > MOVE_THRESHOLD` sets `isMovingHorizontal`. `update` sets `targetFrameIndex` to 0 or 6 from `targetVelocityX` sign, lerps `currentFrameIndex` with `FRAME_LERP` scaled as if 60 Hz. Outline/shadow blits around the body. Demo uses `steerToward` at `DEMO_SPEED` instead of drag.
+**Implementation.** `GameView` feeds per-frame `dx, dy` from the same pointer into `moveWithRelativeInput`. All math is primitive floats (no vectors). Early-out if `sqrt(dx²+dy²) ≤ 0.001`. If distance > 40 px, scale the sample down to 40 px. `maxMove = classBaseSpeed * dt`. If the (tethered) distance still exceeds `maxMove`, `x/y += move * (maxMove / dist) * responsivenessTether`; else `x/y += move` 1:1. Then `clamp()` to screen padding and `writeDst()`. Bank: `|dx| > MOVE_THRESHOLD` → `isMovingHorizontal`; `update` lerps the 7-frame strip toward 0 or 6. Demo still uses `steerToward` at `DEMO_SPEED`.
+
+| | P-38 | Hellcat |
+| --- | --- | --- |
+| `classBaseSpeed` | 1600 | 1150 |
+| `responsivenessTether` | 1.0 | 0.82 |
+| Over-budget flicks | Full speed scale | 82% of the speed scale (weight) |
+| Micro-dodges | 1:1 | 1:1 |
 
 ---
 

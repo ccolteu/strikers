@@ -55,6 +55,7 @@ class PlayerShip(private val resources: Resources) {
   private var isMovingHorizontal = false
   private var autoFire = false
   private var classBaseSpeed = P38_SPEED
+  private var responsivenessTether = P38_TETHER
   private var muzzleFrac = P38_MUZZLE_X
   private var fanAngle = 0f
   private var fireInterval = P38_FIRE_INTERVAL
@@ -246,16 +247,26 @@ class PlayerShip(private val resources: Resources) {
 
   fun moveWithRelativeInput(dx: Float, dy: Float, dt: Float) {
     if (isGameOverFlag || lives <= 0 || respawnTimer > 0f) return
-    val requestedDist = kotlin.math.sqrt(dx * dx + dy * dy)
-    if (requestedDist <= 0.0001f) return
-    val maxDistanceThisFrame = classBaseSpeed * dt
-    if (requestedDist > maxDistanceThisFrame) {
-      val clampFactor = maxDistanceThisFrame / requestedDist
-      x += dx * clampFactor
-      y += dy * clampFactor
+    val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+    if (distance <= 0.001f) return
+    var moveX = dx
+    var moveY = dy
+    var moveDist = distance
+    val tetherLimit = TETHER_LIMIT_PX
+    if (moveDist > tetherLimit) {
+      val tetherScale = tetherLimit / moveDist
+      moveX *= tetherScale
+      moveY *= tetherScale
+      moveDist = tetherLimit
+    }
+    val maxMove = classBaseSpeed * dt
+    if (moveDist > maxMove) {
+      val targetScale = maxMove / moveDist
+      x += moveX * targetScale * responsivenessTether
+      y += moveY * targetScale * responsivenessTether
     } else {
-      x += dx
-      y += dy
+      x += moveX
+      y += moveY
     }
     targetVelocityX = dx
     if (kotlin.math.abs(dx) > MOVE_THRESHOLD) {
@@ -329,6 +340,7 @@ class PlayerShip(private val resources: Resources) {
       1 -> {
         chosenFighterIndex = 1
         classBaseSpeed = HELLCAT_SPEED
+        responsivenessTether = HELLCAT_TETHER
         muzzleFrac = HELLCAT_MUZZLE_X
         fanAngle = HELLCAT_FAN_ANGLE
         fireInterval = HELLCAT_FIRE_INTERVAL
@@ -336,6 +348,7 @@ class PlayerShip(private val resources: Resources) {
       else -> {
         chosenFighterIndex = 0
         classBaseSpeed = P38_SPEED
+        responsivenessTether = P38_TETHER
         muzzleFrac = P38_MUZZLE_X
         fanAngle = 0f
         fireInterval = P38_FIRE_INTERVAL
@@ -458,8 +471,11 @@ class PlayerShip(private val resources: Resources) {
 
     const val SHIP_WIDTH_FRAC = 0.16f
     const val TOUCH_GRAB_SCALE = 3.5f
-    const val P38_SPEED = 1200f
-    const val HELLCAT_SPEED = 750f
+    const val P38_SPEED = 1600f
+    const val HELLCAT_SPEED = 1150f
+    const val P38_TETHER = 1.0f
+    const val HELLCAT_TETHER = 0.82f
+    const val TETHER_LIMIT_PX = 40f
     const val P38_MUZZLE_X = 0.22f
     const val HELLCAT_MUZZLE_X = 0.58f
     const val HELLCAT_FAN_ANGLE = 0.32f
