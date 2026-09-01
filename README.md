@@ -38,7 +38,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 18 | Bomb must not fire from vulcan taps | Double-tap window + slop; discrete `PanicBomb` | [Bomb](#14-panic-bomb) |
 | 19 | Bomb must clear without deleting a core | DPS + per-frame bank, cap, AABB vs pools | [Bomb](#14-panic-bomb) |
 | 20 | Sprite is large; hurtbox is a dot | 6 px core, 24 px graze ring, Euclidean test | [Graze](#15-core-hitbox-and-graze) |
-| 21 | Graze is a skill drip, once per shot | `FLAG_GRAZED` latch; demo sparks without scoring | [Graze](#15-core-hitbox-and-graze) |
+| 21 | Graze is a skill drip, once per shot; a chip must not abort the ring | `FLAG_GRAZED` latch; one `takeDamage` per frame; loop only dies on explode | [Graze](#15-core-hitbox-and-graze) |
 | 22 | Chip damage ≠ credit over | 3 lives × 3 hits; `GAME OVER` only if `isGameOver()` | [Lives](#16-lives-hits-respawn) |
 | 23 | Hardware sprite RAM, not `new` | Fixed pools: enemies 48, enemy shots 720, player shots 100, … | [Pools](#17-sprite-ram-pools) |
 | 24 | Never clobber a live sprite | `MAX_ACTIVE` skip; deactivate rather than overwrite | [Pools](#17-sprite-ram-pools) |
@@ -318,11 +318,11 @@ Stage table (metrics as coded):
 
 **Need.** If the whole sprite were solid, weaving would be impossible. Psikyo drew a generous plane and killed you on a **dot**. Sliding a bullet through the halo is a skill check with a score drip, not a second life.
 
-**Choice.** Two radii on the same center: core 6 px, graze 24 px. Euclidean test. Graze latches once per bullet. Rams/pickups keep a larger body radius.
+**Choice.** Two radii on the same center: core 6 px, graze 24 px. Euclidean test. Graze latches once per bullet. **One damage event per frame**; the shot loop does not return on a chip or i-frame spark. Rams/pickups keep a larger body radius.
 
-**Why.** Distance-squared avoids `RectF.intersects` and sqrt on the miss path. A flag on the bullet is the EEPROM of “already paid.”
+**Why.** Distance-squared avoids `RectF.intersects` and sqrt on the miss path. A flag on the bullet is the EEPROM of “already paid.” Cabinets chip you once per pulse, then still pay graze on the rest of the ring. Returning from the first overlap skipped stacked shots and i-frame grazes.
 
-**Implementation.** `BulletManager.resolveEnemyBulletsVsPlayer`: skip if `!player.isOnField()`. For each active `EnemyBullet`, if `FLAG_LASER` use AABB (`S6_LASER_HW/HH` + core); else `distSq` vs `coreSq` then `grazeSq`. Core: deactivate, `takeDamage()`, explosion, return whether this credit is over. Graze: set `FLAG_GRAZED`, `addGrazeScore` if `awardScore`, `triggerSpark` with outward velocity from the delta. Demo passes `awardScore = false`. Graze **count** for recap is incremented unscaled.
+**Implementation.** `BulletManager.resolveEnemyBulletsVsPlayer`: skip if `!player.isOnField()`. For each active `EnemyBullet`, if `FLAG_LASER` use AABB (`S6_LASER_HW/HH` + core); else `distSq` vs `coreSq` then `grazeSq`. Core/laser overlap: deactivate the shot. If `damagedThisFrame` is still false, set it and `takeDamage()`; **return true only if the body exploded**. Extra cores/lasers the same frame are cancelled with no second chip (i-frames included). The loop continues so remaining pellets can graze. Graze: set `FLAG_GRAZED`, `addGrazeScore` if `awardScore`, `triggerSpark` with outward velocity from the delta. Demo passes `awardScore = false`. Graze **count** for recap is incremented unscaled.
 
 ---
 
@@ -496,7 +496,7 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 
 **Why.** One place decides game-over. One place implements Psikyo graze. Body fraction keeps rams fair.
 
-**Implementation.** Player bullets vs enemies (HP, shudder on heavies, loot, revenge). Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except Stage 5 half-damage rule). Enemy bullets vs player (graze helper). Enemy/boss AABBs vs player (`PLAYER_HIT_RADIUS = 12`). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
+**Implementation.** Player bullets vs enemies (HP, shudder on heavies, loot, revenge). Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except Stage 5 half-damage rule). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Enemy/boss AABBs vs player (`PLAYER_HIT_RADIUS = 12`). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
 
 ---
 

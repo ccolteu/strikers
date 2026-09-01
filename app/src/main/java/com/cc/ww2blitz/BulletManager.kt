@@ -114,6 +114,7 @@ class BulletManager {
 
   /**
    * Euclidean core vs graze vs [EnemyBullet] centers. No RectF.intersects on the physical path.
+   * One damage event per frame; the loop always finishes unless the ship explodes.
    * @return true if [PlayerShip.takeDamage] destroyed the ship this frame.
    */
   fun resolveEnemyBulletsVsPlayer(
@@ -130,6 +131,7 @@ class BulletManager {
     val grazeR = player.grazeRadius
     val coreSq = coreR * coreR
     val grazeSq = grazeR * grazeR
+    var damagedThisFrame = false
     var i = 0
     while (i < enemyBulletCount) {
       val b = enemyBullets[i]
@@ -142,24 +144,27 @@ class BulletManager {
           if (dx <= hw && dx >= -hw && dy <= hh && dy >= -hh) {
             b.isActive = false
             b.flags = 0
-            if (player.takeDamage()) {
-              particles.triggerExplosion(px, py)
-              return true
+            if (!damagedThisFrame) {
+              damagedThisFrame = true
+              if (player.takeDamage()) {
+                particles.triggerExplosion(px, py)
+                return true
+              }
             }
-            return false
           }
         } else {
           val distSq = (dx * dx) + (dy * dy)
           if (distSq <= coreSq) {
             b.isActive = false
             b.flags = 0
-            if (player.takeDamage()) {
-              particles.triggerExplosion(px, py)
-              return true
+            if (!damagedThisFrame) {
+              damagedThisFrame = true
+              if (player.takeDamage()) {
+                particles.triggerExplosion(px, py)
+                return true
+              }
             }
-            return false
-          }
-          if (distSq <= grazeSq && (b.flags and EnemyBullet.FLAG_GRAZED) == 0) {
+          } else if (distSq <= grazeSq && (b.flags and EnemyBullet.FLAG_GRAZED) == 0) {
             b.flags = b.flags or EnemyBullet.FLAG_GRAZED
             if (awardScore) {
               ScoreManager.instance.addGrazeScore(ScoreManager.GRAZE_POINTS)
