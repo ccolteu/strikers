@@ -15,6 +15,7 @@ android {
     }
     buildTypes {
         release {
+            isDebuggable = false
             isMinifyEnabled = true     // Activates ProGuard code shrinking and obfuscation
             isShrinkResources = true   // Automatically discards unused asset drawable references
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
