@@ -60,7 +60,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 40 | Ten-row table, no JSON on attract | `IntArray` / `CharArray`, in-place insert, `arcade_leaderboard` | [Name entry](#26-name-entry-and-campaign-end) |
 | 41 | Finish is the playlist latch, not “stage id 6” | `campaignFinishedLatch` → credits → qualify | [Name entry](#26-name-entry-and-campaign-end) |
 | 42 | Gunshots immediate, music gapless, nothing on the frame | `SoundPool` + dual `MediaPlayer`; volumes in prefs | [Audio](#27-audio) |
-| 43 | Collisions need every pool | `GameView.resolveCollisions`; graze math isolated in `BulletManager` | [Collisions](#28-collision-ownership) |
+| 43 | Collisions need every pool; fat gunships must take body hits | `GameView.resolveCollisions`; shots ellipse `10 + 0.55×half`; player stays a dot | [Collisions](#28-collision-ownership) |
 
 ```mermaid
 flowchart TB
@@ -493,11 +493,11 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 
 **Need.** Hits involve every pool (player shots vs grunts vs boss parts vs player vs rams vs pickups vs bomb). Splitting that across classes creates order bugs. Graze math is still one tight loop.
 
-**Choice.** `GameView.resolveCollisions` orchestrates. Euclidean core/graze lives in `BulletManager`. Boss/player-shot tests are padded ellipses on parts. Rams use a **fraction** of enemy body size so large sprites are not unfair magnets.
+**Choice.** `GameView.resolveCollisions` orchestrates. Euclidean core/graze lives in `BulletManager`. Boss/player-shot tests are padded ellipses on parts. Rams use **45%** of enemy half-size plus the player 12 px dot. Vulcan/missiles vs grunts use a slightly fatter ellipse: `SHOT_HIT_PAD` (10) + **55%** of that type’s `halfW`/`halfH`. The player hurtbox stays a dot.
 
-**Why.** One place decides game-over. One place implements Psikyo graze. Body fraction keeps rams fair.
+**Why.** One place decides game-over. One place implements Psikyo graze. A shared 28 px disk on the enemy **center** made drones fair and heavies ghost except at the cockpit. Type-scaled shot ellipses let you walk fire across the painted hull without growing the player into a barn.
 
-**Implementation.** Player bullets vs enemies (HP, shudder on heavies, loot, revenge). Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except Stage 5 half-damage rule). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Enemy/boss AABBs vs player (`PLAYER_HIT_RADIUS = 12`). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
+**Implementation.** `shotHitsEnemy(dx, dy, type)` for vulcan and homing vs the grunt pool. Rams: `PLAYER_HIT_RADIUS + half*ENEMY_RAM_BODY_FRAC` (0.45). Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except Stage 5 half-damage rule). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
 
 ---
 

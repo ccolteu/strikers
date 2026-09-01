@@ -1751,7 +1751,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val bulletCount = bullets.getPoolSize()
     val enemyPool = enemies.getEnemyPool()
     val enemyCount = enemies.getPoolSize()
-    val radiusSq = RADIUS_SUM_THRESHOLD * RADIUS_SUM_THRESHOLD
     var bi = 0
     while (bi < bulletCount) {
       val bullet = bulletPool[bi]
@@ -1760,10 +1759,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         while (ei < enemyCount) {
           val enemy = enemyPool[ei]
           if (enemy.isActive) {
-            val dx = bullet.x - enemy.x
-            val dy = bullet.y - enemy.y
-            val distanceSquared = (dx * dx) + (dy * dy)
-            if (distanceSquared <= radiusSq) {
+            if (shotHitsEnemy(bullet.x - enemy.x, bullet.y - enemy.y, enemy.type)) {
               bullet.isActive = false
               enemy.health -= 1
               if (enemy.type == ENEMY_TYPE_HEAVY) {
@@ -1795,10 +1791,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         while (ei < enemyCount) {
           val enemy = enemyPool[ei]
           if (enemy.isActive) {
-            val dx = missile.x - enemy.x
-            val dy = missile.y - enemy.y
-            val distanceSquared = (dx * dx) + (dy * dy)
-            if (distanceSquared <= radiusSq) {
+            if (shotHitsEnemy(missile.x - enemy.x, missile.y - enemy.y, enemy.type)) {
               missile.isActive = false
               enemy.health -= 1
               if (enemy.type == ENEMY_TYPE_HEAVY) {
@@ -2009,6 +2002,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       ii++
     }
+  }
+
+  private fun shotHitsEnemy(dx: Float, dy: Float, type: Int): Boolean {
+    val sx = SHOT_HIT_PAD + enemies.halfWOf(type) * SHOT_HIT_BODY_FRAC
+    val sy = SHOT_HIT_PAD + enemies.halfHOf(type) * SHOT_HIT_BODY_FRAC
+    if (sx <= 0f || sy <= 0f) return false
+    val nx = dx / sx
+    val ny = dy / sy
+    return (nx * nx) + (ny * ny) <= 1f
   }
 
   private fun onEnemyKilled(enemy: Enemy) {
@@ -2842,8 +2844,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val GAMEOVER_SECS = 9f
     const val TITLE_SCROLL_PX = 50f
     const val MAX_FRAME_NS = 50_000_000L
-    const val RADIUS_SUM_THRESHOLD = 28f
     const val PLAYER_HIT_RADIUS = 12f
+    const val SHOT_HIT_PAD = 10f
+    const val SHOT_HIT_BODY_FRAC = 0.55f
     const val BOSS_BULLET_PAD_X = 6f
     const val BOSS_BULLET_PAD_Y = 16f
     const val ENEMY_RAM_BODY_FRAC = 0.45f
