@@ -106,13 +106,10 @@ class PowerUpItem {
     return false
   }
 
-  fun update(dt: Float, screenW: Int) {
-    update(dt, screenW, 2500)
-  }
-
-  fun update(dt: Float, screenW: Int, screenH: Int) {
+  fun update(dt: Float, screenW: Int, screenH: Int, playerX: Float, playerY: Float) {
     isActive = false
     val floor = screenH + 48f
+    val edge = screenW * EDGE_STRIP_FRAC
     var i = 0
     while (i < POOL_SIZE) {
       val s = pool[i]
@@ -136,6 +133,7 @@ class PowerUpItem {
           }
         }
         if (s.itemType == ITEM_TYPE_MEDAL) {
+          pullMedalTowardPlayer(s, dt, playerX, playerY, edge, screenW.toFloat())
           s.medalFrameTime += dt
           while (s.medalFrameTime >= MEDAL_FRAME_SEC) {
             s.medalFrameTime -= MEDAL_FRAME_SEC
@@ -151,6 +149,38 @@ class PowerUpItem {
         }
       }
       i++
+    }
+  }
+
+  private fun pullMedalTowardPlayer(
+    s: PowerUpSlot,
+    dt: Float,
+    playerX: Float,
+    playerY: Float,
+    edge: Float,
+    screenW: Float,
+  ) {
+    val dx = playerX - s.x
+    val dy = playerY - s.y
+    val distSq = dx * dx + dy * dy
+    var radius = MAGNET_RADIUS
+    if (s.x < edge && playerX < edge * 1.35f) {
+      radius = MAGNET_EDGE_RADIUS
+    } else if (s.x > screenW - edge && playerX > screenW - edge * 1.35f) {
+      radius = MAGNET_EDGE_RADIUS
+    }
+    if (distSq > radius * radius || distSq <= 0.0001f) return
+    val dist = kotlin.math.sqrt(distSq)
+    val step = MAGNET_SPEED * dt
+    if (step >= dist) {
+      s.x = playerX
+      s.y = playerY
+      s.swayDrop = false
+    } else {
+      val inv = step / dist
+      s.x += dx * inv
+      s.y += dy * inv
+      s.swayDrop = false
     }
   }
 
@@ -274,5 +304,9 @@ class PowerUpItem {
     const val SWAY_VY = 72f
     const val SWAY_RATE = 3.2f
     const val SWAY_AMP = 28f
+    const val MAGNET_RADIUS = 96f
+    const val MAGNET_EDGE_RADIUS = 188f
+    const val MAGNET_SPEED = 420f
+    const val EDGE_STRIP_FRAC = 0.10f
   }
 }

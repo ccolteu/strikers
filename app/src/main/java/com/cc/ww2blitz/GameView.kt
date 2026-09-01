@@ -405,7 +405,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         player.update(dt)
         bullets.update(dt, player, screenW, homingMissiles)
         homingMissiles.update(dt, enemies.getEnemyPool(), enemies.getPoolSize(), boss)
-        powerUpItem.update(dt, screenW, screenH)
+        powerUpItem.update(
+          dt,
+          screenW,
+          screenH,
+          player.getHitboxX(),
+          player.getHitboxY(),
+        )
         updateFloatingScores(dt)
         timeline.update(
           dt,
