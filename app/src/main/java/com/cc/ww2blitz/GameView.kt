@@ -554,10 +554,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               parallax.drawStage6Canopy(canvas, canopyAsset, stageManager.currentStage)
             }
           }
+          homingMissiles.draw(canvas)
+          bullets.draw(canvas)
           player.draw(canvas)
           drawPowerUpItem(canvas)
-          bullets.draw(canvas)
-          homingMissiles.draw(canvas)
           particles.draw(canvas)
           drawPanicBomb(canvas)
         }
