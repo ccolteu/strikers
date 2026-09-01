@@ -31,7 +31,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 11 | Operator dipswitch for ship | Persisted `chosen_fighter`; `applyFighterConfiguration` | [Fighter](#9-fighter-dipswitch) |
 | 12 | Settings survive power cycle | `SharedPreferences` primitives, load once, `apply()` | [Persistence](#10-persistence) |
 | 13 | Sell the next map, freeze combat | `STATE_INTERSTITIAL`, 3 s, timer only | [Briefing](#11-briefing-interstitial) |
-| 14 | Thumb must not hide the plane; finger must not drift off the sprite | Relative drag + spring-velocity tether (40 px cap, class `responsivenessTether`) | [Player motion](#12-player-motion) |
+| 14 | Thumb must not hide the plane; finger must not run away from it | Arcade rubber band (thumb leash): chase `finger − grabOffset`, 40 px error cap, class speed | [Player motion](#12-player-motion) |
 | 15 | Bank must read at a glance | Seven-frame strip, lerp toward hard left or hard right | [Player motion](#12-player-motion) |
 | 16 | Hold-to-fire, two ship identities | Class vulcan in `BulletManager`; no trig on the fire path | [Vulcan](#13-vulcan-and-missiles) |
 | 17 | Missiles are a power reward, not the gun | Separate missile cooldown at weapon power ≥ 3 | [Vulcan](#13-vulcan-and-missiles) |
@@ -109,7 +109,7 @@ flowchart TB
 
 **Why.** One content view means one canvas and one input stream. Keeping the screen on and binding `STREAM_MUSIC` matches “the machine is on.” Pause/destroy is where volumes are saved and `SoundPool`/`MediaPlayer` die, so combat never constructs audio objects.
 
-**Implementation.** `MainActivity.onCreate`: `setDecorFitsSystemWindows(false)`, hide system bars, `FLAG_KEEP_SCREEN_ON`, `volumeControlStream = STREAM_MUSIC`, `SoundManager.instance.initialize(this)`, `setContentView(GameView(this))`. `onPause` saves audio and pauses; `onResume` resumes; `onDestroy` releases. No fragments, no Compose.
+**Implementation.** `MainActivity.onCreate`: `requestedOrientation = PORTRAIT`, `setDecorFitsSystemWindows(false)`, hide system bars, `FLAG_KEEP_SCREEN_ON`, `volumeControlStream = STREAM_MUSIC`, `SoundManager.instance.initialize(this)`, `setContentView(GameView(this))`. Manifest: `screenOrientation=portrait`, `resizeableActivity=false`, `appCategory=game`, plus Android 16 large-screen opt-outs so tablets do not ignore the portrait lock. `onPause` saves audio and pauses; `onResume` resumes; `onDestroy` releases. No fragments, no Compose. Viewport size is applied once through `applyViewportSize`: first valid size boots the title stage; later same-size `surfaceChanged`/`onSizeChanged` pairs do not rewind attract or teleport the ship. `surfaceCreated` does not reset the attract cursor.
 
 ---
 
@@ -121,7 +121,7 @@ flowchart TB
 
 **Why.** Vsync is the cabinet’s scanline analog. Clamping `dt` (50 ms / `MAX_FRAME_NS`) bounds simulation when a frame is late. Hardware canvas keeps blit on the GPU path. `setWillNotDraw(true)` avoids a second software `onDraw`.
 
-**Implementation.** `surfaceCreated` sets `running`, zeros `lastNanos`, `postFrameCallback`. `doFrame` computes `dt`, runs the `when (gameState)` update, draws, `unlockCanvasAndPost`, posts the next callback. `surfaceDestroyed` removes the callback. Departments receive the same `dt`. Title / difficulty / character select do **not** tick parallax. Interstitial only decrements `interstitialTimer`. Play/demo tick order: parallax → optional `demoPilot` → player → player bullets/missiles → pickups → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → boss FX flags → clear / demo timeout.
+**Implementation.** `surfaceCreated` sets `running`, zeros `lastNanos`, `postFrameCallback`. `doFrame` computes `dt`, runs the `when (gameState)` update, draws, `unlockCanvasAndPost`, posts the next callback. `surfaceDestroyed` removes the callback. Departments receive the same `dt`. Title / difficulty / character select do **not** tick parallax. Interstitial only decrements `interstitialTimer`. Play tick order: parallax → **thumb leash** (`followTether`) → `player.update` → player bullets/missiles → pickups (medal magnet) → floating scores → timeline → enemies → boss → enemy shots → bomb → particles → collisions → boss FX flags → clear. Demo uses `demoPilot` / `steerToward` instead of the leash.
 
 Paint: optional world `save`/`translate`/`restore` for shake → background → sprites → flash quad → HUD.
 
@@ -186,7 +186,7 @@ Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / d
 
 **Why.** A fake “attract-only” spawn list would desync from the product. Reusing the director means the window always shows shippable waves. Forbidding insert keeps the operator table honest.
 
-**Implementation.** `ATTRACT_TITLE_SECS = 4`, `ATTRACT_DEMO_SECS = 30`, `ATTRACT_HIGH_SCORE_SECS = 4`. On title timeout, `startAttractDemo()` picks stage `1…5` with an LCG, skipping `lastDemoStage`. Stage 6 is never attract. `demoPilot` steers toward the lowest living enemy or boss part, sidesteps nearby downward bullets, sine-wanders if idle (`DEMO_SPEED`). `resolveEnemyBulletsVsPlayer(..., awardScore = false)`. Touch on demo or ranking returns to interactive title. `HighScoreManager` insert is not called on this path.
+**Implementation.** `ATTRACT_TITLE_SECS = 4`, `ATTRACT_DEMO_SECS = 30`, `ATTRACT_HIGH_SCORE_SECS = 4`. On title timeout, `beginDemo()` picks stage `1…5` with an LCG, skipping `lastDemoStage`. Stage 6 is never attract. `demoPilot` steers toward the lowest living enemy or boss part, sidesteps nearby downward bullets, sine-wanders if idle (`DEMO_SPEED`). `resolveEnemyBulletsVsPlayer(..., awardScore = false)`. Touch on demo or ranking returns to interactive title. Surface recreate does **not** force `ATTRACT_TITLE`; ranking can survive a flap. `HighScoreManager` insert is not called on this path.
 
 ---
 
@@ -198,7 +198,7 @@ Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / d
 
 **Why.** Index-based finish is what the operator programmed. Identity flags let Stage 5’s canopy and Stage 3’s freeze work even if you reorder the array.
 
-**Implementation.** Default `intArrayOf(1, 2, 3, 4, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. Flags: `isStage1Script` … `isStage6Backdrop`, `hasOverlayClouds`, `locksElapsedAtBoss`, `usesOpeningPowerV`. `applyStageMetrics` writes `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` resets the cursor on title so attract/demo start clean.
+**Implementation.** Default `intArrayOf(1, 2, 3, 4, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. Flags: `isStage1Script` … `isStage6Backdrop`, `hasOverlayClouds`, `locksElapsedAtBoss`, `usesOpeningPowerV`. `applyStageMetrics` writes `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport so attract starts on stage 1 with empty pools. Later title size bounces do not call it; `returnToTitle` / `beginDemo` reset the cursor themselves.
 
 Stage table (metrics as coded):
 
@@ -267,19 +267,19 @@ Stage table (metrics as coded):
 
 **Why.** A flag on the play state would still tick bullets. A full state makes the freeze obvious and the draw path a single card.
 
-**Implementation.** `INTERSTITIAL_SECS = 3`. Title start and recap-continue (when not finished) assign it. `UIController.loadInterstitials` decodes six native-aspect PNGs once. Draw width-fits and centers vertically; gold `OPERATION:` + name; fade from remaining timer. `syncBgm` uses the **stage** track during interstitial so the card and the fight share music.
+**Implementation.** `INTERSTITIAL_SECS = 3`. Title start and recap-continue (when not finished) assign it. `UIController.loadInterstitials` decodes six native-aspect PNGs once (1080×2400). Draw **contains** the card (`min(scaleW, scaleH)`), centers it, and fills letterbox from the card’s top-left pixel so short tablets keep side bars instead of cropping the header. Gold `OPERATION:` + name sit at `cardTop + 4.2 × textSize` (always on-screen). Fade from remaining timer. `syncBgm` uses the **stage** track during interstitial so the card and the fight share music.
 
 ---
 
-## 12. Player motion
+## 12. Player motion (thumb leash)
 
-**Need.** Putting the plane under the thumb hides the sprite. Absolute “stick-to-finger” also breaks joystick muscle memory. A raw speed clamp that discards leftover delta lets the finger run an unbounded distance ahead of the ship: control lag, visual decoupling, and dead precision in corners.
+**Need.** Putting the plane under the thumb hides the sprite. Relative drag (ship += finger delta) lets the finger run away: the plane is no longer where you are pointing, and a 40 px clamp on **that delta** never acts like a leash. Cabinets and phone STGs treat the stick/thumb as a **rubber band to a grab point**.
 
-**Choice.** Relative drag plus a **spring-velocity relaxation loop**. The finger is a tight rubber band, not an infinite leash. Maximum tracking distance is clamped (`TETHER_LIMIT_PX = 40`). Each class has a speed budget (`classBaseSpeed`) and a tether factor (`responsivenessTether`). Micro-moves inside the budget stay 1:1. Viewport `clamp()` runs in the same call so an edge hit drops leftover delta instead of accumulating grab error.
+**Choice.** Arcade rubber band. On a grab inside `touchGrabRadius`, store `grabOffset = finger − ship`. Every play frame, the target is **`finger − grabOffset`** (grab the wing, the plane does not jump under the thumb). `PlayerShip.followTether` chases that target. Error longer than `TETHER_LIMIT_PX` (40) is scaled down to 40 px — that is the throw of the leash, **ship vs target**, not “this `ACTION_MOVE` sample.” Then `maxMove = classBaseSpeed * dt`; if the (already leashed) step is still over budget, scale it and multiply Hellcat by `responsivenessTether` 0.82. Inside the budget the ship sits on the target (1:1 micro-dodges). `clamp()` in the same call so a bezel hit drops leftover error. Touch only **writes** the current finger; motion is applied **once** in `doFrame` so extra MOVE events cannot buy extra speed.
 
-**Why.** The rubber band gives a heavy aircraft authentic mechanical weight (Hellcat 0.82) while a light interceptor stays instant (P-38 1.0). Sudden micro-dodges in a bullet cluster never wait for catch-up, because those deltas are applied 1:1. Large flicks cannot yank the grab point 200 px off the sprite.
+**Why.** The leash is what the operator’s hand expects: the plane wants to stay at the same offset from the thumb. A flick stretches the band; the ship catches up at class speed instead of teleporting or being left in another county. Hellcat 0.82 is weight on **over-budget** chases only. P-38 1.0 stays instant at the cap. Grab-offset is why you can hold the boom and still see the nose.
 
-**Implementation.** `GameView` feeds per-frame `dx, dy` from the same pointer into `moveWithRelativeInput`. All math is primitive floats (no vectors). Early-out if `sqrt(dx²+dy²) ≤ 0.001`. If distance > 40 px, scale the sample down to 40 px. `maxMove = classBaseSpeed * dt`. If the (tethered) distance still exceeds `maxMove`, `x/y += move * (maxMove / dist) * responsivenessTether`; else `x/y += move` 1:1. Then `clamp()` to screen padding and `writeDst()`. Bank: `|dx| > MOVE_THRESHOLD` → `isMovingHorizontal`; `update` lerps the 7-frame strip toward 0 or 6. Demo still uses `steerToward` at `DEMO_SPEED`.
+**Implementation.** `ACTION_DOWN` that hits the grab disk sets `isDraggingShip`, `grabOffsetX/Y`, and `steerFingerX/Y`. `ACTION_MOVE` updates the finger for `dragPointerId` only. `doFrame` (`STATE_PLAYING`) calls `applyShipTether` → `followTether(finger, offset, dt)` **before** `player.update`. Early-out if error ≤ 0.001. If `dist > 40`, `dx,dy *= 40/dist`. If `dist > maxMove`, `x/y += dx * (maxMove/dist) * responsivenessTether`; else `x/y += dx, dy`. Bank: `|dx| > MOVE_THRESHOLD`. Demo still uses `steerToward` at `DEMO_SPEED` (no leash). Lift finger: `isDraggingShip = false`; vulcan hold is `PlayerShip.isDragging` from `onTouch`.
 
 | | P-38 | Hellcat |
 | --- | --- | --- |
@@ -310,7 +310,7 @@ Stage table (metrics as coded):
 
 **Why.** Gesture isolation is how cabinets separated buttons. DPS+bank is frame-rate stable. Cancelling bullets is the Psikyo bomb language.
 
-**Implementation.** `GameView.onTouchEvent` on `ACTION_UP` compares time/distance to `lastTapUpMs`. `PanicBomb.activate` at player XY; 6 frames × 0.083 s. `updatePanicBomb` grows `bombDstRect`, deactivates enemy shots inside it, `enemyBombDmgBank += BOMB_ENEMY_DPS * dt` (250), same idea for boss (`bossBombDmgBank`) with a cap so an open core is not deleted in one pulse. Heavies shudder on bomb chips. Extra **B** at 3 stock and extra **P** at power 3 become medals.
+**Implementation.** `GameView.onTouchEvent` on `ACTION_UP` compares time/distance to `lastTapUpMs`. `PanicBomb.activate` at player XY; 6 frames × 0.083 s. `updatePanicBomb` grows `bombDstRect`, deactivates enemy shots inside it, `enemyBombDmgBank += BOMB_ENEMY_DPS * dt` (250), same idea for boss (`bossBombDmgBank`) with a cap so an open core is not deleted in one pulse. Heavies shudder on bomb chips. Extra **B** at 3 stock pays `BOMB_FULL_SCORE` (5000) + popup; extra **P** at power 3 pays `POWERUP_FULL_SCORE` (2000, medal face) + popup. Neither is discarded.
 
 ---
 
@@ -444,9 +444,9 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Choice.** Decode mutable `ARGB_8888`, punch `g > 160 && g > r+40 && g > b+40` to 0 once at load.
 
-**Why.** Load hitch is acceptable; per-blit keying is not. Same helper on player, enemies, bosses, missiles, explosions, Stage 5 canopy (`#00FF00`).
+**Why.** Load hitch is acceptable; per-blit keying is not. Same helper on player, enemies, bosses, missiles, explosions, Stage 5 canopy (`#00FF00`). The title still (`title_screen_backdrop`) is **not** keyed — it is a photograph; green punch would eat olive and cloud pixels.
 
-**Implementation.** `BitmapFactory` `inMutable`, `inScaled = false`. Row buffer `IntArray(width)`, `getPixels`/`setPixels` per row. Recycle on fighter swap and stage theater swap.
+**Implementation.** `BitmapFactory` `inMutable`, `inScaled = false`. Row buffer `IntArray(width)`, `getPixels`/`setPixels` per row. Recycle on fighter swap and stage theater swap. Title uses `decodeOpaque`.
 
 ---
 
@@ -460,7 +460,7 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Implementation.** `addScore` / `scalePoints`. Graze count separate. Recap: `PHASE_LIVES` → `BOMBS` → `GRAZE` → `TOTAL` (~1 s each, vulcan click every 5 frames while rolling). `UIController.drawStageClear` from char buffers. `ACTION_UP` when `isRecapReady()`: `resetStageCounters`, `advanceToNextStage`; if latch → `STATE_CAMPAIGN_COMPLETE`, else interstitial. 40% black wash under the card. World sprites not drawn in `STATE_CLEAR`.
 
-Pickups: **P** increments power to 3; extra **P**/**B** → medal (face-up 2000 / edge 200 at Normal, then × dip). Shield `restoreHits()`. Stage 5 cancel medals during core-kill freeze.
+Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FULL_SCORE` (2000) + floating popup (`collectPowerUp`), same pattern as extra **B** at 3 stock (`BOMB_FULL_SCORE` 5000 + popup). Falling medals still score face-up 2000 / edge 200 at Normal, then × dip. Shield `restoreHits()`. Stage 5 cancel medals during core-kill freeze. Medals **magnet**: within 96 px they slide toward the ship at 420 px/s; in the outer 10% of the screen, if the plane is hugging that same wall, the pull radius is 188 px so rim coins still collect (the sprite clamp cannot kiss the bezel). P/B are unchanged wall-bounce at 30 px.
 
 ---
 

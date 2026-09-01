@@ -2003,8 +2003,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             player.restoreHits()
             SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
           } else {
-            player.upgradeWeapon()
-            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+            collectPowerUp(item.x, item.y)
           }
         }
       }
@@ -2078,6 +2077,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private fun nextLootUnit(): Float {
     lootSeed = lootSeed * 1664525L + 1013904223L
     return ((lootSeed ushr 8) and 0xFFFFFFL).toFloat() / 16777215f
+  }
+
+  private fun collectPowerUp(x: Float, y: Float) {
+    if (player.getWeaponPower() < 3) {
+      player.upgradeWeapon()
+    } else {
+      campaignScore += POWERUP_FULL_SCORE
+      if (campaignScore > 99_999_999) campaignScore = 99_999_999
+      triggerFloatingScore(x, y, POWERUP_FULL_SCORE)
+    }
+    SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
   }
 
   private fun collectBomb(x: Float, y: Float) {
@@ -2834,6 +2844,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val REVENGE_SPREAD_RAD = 0.18f
     const val MAX_BOMBS = 3
     const val BOMB_FULL_SCORE = 5000
+    const val POWERUP_FULL_SCORE = 2000
     const val DOUBLE_TAP_MS = 280L
     const val TAP_MAX_MS = 220L
     const val TAP_SLOP_SQ = 48f * 48f
