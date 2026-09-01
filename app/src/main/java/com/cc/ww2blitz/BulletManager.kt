@@ -13,7 +13,6 @@ class BulletManager {
 
   // Automatic machine gun firing timer parameters
   private var fireCooldownTimer = 0f
-  private val fireRateInterval = 0.120f
   private var missileCooldown = 0f
   private var spawnedStream = false
 
@@ -42,7 +41,7 @@ class BulletManager {
     if (held && fireCooldownTimer <= 0f) {
       spawnWeaponStream(player)
       spawnedStream = true
-      fireCooldownTimer = fireRateInterval
+      fireCooldownTimer = player.vulcanInterval()
     }
     if (
       player.getWeaponPower() >= 3 &&
@@ -60,7 +59,7 @@ class BulletManager {
       val bullet = bulletPool[i]
       if (bullet.isActive) {
         bullet.x += bullet.vx * dt
-        bullet.y -= BULLET_SPEED_PX_PER_SEC * dt
+        bullet.y += bullet.vy * dt
         if (bullet.y < 0f || bullet.x < -40f || bullet.x > maxX) {
           bullet.isActive = false
         }
@@ -70,30 +69,20 @@ class BulletManager {
   }
 
   private fun spawnWeaponStream(player: PlayerShip) {
-    val my = player.muzzleY()
-    val powerLevel = player.getWeaponPower()
-
-    when (powerLevel) {
-      2 -> {
-        spawnBullet(player.getHitboxX(), my, 0f)
-        spawnBullet(player.leftMuzzleX(), my, LEVEL2_SPREAD_VX)
-        spawnBullet(player.rightMuzzleX(), my, -LEVEL2_SPREAD_VX)
-      }
-      3 -> {
-        spawnBullet(player.muzzleXAt(-LANE3_OUTER), my, 0f)
-        spawnBullet(player.muzzleXAt(-LANE3_INNER), my, 0f)
-        spawnBullet(player.muzzleXAt(LANE3_INNER), my, 0f)
-        spawnBullet(player.muzzleXAt(LANE3_OUTER), my, 0f)
-      }
-      else -> {
-        spawnBullet(player.leftMuzzleX(), my, 0f)
-        spawnBullet(player.rightMuzzleX(), my, 0f)
-      }
+    val sx = player.getHitboxX()
+    val sy = player.getHitboxY()
+    if (player.chosenFighterIndex == 1) {
+      spawnPlayerBullet(sx, sy - 15f, 0f, HELLCAT_CENTER_VY)
+      spawnPlayerBullet(sx, sy - 15f, -HELLCAT_FLANK_VX, HELLCAT_FLANK_VY)
+      spawnPlayerBullet(sx, sy - 15f, HELLCAT_FLANK_VX, HELLCAT_FLANK_VY)
+    } else {
+      spawnPlayerBullet(sx - P38_WING_OFFSET_X, sy - P38_MUZZLE_OFFSET_Y, 0f, P38_VY)
+      spawnPlayerBullet(sx + P38_WING_OFFSET_X, sy - P38_MUZZLE_OFFSET_Y, 0f, P38_VY)
     }
     SoundManager.instance.playSFX(SoundManager.SFX_VULCAN)
   }
 
-  private fun spawnBullet(x: Float, y: Float, vx: Float) {
+  fun spawnPlayerBullet(x: Float, y: Float, vx: Float, vy: Float) {
     var i = 0
     while (i < poolSize) {
       val bullet = bulletPool[i]
@@ -101,6 +90,7 @@ class BulletManager {
         bullet.x = x
         bullet.y = y
         bullet.vx = vx
+        bullet.vy = vy
         bullet.isActive = true
         return
       }
@@ -212,14 +202,16 @@ class BulletManager {
   }
 
   private companion object {
-    const val BULLET_SPEED_PX_PER_SEC = 1600f
     const val HALF_BULLET_WIDTH = 6f
     const val HALF_BULLET_HEIGHT = 16f
-    const val LEVEL2_SPREAD_VX = -150f
-    const val LANE3_OUTER = 0.72f
-    const val LANE3_INNER = 0.28f
     const val MISSILE_INTERVAL = 0.480f
     const val SPARK_SPEED = 280f
     const val SPARK_FALLBACK_VY = -280f
+    const val P38_WING_OFFSET_X = 18f
+    const val P38_MUZZLE_OFFSET_Y = 10f
+    const val P38_VY = -1600f
+    const val HELLCAT_CENTER_VY = -1350f
+    const val HELLCAT_FLANK_VX = 280.68f
+    const val HELLCAT_FLANK_VY = -1320.55f
   }
 }

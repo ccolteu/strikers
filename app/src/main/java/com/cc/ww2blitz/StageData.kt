@@ -37,6 +37,7 @@ class StageData {
     var targetBossTimelineSeconds = 38f
     var stageMusicTrack = SoundManager.BGM_STAGE1
     private var currentDifficulty = Difficulty.NORMAL
+    private var savedFighterIndex = 0
 
     init {
         liveInstance = this
@@ -57,12 +58,22 @@ class StageData {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val savedIndex = prefs.getInt(KEY_DIFFICULTY, Difficulty.NORMAL.index)
         currentDifficulty = difficultyFromIndex(savedIndex)
+        val fighter = prefs.getInt(KEY_FIGHTER, 0)
+        savedFighterIndex = if (fighter == 1) 1 else 0
     }
 
     fun saveDifficultySetting(context: Context, diff: Difficulty) {
         currentDifficulty = diff
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().putInt(KEY_DIFFICULTY, diff.index).apply()
+    }
+
+    fun getSavedFighterIndex(): Int = savedFighterIndex
+
+    fun saveFighterSetting(context: Context, typeIndex: Int) {
+        savedFighterIndex = if (typeIndex == 1) 1 else 0
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_FIGHTER, savedFighterIndex).apply()
     }
 
     fun isLastInSequence(): Boolean {
@@ -168,6 +179,7 @@ class StageData {
         val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4, 5, 6)
         private const val PREFS_NAME = "shmup_arcade_settings"
         private const val KEY_DIFFICULTY = "target_difficulty"
+        private const val KEY_FIGHTER = "chosen_fighter"
 
         fun difficultyFromIndex(index: Int): Difficulty {
             return when (index) {

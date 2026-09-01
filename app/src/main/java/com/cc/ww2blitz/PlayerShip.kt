@@ -54,6 +54,11 @@ class PlayerShip(private val resources: Resources) {
   private var isDragging = false
   private var isMovingHorizontal = false
   private var autoFire = false
+  private var classBaseSpeed = P38_SPEED
+  private var muzzleFrac = P38_MUZZLE_X
+  private var fanAngle = 0f
+  private var fireInterval = P38_FIRE_INTERVAL
+  var chosenFighterIndex = 0 // 0 = P-38 Lightning, 1 = F6F Hellcat
 
   private var currentFrameIndex = IDLE_FRAME
   private var targetFrameIndex = IDLE_FRAME
@@ -63,11 +68,7 @@ class PlayerShip(private val resources: Resources) {
     screenW = width
     screenH = height
     if (frames[0] == null) loadFrames()
-    val idle = frames[IDLE_INDEX] ?: return
-    val drawW = (width * SHIP_WIDTH_FRAC).toInt().coerceAtLeast(1)
-    val drawH = (drawW * (idle.height.toFloat() / idle.width.toFloat())).toInt().coerceAtLeast(1)
-    halfW = drawW * 0.5f
-    halfH = drawH * 0.5f
+    refreshDrawSize()
     x = width * 0.5f
     y = height * 0.78f
     currentFrameIndex = IDLE_FRAME
@@ -99,18 +100,8 @@ class PlayerShip(private val resources: Resources) {
         if (index >= 0 && isDragging) {
           val tx = event.getX(index)
           val ty = event.getY(index)
-          val dx = tx - lastTouchX
-          val dy = ty - lastTouchY
-          x += dx
-          y += dy
-          targetVelocityX = dx
-          if (kotlin.math.abs(dx) > MOVE_THRESHOLD) {
-            isMovingHorizontal = true
-          }
           lastTouchX = tx
           lastTouchY = ty
-          clamp()
-          writeDst()
         }
       }
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_OUTSIDE -> {
@@ -137,7 +128,7 @@ class PlayerShip(private val resources: Resources) {
     if (!isMovingHorizontal) {
       targetFrameIndex = IDLE_FRAME
     } else {
-      targetFrameIndex = if (targetVelocityX < 0f) 6f else 0f
+      targetFrameIndex = if (targetVelocityX < 0f) 0f else 6f
     }
     val lerp = (FRAME_LERP * (dt * 60f)).coerceIn(0f, 1f)
     currentFrameIndex += (targetFrameIndex - currentFrameIndex) * lerp
@@ -253,6 +244,32 @@ class PlayerShip(private val resources: Resources) {
     autoFire = on
   }
 
+  fun moveWithRelativeInput(dx: Float, dy: Float, dt: Float) {
+    if (isGameOverFlag || lives <= 0 || respawnTimer > 0f) return
+    val requestedDist = kotlin.math.sqrt(dx * dx + dy * dy)
+    if (requestedDist <= 0.0001f) return
+    val maxDistanceThisFrame = classBaseSpeed * dt
+    if (requestedDist > maxDistanceThisFrame) {
+      val clampFactor = maxDistanceThisFrame / requestedDist
+      x += dx * clampFactor
+      y += dy * clampFactor
+    } else {
+      x += dx
+      y += dy
+    }
+    targetVelocityX = dx
+    if (kotlin.math.abs(dx) > MOVE_THRESHOLD) {
+      isMovingHorizontal = true
+    }
+    clamp()
+    writeDst()
+  }
+
+  fun touchGrabRadius(): Float {
+    val span = if (halfW > halfH) halfW else halfH
+    return span * TOUCH_GRAB_SCALE
+  }
+
   fun steerToward(targetX: Float, targetY: Float, dt: Float) {
     if (isGameOverFlag || lives <= 0 || respawnTimer > 0f) return
     val dx = targetX - x
@@ -273,13 +290,15 @@ class PlayerShip(private val resources: Resources) {
     writeDst()
   }
 
-  fun leftMuzzleX(): Float = x - halfW * MUZZLE_X_FRAC
+  fun leftMuzzleX(): Float = x - halfW * muzzleFrac
 
-  fun rightMuzzleX(): Float = x + halfW * MUZZLE_X_FRAC
+  fun rightMuzzleX(): Float = x + halfW * muzzleFrac
 
   fun muzzleXAt(spanFrac: Float): Float = x + halfW * spanFrac
 
   fun muzzleY(): Float = y - halfH * MUZZLE_Y_FRAC
+
+  fun vulcanInterval(): Float = fireInterval
 
   fun draw(canvas: Canvas) {
     if (isGameOverFlag || respawnTimer > 0f) return
@@ -305,6 +324,34 @@ class PlayerShip(private val resources: Resources) {
     canvas.drawBitmap(bmp, null, dst, paint)
   }
 
+  fun applyFighterConfiguration(typeIndex: Int) {
+    when (typeIndex) {
+      1 -> {
+        chosenFighterIndex = 1
+        classBaseSpeed = HELLCAT_SPEED
+        muzzleFrac = HELLCAT_MUZZLE_X
+        fanAngle = HELLCAT_FAN_ANGLE
+        fireInterval = HELLCAT_FIRE_INTERVAL
+      }
+      else -> {
+        chosenFighterIndex = 0
+        classBaseSpeed = P38_SPEED
+        muzzleFrac = P38_MUZZLE_X
+        fanAngle = 0f
+        fireInterval = P38_FIRE_INTERVAL
+      }
+    }
+    var i = 0
+    while (i < frames.size) {
+      val bmp = frames[i]
+      if (bmp != null && !bmp.isRecycled) bmp.recycle()
+      frames[i] = null
+      i++
+    }
+    loadFrames()
+    refreshDrawSize()
+  }
+
   fun release() {
     for (i in frames.indices) {
       val bmp = frames[i]
@@ -314,11 +361,17 @@ class PlayerShip(private val resources: Resources) {
   }
 
   private fun clamp() {
-    val maxX = screenW - halfW
-    val maxY = screenH - halfH
-    if (maxX < halfW || maxY < halfH) return
-    x = x.coerceIn(halfW, maxX)
-    y = y.coerceIn(halfH, maxY)
+    val padX = screenW * SHIP_WIDTH_FRAC * 0.5f
+    val padY = if (halfH > 1f) halfH else padX
+    val minX = padX
+    val maxX = screenW - padX
+    val minY = padY
+    val maxY = screenH - padY
+    if (maxX < minX || maxY < minY) return
+    if (x < minX) x = minX
+    if (x > maxX) x = maxX
+    if (y < minY) y = minY
+    if (y > maxY) y = maxY
   }
 
   private fun writeDst() {
@@ -330,18 +383,39 @@ class PlayerShip(private val resources: Resources) {
     )
   }
 
+  private fun refreshDrawSize() {
+    if (screenW <= 0 || screenH <= 0) return
+    val idle = frames[IDLE_INDEX] ?: return
+    val drawW = (screenW * SHIP_WIDTH_FRAC).toInt().coerceAtLeast(1)
+    val srcW = idle.width.toFloat().coerceAtLeast(1f)
+    val srcH = idle.height.toFloat().coerceAtLeast(1f)
+    val drawH = (drawW * (srcH / srcW)).toInt().coerceAtLeast(1)
+    halfW = drawW * 0.5f
+    halfH = drawH * 0.5f
+    currentFrameIndex = IDLE_FRAME
+    targetFrameIndex = IDLE_FRAME
+    clamp()
+    writeDst()
+  }
+
   private fun loadFrames() {
-    val ids = intArrayOf(
-      R.drawable.player_ship_1,
-      R.drawable.player_ship_2,
-      R.drawable.player_ship_3,
-      R.drawable.player_ship_4,
-      R.drawable.player_ship_5,
-      R.drawable.player_ship_6,
-      R.drawable.player_ship_7,
-    )
-    for (i in 0 until FRAME_COUNT) {
+    val ids = if (chosenFighterIndex == 0) {
+      intArrayOf(
+        R.drawable.player_ship_1, R.drawable.player_ship_2, R.drawable.player_ship_3,
+        R.drawable.player_ship_4, R.drawable.player_ship_5, R.drawable.player_ship_6,
+        R.drawable.player_ship_7,
+      )
+    } else {
+      intArrayOf(
+        R.drawable.player_b_1, R.drawable.player_b_2, R.drawable.player_b_3,
+        R.drawable.player_b_4, R.drawable.player_b_5, R.drawable.player_b_6,
+        R.drawable.player_b_7,
+      )
+    }
+    var i = 0
+    while (i < FRAME_COUNT) {
       frames[i] = loadKeyed(ids[i])
+      i++
     }
   }
 
@@ -383,10 +457,18 @@ class PlayerShip(private val resources: Resources) {
     const val IDLE_FRAME = 3f
 
     const val SHIP_WIDTH_FRAC = 0.16f
+    const val TOUCH_GRAB_SCALE = 3.5f
+    const val P38_SPEED = 1200f
+    const val HELLCAT_SPEED = 750f
+    const val P38_MUZZLE_X = 0.22f
+    const val HELLCAT_MUZZLE_X = 0.58f
+    const val HELLCAT_FAN_ANGLE = 0.32f
+    const val P38_FIRE_INTERVAL = 0.090f
+    const val HELLCAT_FIRE_INTERVAL = 0.125f
+    const val BULLET_SPEED = 1600f
 
     const val MOVE_THRESHOLD = 0.5f
     const val FRAME_LERP = 0.2f
-    const val MUZZLE_X_FRAC = 0.42f
     const val MUZZLE_Y_FRAC = 0.38f
     const val INVULN_SEC = 2.0f
     const val START_LIVES = 3

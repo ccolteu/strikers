@@ -51,8 +51,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val backButtonRect = RectF()
   private val openSettingsButtonRect = RectF()
   private val openDifficultyButtonRect = RectF()
+  private val openFighterSelectButtonRect = RectF()
   private val difficultyButtons = Array(7) { RectF() }
   private val diffBackButtonRect = RectF()
+  private val shipLeftSelectRect = RectF()
+  private val shipRightSelectRect = RectF()
+  private val fighterReturnToTitleRect = RectF()
+  private var selectedFighterIndex = 0
   private val difficultyTiers = arrayOf(
     StageData.Difficulty.MONKEY,
     StageData.Difficulty.EASY,
@@ -79,6 +84,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var isSettingsMenuOpen = false
   private var logoBmp: Bitmap? = null
   private var titleBackdropBmp: Bitmap? = null
+  private var selectPreviewP38: Bitmap? = null
+  private var selectPreviewBearcat: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
   private var bombPickupBmp: Bitmap? = null
   private val medalFrames = arrayOfNulls<Bitmap>(PowerUpItem.MEDAL_FRAME_COUNT)
@@ -97,6 +104,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var touchDownMs = 0L
   private var touchDownX = 0f
   private var touchDownY = 0f
+  private var lastTouchX = 0f
+  private var lastTouchY = 0f
+  private var isDraggingShip = false
+  private var dragPointerId = -1
+  private var lastFrameDt = 0.016f
   private var awaitingSecondTap = false
   private var enemyBombDmgBank = 0f
   private var bossBombDmgBank = 0f
@@ -125,6 +137,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
   private val uiNeonStrokePaint = Paint().apply {
     color = 0xFF00E5FF.toInt()
+    style = Paint.Style.STROKE
+    strokeWidth = 4f
+    isAntiAlias = true
+  }
+  private val uiSelectIdleStrokePaint = Paint().apply {
+    color = 0x5500E5FF.toInt()
+    style = Paint.Style.STROKE
+    strokeWidth = 4f
+    isAntiAlias = true
+  }
+  private val uiSelectFocusStrokePaint = Paint().apply {
+    color = Color.YELLOW
     style = Paint.Style.STROKE
     strokeWidth = 4f
     isAntiAlias = true
@@ -235,6 +259,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   init {
     HighScoreManager.loadHighScores(context)
     stageManager.initPersistentSettings(context)
+    player.applyFighterConfiguration(stageManager.getSavedFighterIndex())
+    selectedFighterIndex = player.chosenFighterIndex
     attractCycleState = ATTRACT_TITLE
     attractCycleTimer = 0f
     gameState = STATE_TITLE
@@ -319,6 +345,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       ((frameTimeNanos - lastNanos).coerceIn(0L, MAX_FRAME_NS) / 1_000_000_000f)
     }
     lastNanos = frameTimeNanos
+    if (dt > 0.0001f) lastFrameDt = dt
     when (gameState) {
       STATE_TITLE -> {
         if (!isSettingsMenuOpen) {
@@ -371,7 +398,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           gameState = STATE_PLAYING
         }
       }
-      STATE_DIFFICULTY_SELECT -> {
+      STATE_DIFFICULTY_SELECT, STATE_CHARACTER_SELECT -> {
       }
       else -> {
         if (boss.locksWorldScroll()) {
@@ -469,7 +496,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           canvas.save()
           canvas.translate(dx, dy)
         }
-        if (gameState == STATE_TITLE || gameState == STATE_DIFFICULTY_SELECT) {
+        if (
+          gameState == STATE_TITLE ||
+          gameState == STATE_DIFFICULTY_SELECT ||
+          gameState == STATE_CHARACTER_SELECT
+        ) {
           val bmp = titleBackdropBmp
           if (bmp != null && !bmp.isRecycled && bmp.width > 0 && bmp.height > 0) {
             val scaleX = screenW.toFloat() / bmp.width.toFloat()
@@ -518,6 +549,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (
           gameState != STATE_TITLE &&
           gameState != STATE_DIFFICULTY_SELECT &&
+          gameState != STATE_CHARACTER_SELECT &&
           gameState != STATE_CLEAR &&
           gameState != STATE_REGISTRATION &&
           gameState != STATE_CAMPAIGN_COMPLETE &&
@@ -616,6 +648,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (gameState == STATE_DIFFICULTY_SELECT) {
       drawDifficultySelectScreen(canvas)
+      return
+    }
+    if (gameState == STATE_CHARACTER_SELECT) {
+      drawCharacterSelectScreen(canvas)
       return
     }
     if (gameState == STATE_TITLE) {
@@ -793,47 +829,82 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       hudIconDst.set(left, top, left + destW, top + destH)
       canvas.drawBitmap(logo, null, hudIconDst, bodyPaint)
     }
+    val cx = screenW * 0.5f
+    val creditY = screenH - 45f
+    val menuBottomAnchorY = creditY - 130f
+    val menuBlockStride = 180f
+    val tagSubPadding = 32f
+    val fighterMenuY = menuBottomAnchorY
+    val fighterTagY = fighterMenuY + tagSubPadding
+    val difficultyMenuY = fighterMenuY - menuBlockStride
+    val difficultyTagY = difficultyMenuY + tagSubPadding
+    val audioMenuY = difficultyMenuY - menuBlockStride
+    val startPrompterY = audioMenuY - 180f
     if ((System.currentTimeMillis() / 600L) % 2L == 0L) {
       uiStringBuilder.setLength(0)
       uiStringBuilder.append("1P START")
-      drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, screenH * 0.52f, uiGoldPaint, uiGoldShadowPaint)
+      drawCenteredHud(canvas, uiStringBuilder, cx, startPrompterY, uiGoldPaint, uiGoldShadowPaint)
     }
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("CREDIT 2026 Claudiu Colteu. All rights reserved.")
-    drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, screenH - 88f, uiSmallPaint, uiSmallShadowPaint)
-    val startY = screenH * 0.52f
-    val settingsY = screenH * 0.68f
-    val difficultyY = settingsY + (settingsY - startY)
-    uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ AUDIO SETTINGS ]")
-    drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, settingsY, uiGoldPaint, uiGoldShadowPaint)
+    drawCenteredHud(canvas, uiStringBuilder, cx, audioMenuY, uiGoldPaint, uiGoldShadowPaint)
     val settingsW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
-    val settingsX = screenW * 0.5f - settingsW * 0.5f
     openSettingsButtonRect.set(
-      settingsX,
-      settingsY + uiGoldPaint.ascent(),
-      settingsX + settingsW,
-      settingsY + uiGoldPaint.descent(),
+      cx - settingsW * 0.5f,
+      audioMenuY + uiGoldPaint.ascent(),
+      cx + settingsW * 0.5f,
+      audioMenuY + uiGoldPaint.descent(),
     )
+    openSettingsButtonRect.inset(-60f, -30f)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ DIFFICULTY ]")
-    drawCenteredHud(canvas, uiStringBuilder, screenW * 0.5f, difficultyY, uiGoldPaint, uiGoldShadowPaint)
+    drawCenteredHud(canvas, uiStringBuilder, cx, difficultyMenuY, uiGoldPaint, uiGoldShadowPaint)
     val diffW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
-    val diffX = screenW * 0.5f - diffW * 0.5f
     openDifficultyButtonRect.set(
-      diffX,
-      difficultyY + uiGoldPaint.ascent(),
-      diffX + diffW,
-      difficultyY + uiGoldPaint.descent(),
+      cx - diffW * 0.5f,
+      difficultyMenuY + uiGoldPaint.ascent(),
+      cx + diffW * 0.5f,
+      difficultyMenuY + uiGoldPaint.descent(),
     )
+    openDifficultyButtonRect.inset(-60f, -30f)
+    uiStringBuilder.setLength(0)
+    appendDifficultyName(stageManager.getDifficulty().index - 1)
+    drawCenteredHud(canvas, uiStringBuilder, cx, difficultyTagY, uiSmallPaint, uiSmallShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ SELECT FIGHTER ]")
+    drawCenteredHud(canvas, uiStringBuilder, cx, fighterMenuY, uiGoldPaint, uiGoldShadowPaint)
+    val fightW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    openFighterSelectButtonRect.set(
+      cx - fightW * 0.5f,
+      fighterMenuY + uiGoldPaint.ascent(),
+      cx + fightW * 0.5f,
+      fighterMenuY + uiGoldPaint.descent(),
+    )
+    openFighterSelectButtonRect.inset(-60f, -30f)
+    uiStringBuilder.setLength(0)
+    if (player.chosenFighterIndex == 1) {
+      uiStringBuilder.append("TYPE-02: HELLCAT")
+    } else {
+      uiStringBuilder.append("TYPE-01: LIGHTNING")
+    }
+    drawCenteredHud(canvas, uiStringBuilder, cx, fighterTagY, uiSmallPaint, uiSmallShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("CREDIT 2026 Claudiu Colteu. All rights reserved.")
+    drawCenteredHud(canvas, uiStringBuilder, cx, creditY, uiSmallPaint, uiSmallShadowPaint)
   }
 
   private fun drawDifficultySelectScreen(canvas: Canvas) {
     canvas.drawColor(0x66000000.toInt())
     val cx = screenW * 0.5f
+    val savedGold = uiGoldPaint.textSize
+    val savedGoldShadow = uiGoldShadowPaint.textSize
+    uiGoldPaint.textSize = 42f
+    uiGoldShadowPaint.textSize = 42f
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("SELECT DIFFICULTY")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
+    uiGoldPaint.textSize = savedGold
+    uiGoldShadowPaint.textSize = savedGoldShadow
 
     val top = screenH * 0.28f
     val bottom = screenH * 0.76f
@@ -860,7 +931,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("[ RETURN TO MAIN ]")
+    uiStringBuilder.append("[ RETURN TO TITLE ]")
     val backY = screenH * 0.88f
     drawCenteredHud(canvas, uiStringBuilder, cx, backY, uiGoldPaint, uiGoldShadowPaint)
     val backW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
@@ -871,6 +942,104 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       backX + backW,
       backY + uiGoldPaint.descent(),
     )
+  }
+
+  private fun drawCharacterSelectScreen(canvas: Canvas) {
+    canvas.drawColor(0xBB000000.toInt())
+    val savedGold = uiGoldPaint.textSize
+    val savedGoldShadow = uiGoldShadowPaint.textSize
+    val savedText = uiTextPaint.textSize
+    val savedTextShadow = uiShadowPaint.textSize
+    uiGoldPaint.textSize = 42f
+    uiGoldShadowPaint.textSize = 42f
+
+    val cx = screenW * 0.5f
+    val cy = screenH * 0.5f
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("SELECT FIGHTER")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.14f, uiGoldPaint, uiGoldShadowPaint)
+
+    uiGoldPaint.textSize = 24f
+    uiGoldShadowPaint.textSize = 24f
+    uiTextPaint.textSize = 18f
+    uiShadowPaint.textSize = 18f
+
+    val boxHeight = 320f
+    val textBlockHeight = 160f
+    val totalGroupHeight = boxHeight + textBlockHeight
+    val boxTop = cy - (totalGroupHeight * 0.5f)
+    val boxBottom = boxTop + boxHeight
+    shipLeftSelectRect.set(screenW * 0.08f, boxTop, screenW * 0.46f, boxBottom)
+    shipRightSelectRect.set(screenW * 0.54f, boxTop, screenW * 0.92f, boxBottom)
+    val panelCorner = 8f
+    canvas.drawRoundRect(shipLeftSelectRect, panelCorner, panelCorner, uiSelectIdleStrokePaint)
+    canvas.drawRoundRect(shipRightSelectRect, panelCorner, panelCorner, uiSelectIdleStrokePaint)
+    blitSelectPreview(canvas, selectPreviewP38, shipLeftSelectRect)
+    blitSelectPreview(canvas, selectPreviewBearcat, shipRightSelectRect)
+    uiSelectFocusStrokePaint.alpha = if ((System.currentTimeMillis() / 400L) % 2L == 0L) 255 else 90
+    if (selectedFighterIndex == 1) {
+      canvas.drawRoundRect(shipRightSelectRect, panelCorner, panelCorner, uiSelectFocusStrokePaint)
+    } else {
+      canvas.drawRoundRect(shipLeftSelectRect, panelCorner, panelCorner, uiSelectFocusStrokePaint)
+    }
+    uiSelectFocusStrokePaint.alpha = 255
+
+    val leftColumnCenterX = (shipLeftSelectRect.left + shipLeftSelectRect.right) * 0.5f
+    val rightColumnCenterX = (shipRightSelectRect.left + shipRightSelectRect.right) * 0.5f
+    val line1Y = boxBottom + 50f
+    val line2Y = line1Y + 35f
+    val line3Y = line2Y + 45f
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("TYPE-01:")
+    drawCenteredHud(canvas, uiStringBuilder, leftColumnCenterX, line1Y, uiGoldPaint, uiGoldShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("P-38 LIGHTNING")
+    drawCenteredHud(canvas, uiStringBuilder, leftColumnCenterX, line2Y, uiGoldPaint, uiGoldShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("- FOCUS STORM -")
+    drawCenteredHud(canvas, uiStringBuilder, leftColumnCenterX, line3Y, uiTextPaint, uiShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("TYPE-02:")
+    drawCenteredHud(canvas, uiStringBuilder, rightColumnCenterX, line1Y, uiGoldPaint, uiGoldShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("F6F HELLCAT")
+    drawCenteredHud(canvas, uiStringBuilder, rightColumnCenterX, line2Y, uiGoldPaint, uiGoldShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("- LIGHTNING BLITZ OVERDRIVE -")
+    drawCenteredHud(canvas, uiStringBuilder, rightColumnCenterX, line3Y, uiTextPaint, uiShadowPaint)
+
+    uiGoldPaint.textSize = savedGold
+    uiGoldShadowPaint.textSize = savedGoldShadow
+    uiTextPaint.textSize = savedText
+    uiShadowPaint.textSize = savedTextShadow
+
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ RETURN TO TITLE ]")
+    val returnBtnY = screenH * 0.88f
+    drawCenteredHud(canvas, uiStringBuilder, cx, returnBtnY, uiGoldPaint, uiGoldShadowPaint)
+    val btnW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    fighterReturnToTitleRect.set(
+      cx - btnW * 0.5f,
+      returnBtnY + uiGoldPaint.ascent(),
+      cx + btnW * 0.5f,
+      returnBtnY + uiGoldPaint.descent(),
+    )
+    fighterReturnToTitleRect.inset(-60f, -30f)
+  }
+
+  private fun blitSelectPreview(canvas: Canvas, bmp: Bitmap?, box: RectF) {
+    if (bmp == null || bmp.isRecycled) return
+    val maxW = box.width() * 0.78f
+    val maxH = box.height() * 0.78f
+    val srcW = bmp.width.toFloat().coerceAtLeast(1f)
+    val srcH = bmp.height.toFloat().coerceAtLeast(1f)
+    val scale = (maxW / srcW).coerceAtMost(maxH / srcH)
+    val dw = srcW * scale
+    val dh = srcH * scale
+    val px = (box.left + box.right) * 0.5f
+    val py = (box.top + box.bottom) * 0.5f
+    hudIconDst.set(px - dw * 0.5f, py - dh * 0.5f, px + dw * 0.5f, py + dh * 0.5f)
+    canvas.drawBitmap(bmp, null, hudIconDst, bodyPaint)
   }
 
   private fun appendDifficultyName(index: Int) {
@@ -1010,9 +1179,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private fun drawSettingsOverlay(canvas: Canvas) {
     canvas.drawColor(0x88000000.toInt())
     val cx = screenW * 0.5f
+    val savedGold = uiGoldPaint.textSize
+    val savedGoldShadow = uiGoldShadowPaint.textSize
+    uiGoldPaint.textSize = 42f
+    uiGoldShadowPaint.textSize = 42f
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("SOUND CONFIGURATION")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
+    uiGoldPaint.textSize = savedGold
+    uiGoldShadowPaint.textSize = savedGoldShadow
 
     val trackW = screenW * 0.60f
     val trackH = 28f
@@ -1251,6 +1426,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (titleBackdropBmp == null) {
       titleBackdropBmp = decodeKeyed(R.drawable.title_screen_backdrop)
+    }
+    if (selectPreviewP38 == null) {
+      selectPreviewP38 = decodeKeyed(R.drawable.player_ship_4)
+    }
+    if (selectPreviewBearcat == null) {
+      selectPreviewBearcat = decodeKeyed(R.drawable.player_b_4)
     }
     if (powerUpBmp == null) {
       powerUpBmp = decodeKeyed(R.drawable.item_powerup)
@@ -2025,6 +2206,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val titleBackdrop = titleBackdropBmp
     if (titleBackdrop != null && !titleBackdrop.isRecycled) titleBackdrop.recycle()
     titleBackdropBmp = null
+    val previewP38 = selectPreviewP38
+    if (previewP38 != null && !previewP38.isRecycled) previewP38.recycle()
+    selectPreviewP38 = null
+    val previewBearcat = selectPreviewBearcat
+    if (previewBearcat != null && !previewBearcat.isRecycled) previewBearcat.recycle()
+    selectPreviewBearcat = null
     val powerUp = powerUpBmp
     if (powerUp != null && !powerUp.isRecycled) powerUp.recycle()
     powerUpBmp = null
@@ -2099,6 +2286,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     bossBombDmgBank = 0f
     bombCoreWasOpen = false
     awaitingSecondTap = false
+    isDraggingShip = false
+    dragPointerId = -1
     bossFought = false
     player.resetForStage()
     powerUpItem.deactivateAll()
@@ -2340,8 +2529,37 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             attractCycleState = ATTRACT_TITLE
             gameState = STATE_DIFFICULTY_SELECT
             SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          } else if (down && openFighterSelectButtonRect.contains(x, y)) {
+            attractCycleTimer = 0f
+            attractCycleState = ATTRACT_TITLE
+            selectedFighterIndex = player.chosenFighterIndex
+            gameState = STATE_CHARACTER_SELECT
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
           } else if (down) {
             beginCampaignFromMenu()
+          }
+        }
+        return true
+      }
+      STATE_CHARACTER_SELECT -> {
+        if (down) {
+          val x = event.x
+          val y = event.y
+          if (shipLeftSelectRect.contains(x, y)) {
+            selectedFighterIndex = 0
+            player.applyFighterConfiguration(0)
+            stageManager.saveFighterSetting(context, 0)
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          } else if (shipRightSelectRect.contains(x, y)) {
+            selectedFighterIndex = 1
+            player.applyFighterConfiguration(1)
+            stageManager.saveFighterSetting(context, 1)
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          } else if (fighterReturnToTitleRect.contains(x, y)) {
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+            attractCycleTimer = 0f
+            attractCycleState = ATTRACT_TITLE
+            gameState = STATE_TITLE
           }
         }
         return true
@@ -2426,7 +2644,34 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (player.getHealth() <= 0) return true
     when (event.actionMasked) {
-      MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+      MotionEvent.ACTION_DOWN -> {
+        val now = event.eventTime
+        if (
+          awaitingSecondTap &&
+          now - lastTapUpMs <= DOUBLE_TAP_MS &&
+          availableBombs > 0 &&
+          !player.isGameOver()
+        ) {
+          availableBombs--
+          panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+          bombCoreWasOpen = boss.isCoreVulnerable()
+          bossBombDmgBank = 0f
+          addScreenShake(0.8f)
+          SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
+          awaitingSecondTap = false
+        }
+        touchDownMs = now
+        touchDownX = event.x
+        touchDownY = event.y
+        lastTouchX = event.x
+        lastTouchY = event.y
+        dragPointerId = event.getPointerId(0)
+        val gx = event.x - player.getHitboxX()
+        val gy = event.y - player.getHitboxY()
+        val grab = player.touchGrabRadius()
+        isDraggingShip = (gx * gx + gy * gy) <= grab * grab
+      }
+      MotionEvent.ACTION_POINTER_DOWN -> {
         val now = event.eventTime
         if (
           awaitingSecondTap &&
@@ -2446,12 +2691,34 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         touchDownX = event.x
         touchDownY = event.y
       }
-      MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+      MotionEvent.ACTION_MOVE -> {
+        if (isDraggingShip) {
+          val dx = event.x - lastTouchX
+          val dy = event.y - lastTouchY
+          player.moveWithRelativeInput(dx, dy, lastFrameDt)
+        }
+        lastTouchX = event.x
+        lastTouchY = event.y
+      }
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_OUTSIDE -> {
         val dx = event.x - touchDownX
         val dy = event.y - touchDownY
         val dur = event.eventTime - touchDownMs
         awaitingSecondTap = (dx * dx + dy * dy) <= TAP_SLOP_SQ && dur <= TAP_MAX_MS
         lastTapUpMs = event.eventTime
+        isDraggingShip = false
+        dragPointerId = -1
+      }
+      MotionEvent.ACTION_POINTER_UP -> {
+        val dx = event.x - touchDownX
+        val dy = event.y - touchDownY
+        val dur = event.eventTime - touchDownMs
+        awaitingSecondTap = (dx * dx + dy * dy) <= TAP_SLOP_SQ && dur <= TAP_MAX_MS
+        lastTapUpMs = event.eventTime
+        if (event.getPointerId(event.actionIndex) == dragPointerId) {
+          isDraggingShip = false
+          dragPointerId = -1
+        }
       }
     }
     return player.onTouch(event)
@@ -2459,7 +2726,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun syncBgm() {
     val want = when (gameState) {
-      STATE_TITLE, STATE_DIFFICULTY_SELECT -> R.raw.bgm_title
+      STATE_TITLE, STATE_DIFFICULTY_SELECT, STATE_CHARACTER_SELECT -> R.raw.bgm_title
       STATE_CLEAR, STATE_REGISTRATION, STATE_CAMPAIGN_COMPLETE -> R.raw.bgm_victory
       STATE_PLAYING, STATE_DEMO, STATE_INTERSTITIAL -> {
         if (boss.isVictorySequence()) {
@@ -2517,6 +2784,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val STATE_CAMPAIGN_COMPLETE = 6
     const val STATE_INTERSTITIAL = 7
     const val STATE_DIFFICULTY_SELECT = 8
+    const val STATE_CHARACTER_SELECT = 9
     const val INTERSTITIAL_SECS = 3.0f
     const val ATTRACT_TITLE = 0
     const val ATTRACT_CPU_DEMO = 1
