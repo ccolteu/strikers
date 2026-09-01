@@ -272,7 +272,7 @@ class ScoreManager private constructor() {
     private const val CLICK_EVERY_FRAMES = 5
     private const val MAX_SCORE = 99_999_999
     private const val MAX_GRAZE = 99_999
-    private const val POPUP_SLOTS = 4
+    private const val POPUP_SLOTS = 48
 
     val instance = ScoreManager()
   }

@@ -39,7 +39,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     set(value) { ScoreManager.instance.setScore(value) }
   private val panicBomb = PanicBomb()
   private val powerUpItem = PowerUpManager.instance.items
-  private val scorePool = Array(12) { FloatingScore() }
+  private val scorePool = Array(SCORE_POPUP_SLOTS) { FloatingScore() }
   private val stageManager = StageData()
   private val srcCore = Rect()
   private val bombDstRect = RectF()
@@ -2138,19 +2138,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun triggerFloatingScore(startX: Float, startY: Float, value: Int) {
+    var free = -1
+    var oldest = 0
+    var oldestAge = -1f
     var i = 0
-    while (i < 12) {
+    while (i < SCORE_POPUP_SLOTS) {
       val p = scorePool[i]
       if (!p.isActive) {
-        p.x = startX
-        p.y = startY
-        p.scoreValue = value
-        p.age = 0f
-        p.isActive = true
-        return
+        free = i
+        break
+      }
+      if (p.age > oldestAge) {
+        oldestAge = p.age
+        oldest = i
       }
       i++
     }
+    val p = scorePool[if (free >= 0) free else oldest]
+    p.x = startX
+    p.y = startY
+    p.scoreValue = value
+    p.age = 0f
+    p.isActive = true
   }
 
   private fun updateFloatingScores(dt: Float) {
@@ -2160,7 +2169,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       scores.consumePopup()
     }
     var i = 0
-    while (i < 12) {
+    while (i < SCORE_POPUP_SLOTS) {
       val p = scorePool[i]
       if (p.isActive) {
         p.y -= FLOATING_SPEED * dt
@@ -2173,7 +2182,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun deactivateScorePopups() {
     var i = 0
-    while (i < 12) {
+    while (i < SCORE_POPUP_SLOTS) {
       scorePool[i].isActive = false
       i++
     }
@@ -2181,7 +2190,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun drawFloatingScores(canvas: Canvas) {
     var i = 0
-    while (i < 12) {
+    while (i < SCORE_POPUP_SLOTS) {
       val p = scorePool[i]
       if (p.isActive) {
         val fade = (1f - p.age / FLOATING_LIFE).coerceIn(0f, 1f)
@@ -2867,6 +2876,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val KILL_SCORE_HEAVY = 1000
     const val FLOATING_SPEED = 90f
     const val FLOATING_LIFE = 0.75f
+    const val SCORE_POPUP_SLOTS = 48
     const val BOMB_ENEMY_DPS = 250f
     const val BOMB_BOSS_DPS = 200f
     const val BOMB_BOSS_DPS_FRAME_CAP = 12
