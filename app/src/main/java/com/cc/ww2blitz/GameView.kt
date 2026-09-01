@@ -85,7 +85,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var logoBmp: Bitmap? = null
   private var titleBackdropBmp: Bitmap? = null
   private var selectPreviewP38: Bitmap? = null
-  private var selectPreviewBearcat: Bitmap? = null
+  private var selectPreviewHellcat: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
   private var bombPickupBmp: Bitmap? = null
   private val medalFrames = arrayOfNulls<Bitmap>(PowerUpItem.MEDAL_FRAME_COUNT)
@@ -975,7 +975,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     canvas.drawRoundRect(shipLeftSelectRect, panelCorner, panelCorner, uiSelectIdleStrokePaint)
     canvas.drawRoundRect(shipRightSelectRect, panelCorner, panelCorner, uiSelectIdleStrokePaint)
     blitSelectPreview(canvas, selectPreviewP38, shipLeftSelectRect)
-    blitSelectPreview(canvas, selectPreviewBearcat, shipRightSelectRect)
+    blitSelectPreview(canvas, selectPreviewHellcat, shipRightSelectRect)
     uiSelectFocusStrokePaint.alpha = if ((System.currentTimeMillis() / 400L) % 2L == 0L) 255 else 90
     if (selectedFighterIndex == 1) {
       canvas.drawRoundRect(shipRightSelectRect, panelCorner, panelCorner, uiSelectFocusStrokePaint)
@@ -1430,8 +1430,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     if (selectPreviewP38 == null) {
       selectPreviewP38 = decodeKeyed(R.drawable.player_ship_4)
     }
-    if (selectPreviewBearcat == null) {
-      selectPreviewBearcat = decodeKeyed(R.drawable.player_b_4)
+    if (selectPreviewHellcat == null) {
+      selectPreviewHellcat = decodeKeyed(R.drawable.player_b_4)
     }
     if (powerUpBmp == null) {
       powerUpBmp = decodeKeyed(R.drawable.item_powerup)
@@ -2096,9 +2096,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     campaignScore += awarded
     if (campaignScore > 99_999_999) campaignScore = 99_999_999
     triggerFloatingScore(item.x, item.y, awarded)
-    if (item.medalFrameIndex == 0) {
-      particles.triggerExplosion(item.x, item.y, false)
-    }
     SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
   }
 
@@ -2209,9 +2206,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val previewP38 = selectPreviewP38
     if (previewP38 != null && !previewP38.isRecycled) previewP38.recycle()
     selectPreviewP38 = null
-    val previewBearcat = selectPreviewBearcat
-    if (previewBearcat != null && !previewBearcat.isRecycled) previewBearcat.recycle()
-    selectPreviewBearcat = null
+    val previewHellcat = selectPreviewHellcat
+    if (previewHellcat != null && !previewHellcat.isRecycled) previewHellcat.recycle()
+    selectPreviewHellcat = null
     val powerUp = powerUpBmp
     if (powerUp != null && !powerUp.isRecycled) powerUp.recycle()
     powerUpBmp = null
@@ -2344,6 +2341,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun enterGameOver() {
+    SoundManager.instance.stopAlarm()
     gameOverT = 0f
     gameState = STATE_GAMEOVER
   }
@@ -2357,6 +2355,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun beginRegistration() {
+    SoundManager.instance.stopAlarm()
     resetRegistration()
     lastBgmRes = 0
     gameState = STATE_REGISTRATION
@@ -2602,6 +2601,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           if (stageManager.isCampaignFinished) {
             campaignCompleteT = 0f
             lastBgmRes = 0
+            SoundManager.instance.stopAlarm()
             gameState = STATE_CAMPAIGN_COMPLETE
           } else {
             ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)

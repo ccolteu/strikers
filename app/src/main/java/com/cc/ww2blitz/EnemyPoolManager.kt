@@ -476,7 +476,7 @@ class EnemyPoolManager(private val resources: Resources) {
       weapons.fireBullet(e.x, e.y, vx, vy)
       k++
     }
-    SoundManager.instance.playSFX(SoundManager.SFX_ALARM) // Play a quick alert warning overlay for heavy shots
+    SoundManager.instance.playSFX(SoundManager.SFX_LASER)
   }
 
   private fun activeDifficulty(): StageData.Difficulty {

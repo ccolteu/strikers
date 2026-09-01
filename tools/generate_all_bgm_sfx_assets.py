@@ -6,7 +6,7 @@ Synthesizes 12 mono 44.1 kHz 16-bit PCM WAVs with numpy oscillators/noise
 and scipy.io.wavfile. No sampled audio.
 
   pip install numpy scipy
-  python3 tools/generate_all_assets.py
+  python3 tools/generate_all_bgm_sfx_assets.py
 """
 
 from __future__ import annotations
