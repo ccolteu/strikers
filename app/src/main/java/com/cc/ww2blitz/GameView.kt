@@ -288,21 +288,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
     super.onSizeChanged(w, h, oldw, oldh)
-    parallax.onSizeChanged(w, h)
-    player.onSizeChanged(w, h)
-    enemies.onSizeChanged(w, h)
-    enemyShots.onSizeChanged(w, h)
-    homingMissiles.onSizeChanged(w, h)
-    particles.onSizeChanged(w, h)
-    boss.onSizeChanged(w, h)
-    uiController.onSizeChanged(w, h)
-    uiController.loadInterstitials(resources, w, h)
-    screenW = w
-    screenH = h
-    loadBombSheetsIfNeeded()
-    loadHudIconsIfNeeded()
-    bootLaunchStageIfNeeded()
-    reloadStageBackgrounds(w, h)
+    applyViewportSize(w, h)
   }
 
   override fun surfaceCreated(holder: SurfaceHolder) {
@@ -317,6 +303,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+    applyViewportSize(width, height)
+  }
+
+  private fun applyViewportSize(width: Int, height: Int) {
+    if (width <= 0 || height <= 0) return
+    val sizeChanged = width != screenW || height != screenH
     parallax.onSizeChanged(width, height)
     player.onSizeChanged(width, height)
     enemies.onSizeChanged(width, height)
@@ -325,9 +317,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     particles.onSizeChanged(width, height)
     boss.onSizeChanged(width, height)
     uiController.onSizeChanged(width, height)
-    uiController.loadInterstitials(resources, width, height)
     screenW = width
     screenH = height
+    if (!sizeChanged) return
+    uiController.loadInterstitials(resources, width, height)
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
     bootLaunchStageIfNeeded()

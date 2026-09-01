@@ -66,17 +66,25 @@ class PlayerShip(private val resources: Resources) {
 
   fun onSizeChanged(width: Int, height: Int) {
     if (width <= 0 || height <= 0) return
+    val firstLayout = screenW <= 0 || screenH <= 0
+    val prevW = screenW
+    val prevH = screenH
     screenW = width
     screenH = height
     if (frames[0] == null) loadFrames()
     refreshDrawSize()
-    x = width * 0.5f
-    y = height * 0.78f
-    currentFrameIndex = IDLE_FRAME
-    targetFrameIndex = IDLE_FRAME
-    targetVelocityX = 0f
-    isDragging = false
-    isMovingHorizontal = false
+    if (firstLayout) {
+      x = width * 0.5f
+      y = height * 0.78f
+      currentFrameIndex = IDLE_FRAME
+      targetFrameIndex = IDLE_FRAME
+      targetVelocityX = 0f
+      isDragging = false
+      isMovingHorizontal = false
+    } else if (prevW != width || prevH != height) {
+      x *= width.toFloat() / prevW
+      y *= height.toFloat() / prevH
+    }
     clamp()
     writeDst()
   }

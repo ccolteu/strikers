@@ -1,6 +1,7 @@
 package com.cc.ww2blitz
 
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.os.Bundle
 import android.view.WindowManager
@@ -13,6 +14,7 @@ class MainActivity : Activity() {
   private var gameView: GameView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
     super.onCreate(savedInstanceState)
     WindowCompat.setDecorFitsSystemWindows(window, false)
     volumeControlStream = AudioManager.STREAM_MUSIC
