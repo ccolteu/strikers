@@ -1,0 +1,28 @@
+Take the stick. Clear the sky.
+
+WW2 BLITZ is a portrait arcade shooter built like a cabinet: one credit, six operations, no waiting for a meter to refill. You grab your fighter and the guns stay up. The rest is skill, greed, and whether you save the bomb.
+
+HOW TO FLY
+Touch and hold on the plane. It follows your thumb on a short leash — tight enough for micro-dodges, loose enough that your finger does not sit on the sprite. Let go and you stop shooting. Double-tap to dump a screen-clearing bomb (you start with three). You have three lives, and each life takes three hits. Chip damage turns the hull pips gold, then red. The last pip blinks. The next solid hit is a funeral.
+
+CHOOSE YOUR FIGHTER
+P-38 Lightning — faster, twin-column vulcan, built to thread patterns.
+F6F Hellcat — heavier, a three-way spread, built to cover the screen.
+
+Both carry homing missiles once you are fully powered. Pick on the hangar panel; the game remembers.
+
+SIX OPERATIONS
+A single campaign. No stage-select grid. Coast, armor, fleet, jungle, canopy, and a last fortress that does not blink. Each map has its own music, its own formations, and a boss that has to come apart before you see the recap. Leave the title idle and attract mode will fly a demo — tap to steal the stick back.
+
+POWER, MEDALS, GREED
+P items step your shot up to three. Extra P at max power still pays. B restocks bombs; extra B at three in the rack pays more. Every kill drops a spinning medal — catch them face-up if you can, they are the real money. Graze enemy fire for extra points. A panic bomb erases shots in the blast and cooks anything still in the fire.
+
+DIPSWITCHES
+Monkey through Hardcore. Shot speed, density, and score multiplier all move. Hardcore is for people who still remember what a credit was worth.
+
+RANKS
+Local high scores. Initials. No account, no ads, no in-app purchases. Your ranking lives on this device.
+
+Portrait. Offline. Built to be played with one thumb and a bad attitude.
+
+WW2 BLITZ. Insert one player.
