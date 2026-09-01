@@ -79,6 +79,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val bombSheets = arrayOfNulls<Bitmap>(6)
   private var lifeIconBmp: Bitmap? = null
   private var bombIconBmp: Bitmap? = null
+  private var hitPipFullBmp: Bitmap? = null
+  private var hitPipMidBmp: Bitmap? = null
+  private var hitPipWarnBmp: Bitmap? = null
+  private var hitPipEmptyBmp: Bitmap? = null
   private var availableBombs = 3
   private var gameState = STATE_TITLE
   private var isSettingsMenuOpen = false
@@ -240,21 +244,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     style = Paint.Style.STROKE
     strokeWidth = 5f
     isAntiAlias = true
-  }
-  private val uiHitFullPaint = Paint().apply {
-    color = 0xFF3DFF4A.toInt()
-    style = Paint.Style.FILL
-    isAntiAlias = false
-  }
-  private val uiHitMidPaint = Paint().apply {
-    color = 0xFFC9A000.toInt()
-    style = Paint.Style.FILL
-    isAntiAlias = false
-  }
-  private val uiHitWarnPaint = Paint().apply {
-    color = 0xFFE53935.toInt()
-    style = Paint.Style.FILL
-    isAntiAlias = false
   }
 
   init {
@@ -723,28 +712,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     if (player.getHealth() > 0) {
       val currentHits = player.getHitsLeft()
       val maxHits = player.getMaxHitsPerLife()
-      val barWidth = 240f
-      val barH = 12f
-      val barLeft = (screenW - barWidth) * 0.5f
-      val barTop = lifeStartY + lifeSize + 8f
-      hudIconDst.set(barLeft, barTop, barLeft + barWidth, barTop + barH)
-      canvas.drawRect(hudIconDst, uiShadowPaint)
-      val gap = 2f
-      val segW = (barWidth - gap * (maxHits + 1)) / maxHits
-      val fillPaint = if (currentHits >= 3) {
-        uiHitFullPaint
+      val pipW = 70f
+      val pipH = 32f
+      val pipGap = 8f
+      val rowW = maxHits * pipW + (maxHits - 1) * pipGap
+      val pipLeft = (screenW - rowW) * 0.5f
+      val pipTop = lifeStartY + (lifeSize - pipH) * 0.5f
+      val filled = if (currentHits >= 3) {
+        hitPipFullBmp
       } else if (currentHits == 2) {
-        uiHitMidPaint
+        hitPipMidBmp
       } else {
-        uiHitWarnPaint
+        hitPipWarnBmp
       }
+      val empty = hitPipEmptyBmp
       val warnVisible = currentHits > 1 || ((System.currentTimeMillis() / 180L) and 1L) == 0L
       var seg = 0
       while (seg < maxHits) {
-        if (seg < currentHits && warnVisible) {
-          val sx = barLeft + gap + seg * (segW + gap)
-          hudIconDst.set(sx, barTop + gap, sx + segW, barTop + barH - gap)
-          canvas.drawRect(hudIconDst, fillPaint)
+        val sx = pipLeft + seg * (pipW + pipGap)
+        hudIconDst.set(sx, pipTop, sx + pipW, pipTop + pipH)
+        val lit = seg < currentHits && warnVisible
+        val pip = if (lit) filled else empty
+        if (pip != null) {
+          blitHudIcon(canvas, pip)
         }
         seg++
       }
@@ -1420,6 +1410,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     if (bombIconBmp == null) {
       bombIconBmp = decodeKeyed(R.drawable.hud_bomb_icon)
     }
+    if (hitPipFullBmp == null) {
+      hitPipFullBmp = decodeKeyedLime(R.drawable.hud_hit_pip_full)
+    }
+    if (hitPipMidBmp == null) {
+      hitPipMidBmp = decodeKeyedLime(R.drawable.hud_hit_pip_mid)
+    }
+    if (hitPipWarnBmp == null) {
+      hitPipWarnBmp = decodeKeyedLime(R.drawable.hud_hit_pip_warn)
+    }
+    if (hitPipEmptyBmp == null) {
+      hitPipEmptyBmp = decodeKeyedLime(R.drawable.hud_hit_pip_empty)
+    }
     if (logoBmp == null) {
       logoBmp = decodeKeyed(R.drawable.game_logo)
     }
@@ -1711,6 +1713,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     return bmp
   }
 
+  private fun decodeKeyedLime(drawableId: Int): Bitmap {
+    val opts = BitmapFactory.Options().apply {
+      inScaled = false
+      inPreferredConfig = Bitmap.Config.ARGB_8888
+      inMutable = true
+    }
+    val src = BitmapFactory.decodeResource(resources, drawableId, opts)
+      ?: error("Missing drawable $drawableId")
+    val bmp = if (src.isMutable) src else src.copy(Bitmap.Config.ARGB_8888, true).also { src.recycle() }
+    keyLimeBackdrop(bmp)
+    return bmp
+  }
+
   private fun decodeOpaque(drawableId: Int): Bitmap {
     val opts = BitmapFactory.Options().apply {
       inScaled = false
@@ -1734,6 +1749,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         val g = (c ushr 8) and 0xFF
         val b = c and 0xFF
         if (g > 160 && g > r + 40 && g > b + 40) {
+          row[i] = 0
+        }
+        i++
+      }
+      bmp.setPixels(row, 0, w, 0, rowY, w, 1)
+      rowY++
+    }
+  }
+
+  private fun keyLimeBackdrop(bmp: Bitmap) {
+    val w = bmp.width
+    val h = bmp.height
+    val row = IntArray(w)
+    var rowY = 0
+    while (rowY < h) {
+      bmp.getPixels(row, 0, w, 0, rowY, w, 1)
+      var i = 0
+      while (i < w) {
+        val c = row[i]
+        val r = (c ushr 16) and 0xFF
+        val g = (c ushr 8) and 0xFF
+        val b = c and 0xFF
+        if (g > 200 && r < 50 && b < 50) {
           row[i] = 0
         }
         i++
@@ -2244,6 +2282,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val bombIcon = bombIconBmp
     if (bombIcon != null && !bombIcon.isRecycled) bombIcon.recycle()
     bombIconBmp = null
+    val hitFull = hitPipFullBmp
+    if (hitFull != null && !hitFull.isRecycled) hitFull.recycle()
+    hitPipFullBmp = null
+    val hitMid = hitPipMidBmp
+    if (hitMid != null && !hitMid.isRecycled) hitMid.recycle()
+    hitPipMidBmp = null
+    val hitWarn = hitPipWarnBmp
+    if (hitWarn != null && !hitWarn.isRecycled) hitWarn.recycle()
+    hitPipWarnBmp = null
+    val hitEmpty = hitPipEmptyBmp
+    if (hitEmpty != null && !hitEmpty.isRecycled) hitEmpty.recycle()
+    hitPipEmptyBmp = null
     val logo = logoBmp
     if (logo != null && !logo.isRecycled) logo.recycle()
     logoBmp = null
