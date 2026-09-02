@@ -74,6 +74,8 @@ class BossController(private val resources: Resources) {
   private var explosionTimer = 0f
   private var activeExpFrame = 0
   private var currentStage = 1
+  private var combatKind = BossCombatKind.PLANE
+  private var triPartBoss = false
   private var loadedStage = -1
   private var corePhaseOpen = false
   private var visualFlags = 0
@@ -111,21 +113,29 @@ class BossController(private val resources: Resources) {
     screenW = width.toFloat()
     screenH = height.toFloat()
     hoverY = height * HOVER_Y_FRAC
+    applyKit(currentStage)
     if (bodySheet == null) {
       loadKeyedSheet(currentStage)
     }
     cacheSrcRects()
     recomputeBodySize(width)
-    layoutOffsets(currentStage)
+    layoutOffsets()
   }
 
   fun bindStage(stage: Int) {
-    currentStage = stage
+    applyKit(stage)
     if (screenW <= 0f) return
     loadKeyedSheet(currentStage)
     cacheSrcRects()
     recomputeBodySize(screenW.toInt())
-    layoutOffsets(currentStage)
+    layoutOffsets()
+  }
+
+  private fun applyKit(stage: Int) {
+    currentStage = stage
+    val def = StageCatalog.get(stage)
+    combatKind = def.bossCombat
+    triPartBoss = def.boss.triPart
   }
 
   fun beginEntrance() {
@@ -134,7 +144,12 @@ class BossController(private val resources: Resources) {
 
   fun beginEntranceForStage(stage: Int) {
     if (screenW <= 0f) return
-    bindStage(stage)
+    if (currentStage != stage || loadedStage != stage || bodySheet == null) {
+      bindStage(stage)
+    } else {
+      applyKit(stage)
+      layoutOffsets()
+    }
     active = true
     entering = true
     sweepPhase = 0f
@@ -211,7 +226,7 @@ class BossController(private val resources: Resources) {
 
   fun locksWorldScroll(): Boolean = isTriPartBoss() && isExploding
 
-  fun isTriPartBoss(): Boolean = currentStage == 5 || currentStage == 6
+  fun isTriPartBoss(): Boolean = triPartBoss
 
   fun isCoreVulnerable(): Boolean {
     var i = 1
@@ -390,7 +405,7 @@ class BossController(private val resources: Resources) {
   }
 
   private fun grantStage5ModuleReward(componentType: Int) {
-    if (currentStage != 5 && currentStage != 6) return
+    if (!triPartBoss) return
     if (componentType == TYPE_LEFT_FLANK && !hasDroppedLeftReward) {
       hasDroppedLeftReward = true
       val x = leftFlankBounds.centerX()
@@ -424,7 +439,7 @@ class BossController(private val resources: Resources) {
     val coreR: Float
     val coreT: Float
     val coreB: Float
-    if (currentStage == 6) {
+    if (combatKind == BossCombatKind.ORBIT) {
       leftL = S6_LEFT_L
       leftR = S6_LEFT_R
       rightL = S6_RIGHT_L
@@ -534,7 +549,7 @@ class BossController(private val resources: Resources) {
         entering = false
         SoundManager.instance.stopAlarm()
       }
-    } else if (currentStage == 2) {
+    } else if (combatKind == BossCombatKind.TANK) {
       coreX = screenW * 0.5f
     } else {
       sweepPhase += dt * SWEEP_RATE
@@ -550,15 +565,15 @@ class BossController(private val resources: Resources) {
     if (isTriPartBoss()) {
       syncStage5Hitboxes()
     }
-    if (currentStage == 6) {
+    if (combatKind == BossCombatKind.ORBIT) {
       updateStage6Combat(dt, playerX, playerY, weapons)
-    } else if (currentStage == 5) {
+    } else if (combatKind == BossCombatKind.CANOPY) {
       updateStage5Combat(dt, playerX, playerY, weapons)
-    } else if (currentStage == 4) {
+    } else if (combatKind == BossCombatKind.JUNGLE) {
       updateJungleFortressCombat(dt, playerX, playerY, weapons)
-    } else if (currentStage == 3) {
+    } else if (combatKind == BossCombatKind.BATTLESHIP) {
       updateStage3BossWeapons(dt, playerX, playerY, weapons)
-    } else if (currentStage == 2) {
+    } else if (combatKind == BossCombatKind.TANK) {
       updateTankCombat(dt, playerX, playerY, weapons)
     } else {
       updatePlaneCombat(dt, playerX, playerY, weapons)
@@ -693,12 +708,12 @@ class BossController(private val resources: Resources) {
     val rightWreck = rightWreckSheet
     val centerWreck = centerWreckSheet
 
-    when (currentStage) {
-      6, 5 -> {
+    when (combatKind) {
+      BossCombatKind.ORBIT, BossCombatKind.CANOPY -> {
         // Multi-part module wrecks are handled independently via drawStage5()
         return
       }
-      4 -> {
+      BossCombatKind.JUNGLE -> {
         if (leftWreck != null && parts[TYPE_STAGE4_LEFT_MORTAR].isDestroyed) {
           canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
         }
@@ -709,7 +724,7 @@ class BossController(private val resources: Resources) {
           canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
         }
       }
-      3 -> {
+      BossCombatKind.BATTLESHIP -> {
         if (leftWreck != null && parts[TYPE_STAGE3_LEFT_FLAK].isDestroyed) {
           canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
         }
@@ -720,7 +735,7 @@ class BossController(private val resources: Resources) {
           canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
         }
       }
-      2 -> {
+      BossCombatKind.TANK -> {
         if (leftWreck != null && parts[TYPE_STAGE2_LEFT_TREAD].isDestroyed) {
           canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
         }
@@ -731,7 +746,7 @@ class BossController(private val resources: Resources) {
           canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
         }
       }
-      1 -> {
+      else -> {
         if (leftWreck != null && parts[TYPE_LEFT_WING].isDestroyed) {
           canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
         }
@@ -865,12 +880,12 @@ class BossController(private val resources: Resources) {
       if (!s6SawBothFlanksDown) {
         s6SawBothFlanksDown = true
         s6SawOneFlankDown = true
-        stageTimeline?.forceAdvanceStage6Timeline(S6_PHASE3_CLOCK)
+        stageTimeline?.forceElapsed(S6_PHASE3_CLOCK)
       }
     } else if (leftDead || rightDead) {
       if (!s6SawOneFlankDown) {
         s6SawOneFlankDown = true
-        stageTimeline?.forceAdvanceStage6Timeline(S6_PHASE2_CLOCK)
+        stageTimeline?.forceElapsed(S6_PHASE2_CLOCK)
       }
     }
     val bossWidth = bodyHalfW * 2f
@@ -1185,7 +1200,7 @@ class BossController(private val resources: Resources) {
     bodyHalfH = targetH * 0.5f
   }
 
-  private fun layoutOffsets(stage: Int) {
+  private fun layoutOffsets() {
     val preserve = active
     if (preserve) {
       var i = 0
@@ -1200,8 +1215,8 @@ class BossController(private val resources: Resources) {
       disablePart(idx)
       idx++
     }
-    when (stage) {
-      6 -> {
+    when (combatKind) {
+      BossCombatKind.ORBIT -> {
         val bw = bodyHalfW * 2f
         val bh = bodyHalfH * 2f
         setupPart(
@@ -1230,7 +1245,7 @@ class BossController(private val resources: Resources) {
         )
         syncStage5Hitboxes()
       }
-      5 -> {
+      BossCombatKind.CANOPY -> {
         val bw = bodyHalfW * 2f
         val bh = bodyHalfH * 2f
         setupPart(
@@ -1259,7 +1274,7 @@ class BossController(private val resources: Resources) {
         )
         syncStage5Hitboxes()
       }
-      4 -> {
+      BossCombatKind.JUNGLE -> {
         setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.30f, bodyHalfH * 0.40f, S4_CORE_HP)
         setupPart(
           TYPE_STAGE4_LEFT_MORTAR,
@@ -1286,13 +1301,13 @@ class BossController(private val resources: Resources) {
           S4_GATLING_HP,
         )
       }
-      3 -> {
+      BossCombatKind.BATTLESHIP -> {
         setupPart(TYPE_CORE, 0f, -bodyHalfH * 0.1f, bodyHalfW * 0.35f, bodyHalfH * 0.40f, S3_CORE_HP)
         setupPart(TYPE_STAGE3_LEFT_FLAK, -bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
         setupPart(TYPE_STAGE3_RIGHT_FLAK, bodyHalfW * 0.70f, bodyHalfH * 0.15f, bodyHalfW * 0.20f, bodyHalfH * 0.20f, S3_FLAK_HP)
         setupPart(TYPE_STAGE3_MEGA_CANNON, 0f, bodyHalfH * 0.45f, bodyHalfW * 0.30f, bodyHalfH * 0.25f, S3_CANNON_HP)
       }
-      2 -> {
+      BossCombatKind.TANK -> {
         setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S2_CORE_HP)
         setupPart(TYPE_STAGE2_LEFT_TREAD, -bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
         setupPart(TYPE_STAGE2_RIGHT_TREAD, bodyHalfW * 0.72f, 0f, bodyHalfW * 0.26f, bodyHalfH * 0.52f, S2_TREAD_HP)
@@ -1375,44 +1390,12 @@ class BossController(private val resources: Resources) {
     leftWreckSheet = null
     rightWreckSheet = null
     centerWreckSheet = null
-    when (stage) {
-      6 -> {
-        bodySheet = decodeKeyed(R.drawable.boss_stage6_full)
-        leftWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_left)
-        rightWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_right)
-        centerWreckSheet = decodeKeyed(R.drawable.boss_stage6_wreck_center)
-      }
-      5 -> {
-        bodySheet = decodeKeyed(R.drawable.boss_stage5_full)
-        leftWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_left)
-        rightWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_right)
-        centerWreckSheet = decodeKeyed(R.drawable.boss_stage5_wreck_center)
-      }
-      4 -> {
-        bodySheet = decodeKeyed(R.drawable.boss_stage4_jungle_full)
-        leftWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_left)
-        rightWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_right)
-        centerWreckSheet = decodeKeyed(R.drawable.boss_stage4_wreck_center)
-      }
-      3 -> {
-        bodySheet = decodeKeyed(R.drawable.boss_stage3_battleship_full)
-        leftWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_left)
-        rightWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_right)
-        centerWreckSheet = decodeKeyed(R.drawable.boss_stage3_wreck_center)
-      }
-      2 -> {
-        bodySheet = decodeKeyed(R.drawable.boss_stage2_tank_full)
-        leftWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_left)
-        rightWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_right)
-        centerWreckSheet = decodeKeyed(R.drawable.boss_stage2_wreck_center)
-      }
-      else -> {
-        bodySheet = decodeKeyed(R.drawable.boss_stage1_full)
-        leftWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_left)
-        rightWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_right)
-        centerWreckSheet = decodeKeyed(R.drawable.boss_stage1_wreck_center)
-      }
-    }
+    val kit = StageCatalog.get(stage)
+    val assets = resources.assets
+    bodySheet = StageBitmaps.decode(assets, kit.bossBodyPath(), keyed = true)
+    leftWreckSheet = StageBitmaps.decode(assets, kit.wreckLeftPath(), keyed = true)
+    rightWreckSheet = StageBitmaps.decode(assets, kit.wreckRightPath(), keyed = true)
+    centerWreckSheet = StageBitmaps.decode(assets, kit.wreckCenterPath(), keyed = true)
     loadedStage = stage
   }
 

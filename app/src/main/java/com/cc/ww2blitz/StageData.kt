@@ -8,28 +8,20 @@ class StageData {
     private var stageId = STAGE_SEQUENCE[0]
     val currentStage: Int
         get() = stageId
+    val def: StageDef
+        get() = StageCatalog.get(stageId)
     val hasOverlayClouds: Boolean
-        get() = stageId == STAGE_1
-    val isStage1Script: Boolean
-        get() = stageId == STAGE_1
-    val isStage2Script: Boolean
-        get() = stageId == STAGE_2
-    val isStage3Script: Boolean
-        get() = stageId == STAGE_3
-    val isStage4Script: Boolean
-        get() = stageId == STAGE_4
-    val isStage5Backdrop: Boolean
-        get() = stageId == STAGE_5
-    val isStage6Backdrop: Boolean
-        get() = stageId == STAGE_6
-    /** Stages 3–5 halt elapsedTime after the boss cue (identity, not sequence order). */
+        get() = def.hasOverlayClouds
+    val isFacilityTheater: Boolean
+        get() = def.theaterKind == StageTheaterKind.FACILITY
+    val isAscentTheater: Boolean
+        get() = def.theaterKind == StageTheaterKind.ASCENT
     val locksElapsedAtBoss: Boolean
-        get() = isStage3Script || isStage4Script || isStage5Backdrop
-    /** Opening power-V + shared boss-at-elapsed cue (not Stage 5/6 theaters). */
+        get() = def.locksElapsedAtBoss
     val usesOpeningPowerV: Boolean
-        get() = isStage1Script || isStage2Script || isStage3Script || isStage4Script
+        get() = def.usesOpeningPowerV
     val usesSharedBossEntranceCue: Boolean
-        get() = usesOpeningPowerV
+        get() = def.usesSharedBossEntranceCue
     private var campaignFinishedLatch = false
     val isCampaignFinished: Boolean
         get() = campaignFinishedLatch
@@ -206,38 +198,10 @@ class StageData {
     }
 
     fun applyStageMetrics(stage: Int) {
-        when (stage) {
-            2 -> {
-                scrollSpeedY = 260f
-                targetBossTimelineSeconds = 30f
-                stageMusicTrack = SoundManager.BGM_STAGE2
-            }
-            3 -> {
-                scrollSpeedY = 200f
-                targetBossTimelineSeconds = 25f
-                stageMusicTrack = SoundManager.BGM_STAGE2
-            }
-            4 -> {
-                scrollSpeedY = 310f
-                targetBossTimelineSeconds = 45f
-                stageMusicTrack = SoundManager.BGM_STAGE2
-            }
-            STAGE_5 -> {
-                scrollSpeedY = 280f
-                targetBossTimelineSeconds = 45f
-                stageMusicTrack = SoundManager.MUSIC_STAGE_5
-            }
-            STAGE_6 -> {
-                scrollSpeedY = 180f
-                targetBossTimelineSeconds = 50f
-                stageMusicTrack = SoundManager.BGM_STAGE1
-            }
-            else -> {
-                scrollSpeedY = 180f
-                targetBossTimelineSeconds = 38f
-                stageMusicTrack = SoundManager.BGM_STAGE1
-            }
-        }
+        val d = StageCatalog.get(stage)
+        scrollSpeedY = d.scrollSpeedY
+        targetBossTimelineSeconds = d.bossAtSeconds
+        stageMusicTrack = d.stageMusicTrack
     }
 
     companion object {

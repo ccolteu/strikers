@@ -359,7 +359,7 @@ class EnemyPoolManager(private val resources: Resources) {
   private fun updateInterceptorHold(e: Enemy, dt: Float, screenH: Float) {
     val heavyHold = e.type == TYPE_HEAVY
     val s3AirHeavy = heavyHold && !e.isGroundHeavy() &&
-      StageData.liveInstance?.isStage3Script == true
+      StageData.liveInstance?.def?.airHeavyHighHold == true
     val holdY = screenH * if (e.isGroundHeavy()) {
       DESTROYER_HOLD_Y_FRAC
     } else if (s3AirHeavy) {
@@ -636,14 +636,8 @@ class EnemyPoolManager(private val resources: Resources) {
     val red = droneRedSheet
     if (red != null && !red.isRecycled) red.recycle()
     droneRedSheet = null
-    val dest = destroyerSheet
-    if (dest != null && !dest.isRecycled) dest.recycle()
     destroyerSheet = null
-    val tank = tankSheet
-    if (tank != null && !tank.isRecycled) tank.recycle()
     tankSheet = null
-    val wagon = wagonSheet
-    if (wagon != null && !wagon.isRecycled) wagon.recycle()
     wagonSheet = null
   }
 
@@ -659,9 +653,12 @@ class EnemyPoolManager(private val resources: Resources) {
     sheets[TYPE_KAMIKAZE] = loadKeyed(R.drawable.enemy_kamikaze)
     sheets[TYPE_INTERCEPTOR] = loadKeyed(R.drawable.enemy_interceptor)
     sheets[TYPE_HEAVY] = loadKeyed(R.drawable.enemy_heavy)
-    destroyerSheet = loadKeyed(R.drawable.enemy_destroyer)
-    tankSheet = loadKeyed(R.drawable.enemy_tank)
-    wagonSheet = loadKeyed(R.drawable.enemy_wagon)
+  }
+
+  fun bindTheaterSkins(tank: Bitmap?, destroyer: Bitmap?, wagon: Bitmap?) {
+    tankSheet = tank
+    destroyerSheet = destroyer
+    wagonSheet = wagon
   }
 
   private fun loadKeyed(drawableId: Int): Bitmap {

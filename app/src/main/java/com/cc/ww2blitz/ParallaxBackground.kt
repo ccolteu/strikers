@@ -1,13 +1,10 @@
 package com.cc.ww2blitz
 
-import android.content.res.Resources
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
-import kotlin.math.ceil
 
 /**
  * Three-layer vertical parallax background system engineered for zero runtime allocation.
@@ -18,7 +15,7 @@ import kotlin.math.ceil
  * track these scaled asset heights directly rather than the screen viewport bounds,
  * preserving authored vertical loop seams.
  */
-class ParallaxBackground(private val resources: Resources) {
+class ParallaxBackground {
 
   private var ground: Bitmap? = null
   private var mid: Bitmap? = null
@@ -67,20 +64,12 @@ class ParallaxBackground(private val resources: Resources) {
     screenW = width
     screenH = height
 
-    recycle(ground)
-    recycle(mid)
-    recycle(high)
-
-    // Decode and apply width-locked scaling configurations to layer artwork
-    ground = decodeWidthLockedScaled(resources, R.drawable.stage1_bg_layer1_ground, width)
-    mid = decodeWidthLockedScaled(resources, R.drawable.stage1_bg_layer2_mid, width)
-    high = decodeWidthLockedScaled(resources, R.drawable.stage1_bg_layer3_high, width)
-
-    // Cache the precise pixel heights of the scaled assets for the wrapping pipeline
-    groundHeight = ground?.height?.toFloat() ?: height.toFloat()
-    midHeight = mid?.height?.toFloat() ?: height.toFloat()
-    highHeight = high?.height?.toFloat() ?: height.toFloat()
-
+    ground = null
+    mid = null
+    high = null
+    groundHeight = height.toFloat()
+    midHeight = height.toFloat()
+    highHeight = height.toFloat()
     yGround = 0f
     yMid = 0f
     yHigh = 0f
@@ -88,6 +77,15 @@ class ParallaxBackground(private val resources: Resources) {
     stage5Layer2Y = 0f
     stage6Layer2Y = 0f
     stage6SpeedModifier = 1.0f
+  }
+
+  fun setScrollLayers(groundBmp: Bitmap?, midBmp: Bitmap?, highBmp: Bitmap?) {
+    ground = groundBmp
+    mid = midBmp
+    high = highBmp
+    groundHeight = ground?.height?.toFloat() ?: screenH.toFloat()
+    midHeight = mid?.height?.toFloat() ?: screenH.toFloat()
+    highHeight = high?.height?.toFloat() ?: screenH.toFloat()
   }
 
   /** Updates your generic vertical scrolling offsets based on each layer's custom wrap boundaries. */
@@ -174,30 +172,24 @@ class ParallaxBackground(private val resources: Resources) {
     }
   }
 
-  fun drawStage5Canopy(canvas: Canvas, canopy: Bitmap?, currentStage: Int) {
-    if (currentStage != 5) return
+  fun drawStage5Canopy(canvas: Canvas, canopy: Bitmap?) {
     if (canopy == null || canopy.isRecycled) return
     stage5Layer2Height = canopy.height.toFloat()
     blit(canvas, canopy, stage5Layer2Y, stage5Layer2Height, paintStructures)
   }
 
-  fun drawStage6Canopy(canvas: Canvas, canopy: Bitmap?, currentStage: Int) {
-    if (currentStage != 6) return
+  fun drawStage6Canopy(canvas: Canvas, canopy: Bitmap?) {
     if (canopy == null || canopy.isRecycled) return
     stage6Layer2Height = canopy.height.toFloat()
     blit(canvas, canopy, stage6Layer2Y, stage6Layer2Height, paintStructures)
   }
 
-  fun drawStage5(canvas: Canvas, floor: Bitmap?, canopy: Bitmap?, currentStage: Int) {
-    if (currentStage != 5) return
+  fun drawStage5(canvas: Canvas, floor: Bitmap?, canopy: Bitmap?) {
     drawStage5Floor(canvas, floor)
-    drawStage5Canopy(canvas, canopy, currentStage)
+    drawStage5Canopy(canvas, canopy)
   }
 
   fun release() {
-    recycle(ground)
-    recycle(mid)
-    recycle(high)
     ground = null
     mid = null
     high = null
@@ -207,13 +199,9 @@ class ParallaxBackground(private val resources: Resources) {
 
   /** Core tiling optimization: offsets secondary slices by asset height footprints instead of display dimensions. */
   private fun blit(canvas: Canvas, bitmap: Bitmap?, y: Float, assetH: Float, paint: Paint) {
-    if (bitmap == null) return
+    if (bitmap == null || bitmap.isRecycled) return
     canvas.drawBitmap(bitmap, 0f, y, paint)
     canvas.drawBitmap(bitmap, 0f, y - assetH, paint)
-  }
-
-  private fun recycle(bitmap: Bitmap?) {
-    if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
   }
 
   private companion object {
@@ -239,23 +227,4 @@ class ParallaxBackground(private val resources: Resources) {
       return v
     }
   }
-}
-
-/** Scales asset to span target width perfectly, preserving uncropped vertical aspect ratio and loop seams. */
-internal fun decodeWidthLockedScaled(resources: Resources, id: Int, targetW: Int): Bitmap {
-  val opts = BitmapFactory.Options().apply {
-    inScaled = false
-    inPreferredConfig = Bitmap.Config.ARGB_8888
-  }
-  val src = BitmapFactory.decodeResource(resources, id, opts)
-    ?: error("Missing drawable $id")
-  if (src.width == targetW) return src
-
-  val widthScale = targetW.toFloat() / src.width.toFloat()
-  val scaledW = targetW
-  val scaledH = ceil(src.height * widthScale).toInt()
-
-  val scaled = Bitmap.createScaledBitmap(src, scaledW, scaledH, true)
-  if (scaled !== src) src.recycle()
-  return scaled
 }

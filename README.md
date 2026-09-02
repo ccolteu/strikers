@@ -1,6 +1,6 @@
 # WW2 Blitz
 
-Portrait Android shoot-’em-up (`com.cc.ww2blitz`), version **1.0.1**. One fighter, six timed stages, peelable bosses. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
+Portrait Android shoot-’em-up (`com.cc.ww2blitz`), version **1.0.1**. One fighter, six timed stages, peelable bosses. Maps are composed (`StageDef` + director + theater/boss kit), not subclassed from a `BaseLevel`. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
 
 The software is a Kotlin engine on one `SurfaceView`, clocked by `Choreographer`. Combat is not a Compose tree. The hot path does not allocate.
 
@@ -26,7 +26,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 6 | Cabinet sells itself while idle | Attract cycle: title 4 s → CPU demo 30 s → ranking 4 s | [Attract](#6-attract) |
 | 7 | Demo must look like the real game | Same spawn/combat path; `STATE_DEMO`; no leaderboard insert | [Attract](#6-attract) |
 | 8 | One credit, no stage-select grid | `STAGE_SEQUENCE` int array; finish is a latch past last index | [Playlist](#7-playlist-and-stage-identity) |
-| 9 | Maps have identities, not playlist slots | Flags on `StageData` (`isStage1Script` … `isStage6Backdrop`) | [Playlist](#7-playlist-and-stage-identity) |
+| 9 | Maps have identities, not playlist slots | `StageDef` in `StageCatalog`; compose director + theater + boss kit | [Playlist](#7-playlist-and-stage-identity) |
 | 10 | Operator dipswitch for hardness | Nested `Difficulty` enum: speed, interval, burst, score × | [Difficulty](#8-difficulty-dipswitch) |
 | 11 | Operator dipswitch for ship | Persisted `chosen_fighter`; `applyFighterConfiguration` | [Fighter](#9-fighter-dipswitch) |
 | 12 | Settings survive power cycle | `SharedPreferences` primitives, load once, `apply()` | [Persistence](#10-persistence) |
@@ -50,8 +50,8 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 30 | Killing a gunship must feel like peeling a machine | Multi-hitbox `BossComponent`; derived core vulnerability | [Boss peel](#21-boss-peel) |
 | 31 | Armor hits must confirm without a white flash | 2 px micro-shudder, 0.08 s | [Hit confirm and camera](#22-hit-confirm-and-camera) |
 | 32 | Cabinet kick on phase/death | Shake/flash as durations + LCG translate; HUD unshaken | [Hit confirm and camera](#22-hit-confirm-and-camera) |
-| 33 | Stage 5/6 roof occludes hostiles, not you | Floor → enemies/boss/shots → canopy → player | [Theaters](#23-theaters-and-z-order) |
-| 34 | Painted maps must not stretch | Cover-scale parallax; title is a still, center-cropped | [Theaters](#23-theaters-and-z-order) |
+| 33 | Facility/ascent roof occludes hostiles, not you | Floor → enemies/boss/shots → canopy → player | [Theaters](#23-theaters-and-z-order) |
+| 34 | Painted maps must not stretch | Width-lock floors; title is a still, center-cropped | [Theaters](#23-theaters-and-z-order) |
 | 35 | Green key at authoring time | Punch chroma once at bitmap load | [Chroma](#24-green-chroma) |
 | 36 | Recap must be readable | Sweep all combat pools on `STATE_CLEAR` | [Score and recap](#25-score-and-recap) |
 | 37 | Bonus roll like a cabinet ticker | Four-phase recap; combat × dip; ticks `SFX_PICKUP` | [Score and recap](#25-score-and-recap) |
@@ -73,6 +73,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 53 | Teach beats must not vanish at the pool cap | Scripted one-shots ignore `MAX_ACTIVE` | [Director](#18-time-scripted-director) |
 | 54 | Attract card must show the ROM revision | `VER` + installed `versionName` under CREDIT, same small typeface | [Attract](#6-attract) |
 | 55 | Tanks and ships sit on the ground, not in the flight | Two-pass grunt blit: `isGroundHeavy()` then airborne | [Theaters](#23-theaters-and-z-order) |
+| 56 | A seventh map must not subclass the engine | Folder + `StageDef` + director slot; reuse theater/boss kinds | [Playlist](#7-playlist-and-stage-identity) |
 
 ```mermaid
 flowchart TB
@@ -86,7 +87,11 @@ flowchart TB
   subgraph frame["doFrame"]
     ST[gameState]
     SD[StageData]
+    SC[StageCatalog]
+    TH[StageTheater]
     TL[SpawnTimeline]
+    DR[StageDirector]
+    FS[FormationSpawner]
     EN[EnemyPoolManager]
     EW[EnemyWeaponSystem]
     BS[BossController]
@@ -103,9 +108,15 @@ flowchart TB
   end
   GV --> ST
   ST --> SD
+  SD --> SC
+  ST --> TH
   ST --> TL
-  TL --> EN
+  TL --> DR
+  DR --> FS
+  DR --> EN
+  FS --> EN
   TL --> BS
+  BS --> SC
   EN --> EW
   BS --> EW
   PL --> BL
@@ -199,30 +210,69 @@ Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / d
 
 **Why.** A fake “attract-only” spawn list would desync from the product. Reusing the director means the window always shows shippable waves. Forbidding insert keeps the operator table honest.
 
-**Implementation.** `ATTRACT_TITLE_SECS = 4`, `ATTRACT_DEMO_SECS = 30`, `ATTRACT_HIGH_SCORE_SECS = 4`. Title footer: CREDIT line, then `VER` plus `PackageManager` `versionName` (cached at `GameView` init), both `uiSmallPaint` / arcade face. On title timeout, `beginDemo()` picks stage `1…5` with an LCG, skipping `lastDemoStage`. Stage 6 is never attract. `demoPilot` steers toward the lowest living enemy or boss part, sidesteps nearby downward bullets, sine-wanders if idle (`DEMO_SPEED`). `resolveEnemyBulletsVsPlayer(..., awardScore = false)`. Touch on demo or ranking returns to interactive title. Surface recreate does **not** force `ATTRACT_TITLE`; ranking can survive a flap. `HighScoreManager` insert is not called on this path.
+**Implementation.** `ATTRACT_TITLE_SECS = 4`, `ATTRACT_DEMO_SECS = 30`, `ATTRACT_HIGH_SCORE_SECS = 4`. Title footer: CREDIT line, then `VER` plus `PackageManager` `versionName` (cached at `GameView` init), both `uiSmallPaint` / arcade face. On title timeout, `beginDemo()` picks a catalog map that is not `introOnly`, skipping `lastDemoStage` when more than one attract map exists. `demoPilot` steers toward the lowest living enemy or boss part, sidesteps nearby downward bullets, sine-wanders if idle (`DEMO_SPEED`). `resolveEnemyBulletsVsPlayer(..., awardScore = false)`. Touch on demo or ranking returns to interactive title. Surface recreate does **not** force `ATTRACT_TITLE`; ranking can survive a flap. `HighScoreManager` insert is not called on this path.
 
 ---
 
 ## 7. Playlist and stage identity
 
-**Need.** A credit is a linear war, not a level-select app. Test playlists may repeat an id. “You beat stage 6” is not “the playlist is done” if 6 appears twice.
+**Need.** A credit is a linear war, not a level-select app. Test playlists may repeat an id. “You beat stage 6” is not “the playlist is done” if 6 appears twice. A seventh map must not be `class Stage7 : BaseLevel()` that duplicates pools, dips, and vulcan.
 
-**Choice.** `STAGE_SEQUENCE` is an `IntArray`. Finish is `campaignFinishedLatch` after `advanceToNextStage()` walks **past the last index**. Directors and theaters key off **identity flags**, not playlist index.
+**Choice.** Three layers, composed, never inherited:
 
-**Why.** Index-based finish is what the operator programmed. Identity flags let Stage 5’s canopy and Stage 3’s freeze work even if you reorder the array.
+| Layer | Owns | Does not own |
+| --- | --- | --- |
+| `STAGE_SEQUENCE` | Order of the credit; finish latch | Art, waves, boss guns |
+| `StageDef` / `StageCatalog` | Identity: metrics, flags, asset paths, `theaterKind`, `bossCombat`, briefing name | Spawn script, live bitmaps |
+| `StageDirector` | That map’s elapsed-time waves | Pools, HUD, player |
 
-**Implementation.** Default `intArrayOf(1, 2, 3, 4, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. Flags: `isStage1Script` … `isStage6Backdrop`, `hasOverlayClouds`, `locksElapsedAtBoss`, `usesOpeningPowerV`. `applyStageMetrics` writes `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport so attract starts on stage 1 with empty pools. Later title size bounces do not call it; `returnToTitle` / `beginDemo` reset the cursor themselves.
+`StageTheater` loads `assets/stages/N/`. `BossController` peels using `BossCombatKind`, not “if id == 5.” Shared systems stay global.
 
-Stage table (metrics as coded):
+**Why.** Index-based finish is what the operator programmed. Identity on the def lets a facility canopy and an ocean freeze work even if you reorder the array. A clone of jungle-over-new-art is a folder, a catalog row, a director object, and a playlist entry.
 
-| Stage | Theater | Scroll | Boss cue |
-| --- | --- | --- | --- |
-| 1 | Canyon / clouds | ~180 | ~38 s |
-| 2 | Super-tank country | ~260 | ~30 s |
-| 3 | Ocean | ~200 | ~25 s |
-| 4 | Jungle | fastest | ~45 s |
-| 5 | Facility | 280 → 0 at gate | ~45 s |
-| 6 | Clouds → space → orbit | envelope then brake | **5 s**, no grunts |
+**Implementation.** Default `intArrayOf(1, 2, 3, 4, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. `StageData.def` is `StageCatalog.get(stageId)`. Derived flags: `hasOverlayClouds`, `isFacilityTheater`, `isAscentTheater`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `introOnly`. `applyStageMetrics` copies `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport. Later title size bounces do not call it.
+
+Theater kinds (`StageTheaterKind`): **SCROLL** (width-locked floor, optional overlay clouds), **FACILITY** (floor + keyed canopy over hostiles), **ASCENT** (unscaled floor, `floor_alt` swap, late canopy). GameView/Parallax branch on kind, not on ids 5 and 6.
+
+Boss kits (`BossCombatKind`): **PLANE**, **TANK**, **BATTLESHIP**, **JUNGLE**, **CANOPY**, **ORBIT**. Bind peels, wreck overlays, and fire tables. `BossKit.triPart` is canopy/orbit victory. Reuse a kind on a new def to clone an existing fortress.
+
+Waves: `SpawnTimeline` is the clock (opening P-V, power safeguard, shared boss cue, `introOnly` gate). Each catalog id gets its own director instance from `StageDef.waveScript` (`StageWaveKind`), not from the id number. Gaps are idle. `FormationSpawner` is shared helpers. Directors stay Kotlin; there is no wave DSL.
+
+Art: default folder `assets/stages/$id/`. Set `artFolder` (for example `"stages/4"`) to reuse another map’s PNGs without copying them. `StageBitmaps` decodes off the vsync path. Shared sprites stay in `res/drawable`. `ParallaxBackground` **borrows** theater bitmaps and must not recycle them. `resetStage` restarts theater playback so a duplicated id (including ascent) begins as a fresh run.
+
+Campaign maps as coded:
+
+| Id | Operation | Theater | Boss kit | Scroll | Boss cue |
+| --- | --- | --- | --- | --- | --- |
+| 1 | CLOUD FORTRESS | SCROLL + clouds | PLANE | ~180 | ~38 s (shared cue) |
+| 2 | IRON TREADS | SCROLL + tank skin | TANK | ~260 | ~30 s (shared cue) |
+| 3 | STEEL ATLANTIC | SCROLL + destroyer skin | BATTLESHIP | ~200 | ~25 s (shared cue; clock freezes) |
+| 4 | JUNGLE RUINS | SCROLL | JUNGLE | ~310 | ~45 s (shared cue; clock freezes) |
+| 5 | ASCENT CANOPY | FACILITY + wagon skin | CANOPY | 280 → 0 | ~45 s (director cue; clock freezes) |
+| 6 | ORBIT THRESHOLD | ASCENT | ORBIT | envelope | **5 s** intro-only, no grunts |
+
+**To mix and match**
+
+The credit order is only `STAGE_SEQUENCE` (reorder, skip, duplicate). Each id is a `StageDef` whose **theater**, **wave script**, **boss peel**, and **art folder** are independent:
+
+```kotlin
+StageDef(
+  id = 7,
+  artFolder = "stages/4",                       // jungle PNGs
+  theaterKind = StageTheaterKind.SCROLL,
+  waveScript = StageWaveKind.CLOUD_FORTRESS,    // stage 1 waves
+  bossCombat = BossCombatKind.TANK,             // stage 2 peel
+  // flags, BGM, bossAtSeconds, operationName, wreck kit...
+)
+```
+
+Then `STAGE_SEQUENCE = intArrayOf(3, 7, 6, 6)`. No `Stage7Director` class. A unique fortress or a fourth theater kind still needs a new kit in engine code.
+
+**To add a map that reuses an existing theater, waves, and fortress as a block**
+
+1. `assets/stages/N/` (or `artFolder` pointing at an existing kit).
+2. Append a `StageDef` (`waveScript`, `theaterKind`, `bossCombat`, flags, BGM, `bossAtSeconds`, `operationName`).
+3. `STAGE_SEQUENCE += N`.
 
 ---
 
@@ -280,7 +330,7 @@ Stage table (metrics as coded):
 
 **Why.** A flag on the play state would still tick bullets. A full state makes the freeze obvious and the draw path a single card.
 
-**Implementation.** `INTERSTITIAL_SECS = 3`. Title start and recap-continue (when not finished) assign it. `UIController.loadInterstitials` decodes six native-aspect PNGs once (1080×2400). Draw **contains** the card (`min(scaleW, scaleH)`), centers it, and fills letterbox from the card’s top-left pixel so short tablets keep side bars instead of cropping the header. Gold `OPERATION:` + name sit at `cardTop + 4.2 × textSize` (always on-screen). Fade from remaining timer. `syncBgm` uses the **stage** track during interstitial so the card and the fight share music.
+**Implementation.** `INTERSTITIAL_SECS = 3`. Title start and recap-continue (when not finished) assign it. `StageTheater` loads `briefing.png` from `assets/stages/N/` with the rest of the map kit. Draw **contains** the card (`min(scaleW, scaleH)`), centers it, and fills letterbox from the card’s top-left pixel so short tablets keep side bars instead of cropping the header. Gold `OPERATION:` + `StageDef.operationName` sit at `cardTop + 4.2 × textSize` (always on-screen). Fade from remaining timer. `syncBgm` uses the **stage** track during interstitial so the card and the fight share music.
 
 ---
 
@@ -379,11 +429,11 @@ Stage table (metrics as coded):
 
 **Need.** Designers said “at 8 seconds, a V.” If the next wave waited until the screen was empty, experts skipped content and novices stalled. A hitch must not double-fire a wave.
 
-**Choice.** `SpawnTimeline.elapsedTime += dt`. Threshold + boolean latch. Stages 3–5 freeze the clock at the boss gate. Stage 6 is intro-only.
+**Choice.** `SpawnTimeline` is a thin elapsed-time clock. Each map’s waves live on a `StageDirector` looked up by catalog id (`StageDirectors.table()[id]`). Maps with `locksElapsedAtBoss` freeze the clock at the gate. Maps with `introOnly` run a short intro then cue that def’s boss. Shared spawn helpers sit on `FormationSpawner`.
 
-**Why.** Clock = cabinet rhythm. Latch = one-shot even if `elapsedTime` jumps the threshold. Freeze = the fortress is the content.
+**Why.** Clock = cabinet rhythm. Latch = one-shot even if `elapsedTime` jumps the threshold. Freeze = the fortress is the content. A new map is another director object, not a subclass of the whole engine, and not a wave DSL.
 
-**Implementation.** `update` sets `activeStage` from `StageData`. Stage 6: increment until `S6_INTRO_SECS` (5), `beginEntranceForStage(6)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V on stages that `usesOpeningPowerV`. Flags: `vFormSpawned`, `s1CrossSpawned`, `wallSpawned`, `s2KamiDiamondSpawned`, `s3MidCrossSpawned`, … `countActive() >= MAX_ACTIVE` breaks **drip** loops (flanks, weaves, scouts), not latched formations. Stage 4 cruiser parks at 22 s, after weaves end (21 s). `reset()` zeros the clock and flags. Stage 5 ramps `scrollSpeedY` 280→0 between 40–45 s with no spawns, then cues the engine. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
+**Implementation.** `update` reads `StageCatalog.get(activeStage)`. `introOnly`: increment until `introSecs`, `DirectorCue.fireBoss(def.id)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V when `usesOpeningPowerV`. Shared boss cue when `usesSharedBossEntranceCue` at `def.bossAtSeconds` (campaign 1–4). Stage 5 fires from its director at the same moment it ramps scroll to 0. Drip loops still honor `MAX_ACTIVE`; latched formations ignore the cap. Stage 4 cruiser parks at 22 s, after weaves end (21 s). `reset()` zeros the clock, the cue, and each bound director. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
 
 ---
 
@@ -423,11 +473,22 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Need.** A single HP sponge feels wrong. Shooting guns off a machine, then the core, is the 90s language. Core must ignore damage until the guns are gone (or take reduced damage while flanks live).
 
-**Choice.** One illustration, many `BossComponent` slots with HP. `isCoreVulnerable()` is derived. Wreck bitmaps overlay destroyed modules. Per-stage fire is timers in `EnemyWeaponSystem.updateStageNBoss`.
+**Choice.** One illustration, many `BossComponent` slots with HP. `isCoreVulnerable()` is derived. Wreck bitmaps overlay destroyed modules. Fire tables are keyed by `BossCombatKind`, implemented as `EnemyWeaponSystem.updateStageNBoss` helpers.
 
-**Why.** Derived vulnerability is one rule: you cannot cheese the core. Shared bullet pool means boss patterns are data (angles, intervals), not object graphs.
+**Why.** Derived vulnerability is one rule: you cannot cheese the core. Shared bullet pool means boss patterns are timers and angles, not object graphs. A new map that reuses a kind does not open `BossController`.
 
-**Implementation.** `BossController` binds a stage, runs entrance, then combat. Hits that are not core-open bounce (or Stage 5: half damage while both flanks live). Part HP: Stage 1 wings 70 / turret 58 / core 240; Stage 2 treads 100 / turret 88 / core 330; Stage 3 flak 125 / cannon 190 / core 480; Stage 4 mortars 140 / gatling 160 / core 520; Stage 5 flanks 180 / core 350; Stage 6 flanks 190 / core 380. Stage 5 break +25k and a guaranteed drop (left **P**; right **P** if power < 3 else bomb/shield); core +100k and 4.5 s victory (freeze, bullets→medals, cascade, white flash, wreck center). Stage 6: rails then lens; cyan triples / pink column / helix in `updateStage6Boss`. Stages 1–4: last gun → `FX_PHASE` flash/shake; core death → `FX_DEATH`, explode overlay, then sweep. `GameView` consumes those flags after collisions. Bomb DPS uses the same parts array. Muzzle speeds and timer resets in `EnemyWeaponSystem` use `shotSpeedScale` / `fireIntervalDivider`.
+**Implementation.** `bindStage` reads the def: sheets from `assets/stages/N/`, `combatKind`, `triPart`. Hits that are not core-open bounce (or canopy/orbit: half damage while both flanks live).
+
+| Kind | Peel | Notes |
+| --- | --- | --- |
+| `PLANE` | Wings / turret / core | Parks in a sine sweep |
+| `TANK` | Treads / turret / core | Parked on X |
+| `BATTLESHIP` | Flak / cannon / core | |
+| `JUNGLE` | Mortars / gatling / core | |
+| `CANOPY` | Flanks / core (`triPart`) | Victory freeze, module drops |
+| `ORBIT` | Flanks / core (`triPart`) | Rails then lens; can `forceElapsed` for the ascent envelope |
+
+Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turret 88 / core 330; battleship flak 125 / cannon 190 / core 480; jungle mortars 140 / gatling 160 / core 520; canopy flanks 180 / core 350; orbit flanks 190 / core 380. Canopy/orbit flank break +25k and a guaranteed drop (left **P**; right **P** if power < 3 else bomb/shield); core +100k and 4.5 s victory. Non-tri-part: last gun → `FX_PHASE`; core death → `FX_DEATH`, explode overlay, then sweep. `GameView` consumes those flags after collisions. Bomb DPS uses the same parts array. Muzzle speeds follow the dip.
 
 ---
 
@@ -445,13 +506,13 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 ## 23. Theaters and z-order
 
-**Need.** Painted maps are ~2:3. Stretching them on a tall phone melts hangars. Stage 5/6 have a roof that should hide **enemy** craft, not the player. The title must sell the product, not scroll a canyon behind the logo.
+**Need.** Painted maps are ~2:3. Stretching them on a tall phone melts hangars. Facility and ascent theaters have a roof that should hide **enemy** craft, not the player. The title must sell the product, not scroll a canyon behind the logo.
 
-**Choice.** Cover-scale parallax (uniform scale, crop overflow). Title is a center-cropped still. Stage 5/6 draw floor, then hostiles, then canopy, then player/shots/HUD. Inside the grunt pass, ground heavies draw before airborne so tanks and destroyers cannot cover planes.
+**Choice.** Width-lock scroll floors (scale X to the viewport, keep authored vertical seams). Title is a center-cropped still (`max(scaleX, scaleY)`). Facility/ascent draw floor, then hostiles, then canopy, then player/shots/HUD. Inside the grunt pass, ground heavies draw before airborne so tanks and destroyers cannot cover planes.
 
-**Why.** Cover preserves proportions. Z-order is the 1942 “you fly under the bridge” trick. A still title is an attract card.
+**Why.** Width-lock preserves loop stitches. Z-order is the 1942 “you fly under the bridge” trick. A still title is an attract card. Theater kind, not map id, picks the blit path so a second facility map keeps the roof.
 
-**Implementation.** `ParallaxBackground` cover-scales layers; mid/high clouds `PorterDuff.SCREEN`. Stages 2–4 swap ground bitmaps only. Stage 5: floor at `scrollSpeedY`, keyed canopy at 1.5×. Stage 6: cloud floor, recycle/swap to space at 30 s (`S6_SPACE_SWAP_AT`), orbit overlay from 35 s (`S6_CANOPY_AT`), speed envelope in `updateStage6`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are Stage 1 identity. Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne, so ground units never paint over planes regardless of pool slot.
+**Implementation.** `StageTheater` decodes from `assets/stages/N/` via `StageBitmaps` (width-lock on scroll floors; unscaled on ascent so the limb stays straight). `ParallaxBackground` **borrows** those bitmaps and must not recycle them. Mid/high clouds `PorterDuff.SCREEN`. Facility: floor at `scrollSpeedY`, keyed canopy at 1.5×. Ascent: cloud floor, swap pointer to `floor_alt` at `def.spaceSwapAt` (30 s on map 6), orbit overlay from `def.canopyAt` (35 s on map 6), speed envelope in `updateStage6`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are a def flag (campaign map 1). Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne. Theater skins load with the map kit.
 
 ---
 
@@ -461,9 +522,9 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Choice.** Decode mutable `ARGB_8888`, punch `g > 160 && g > r+40 && g > b+40` to 0 once at load.
 
-**Why.** Load hitch is acceptable; per-blit keying is not. Same helper on player, enemies, bosses, missiles, explosions, Stage 5 canopy (`#00FF00`). The title still (`title_screen_backdrop`) is **not** keyed — it is a photograph; green punch would eat olive and cloud pixels.
+**Why.** Load hitch is acceptable; per-blit keying is not. Same helper on player, popcorn types, bosses, missiles, explosions, and keyed canopies (`#00FF00`). The title still (`title_screen_backdrop`) is **not** keyed — it is a photograph; green punch would eat olive and cloud pixels.
 
-**Implementation.** `BitmapFactory` `inMutable`, `inScaled = false`. Row buffer `IntArray(width)`, `getPixels`/`setPixels` per row. Recycle on fighter swap and stage theater swap. Title uses `decodeOpaque`.
+**Implementation.** `BitmapFactory` `inMutable`, `inScaled = false`. Row buffer `IntArray(width)`, `getPixels`/`setPixels` per row. Stage kits use `StageBitmaps.keyGreen` from assets; shared HUD/player sheets still decode from drawable. Recycle on fighter swap and `StageTheater.recycle()`. Title uses `decodeOpaque`.
 
 ---
 
@@ -501,7 +562,7 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 
 **Why.** Pool playback is the cabinet PCM channel. Cross-fading players is gapless without allocating a new player on the frame.
 
-**Implementation.** `playSFX` lock + `play`. Title / difficulty / character select → `bgm_title`. Play, demo, interstitial → `stageMusicTrack`. Clear / registration / campaign complete → victory. Recap tally uses `SFX_PICKUP` so the bonus roll does not sound like the gun. Stage 5 victory can `stopBGM()`. `syncBgm()` in `GameView` compares `want` vs `lastBgmRes`. Mute stops alarm loop. Pause/resume from `MainActivity`.
+**Implementation.** `playSFX` lock + `play`. Title / difficulty / character select → `bgm_title`. Play, demo, interstitial → `def.stageMusicTrack`. Clear / registration / campaign complete → victory. Recap tally uses `SFX_PICKUP` so the bonus roll does not sound like the gun. Canopy/orbit victory can `stopBGM()`. `syncBgm()` in `GameView` compares `want` vs `lastBgmRes`. Mute stops alarm loop. Pause/resume from `MainActivity`.
 
 ---
 
@@ -513,7 +574,7 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 
 **Why.** One place decides game-over. One place implements Psikyo graze. A shared 28 px disk on the enemy **center** made drones fair and heavies ghost except at the cockpit. Split ellipses keep the P-38 stream a pair of lines while armor still takes body hits.
 
-**Implementation.** `shotHitsEnemy(dx, dy, type)` for vulcan and homing vs the grunt pool. Rams: `PLAYER_HIT_RADIUS + half*ENEMY_RAM_BODY_FRAC` (0.45) — unchanged by the popcorn pad. Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except Stage 5 half-damage rule). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
+**Implementation.** `shotHitsEnemy(dx, dy, type)` for vulcan and homing vs the grunt pool. Rams: `PLAYER_HIT_RADIUS + half*ENEMY_RAM_BODY_FRAC` (0.45) — unchanged by the popcorn pad. Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except tri-part half-damage while flanks live). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
 
 ---
 
@@ -535,19 +596,23 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 | --- | --- |
 | `MainActivity` | Window, audio lifetime |
 | `GameView` | Scene, vsync, attract, credit, collisions, bomb gesture, shake/flash |
-| `StageData` | Playlist, dipswitches, live `combatRank`, theater flags, metrics |
-| `SpawnTimeline` | Wave clock, latches, formation cues |
-| `EnemyPoolManager` / `Enemy` | Grunt motion, types, patterns, aim |
+| `StageData` | Playlist, dipswitches, live `combatRank`, derived theater flags, metrics |
+| `StageCatalog` / `StageDef` | Map identity: paths, flags, `theaterKind`, `bossCombat`, briefing name |
+| `StageTheater` / `StageBitmaps` | Live floor / canopy / briefing / skins from `assets/stages/N/` |
+| `SpawnTimeline` | Elapsed clock, opening P-V, power safeguard, shared/intro boss cue |
+| `StageDirector` / `StageDirectors` | Per-id wave script; bind table |
+| `FormationSpawner` | Shared spawn helpers and beat constants |
+| `EnemyPoolManager` / `Enemy` | Grunt motion, types, patterns, aim; borrows theater skins |
 | `EnemyWeaponSystem` / `EnemyBullet` | Hostile shots, boss fire tables, lasers |
-| `BossController` / `BossComponent` | Peel, wrecks, entrance, victory |
+| `BossController` / `BossComponent` | Peel keyed by `BossCombatKind`, wrecks, entrance, victory |
 | `PlayerShip` | Drag, bank, lives/hits, fighter stats |
 | `BulletManager` / `PlayerBullet` | Vulcan, graze vs core |
 | `HomingMissileManager` | Power-3 seekers |
 | `PanicBomb` | Panic blast animation |
 | `PowerUpItem` | P / B / shield / medal slots |
-| `ParallaxBackground` | Cover-scaled theaters |
+| `ParallaxBackground` | Scroll / facility / ascent blit; borrows theater bitmaps |
 | `ParticleManager` | Explosions, graze sparks |
 | `ScoreManager` | Score, graze count, recap phases, score-extend latch |
 | `HighScoreManager` | Top 10 EEPROM |
-| `UIController` | Interstitials, recap HUD, credits |
+| `UIController` | Recap HUD, credits; interstitial uses theater briefing |
 | `SoundManager` | SFX pool, looped BGM, volume prefs |

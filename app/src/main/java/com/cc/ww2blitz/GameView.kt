@@ -24,7 +24,7 @@ import android.view.SurfaceView
  */
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, Choreographer.FrameCallback {
 
-  private val parallax = ParallaxBackground(resources)
+  private val parallax = ParallaxBackground()
   private val player = PlayerShip(resources)
   private val bullets = BulletManager()
   private val homingMissiles = HomingMissileManager(resources)
@@ -93,16 +93,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var powerUpBmp: Bitmap? = null
   private var bombPickupBmp: Bitmap? = null
   private val medalFrames = arrayOfNulls<Bitmap>(PowerUpItem.MEDAL_FRAME_COUNT)
-  private var bgStage2Bmp: Bitmap? = null
-  private var bgStage3Bmp: Bitmap? = null
-  private var bgStage4Bmp: Bitmap? = null
-  private var bgStage5Layer1Bmp: Bitmap? = null
-  private var bgStage5Layer2Bmp: Bitmap? = null
-  private var bgStage6Phase1Bmp: Bitmap? = null
-  private var bgStage6Phase2Bmp: Bitmap? = null
-  private var bgStage6Layer2Bmp: Bitmap? = null
-  private var activeFloorBmp: Bitmap? = null
-  private var stage6FloorSwapped = false
+  private val theater = StageTheater()
   private var interstitialTimer = 0f
   private var lastTapUpMs = 0L
   private var touchDownMs = 0L
@@ -315,11 +306,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     screenW = width
     screenH = height
     if (!sizeChanged) return
-    uiController.loadInterstitials(resources, width, height)
+    uiController.loadInterstitials(width, height)
     loadBombSheetsIfNeeded()
     loadHudIconsIfNeeded()
     if (firstViewport) bootLaunchStageIfNeeded()
-    reloadStageBackgrounds(width, height)
+    reloadStageBackgrounds(width, height, restartPlayback = false)
   }
 
   override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -528,24 +519,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             screenH.toFloat(),
             interstitialTimer,
             stageManager.currentStage,
+            theater.briefing,
           )
-        } else if (stageManager.isStage5Backdrop && gameState != STATE_REGISTRATION) {
+        } else if (stageManager.isFacilityTheater && gameState != STATE_REGISTRATION) {
           if (
             gameState == STATE_CLEAR ||
             gameState == STATE_CAMPAIGN_COMPLETE
           ) {
-            parallax.drawStage5(canvas, bgStage5Layer1Bmp, bgStage5Layer2Bmp, stageManager.currentStage)
+            parallax.drawStage5(canvas, theater.floor, theater.canopy)
           } else {
-            parallax.drawStage5Floor(canvas, bgStage5Layer1Bmp)
+            parallax.drawStage5Floor(canvas, theater.floor)
           }
         } else {
           parallax.draw(
             canvas,
             when {
               gameState == STATE_REGISTRATION -> null
-              gameState == STATE_CAMPAIGN_COMPLETE -> {
-                activeFloorBmp ?: bgStage5Layer1Bmp ?: bgStage4Bmp
-              }
+              gameState == STATE_CAMPAIGN_COMPLETE -> theater.activeFloor ?: theater.floor
               else -> stageGroundBitmap()
             },
             gameState == STATE_REGISTRATION ||
@@ -564,12 +554,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           enemies.draw(canvas)
           boss.draw(canvas)
           enemyShots.draw(canvas)
-          if (stageManager.isStage5Backdrop) {
-            parallax.drawStage5Canopy(canvas, bgStage5Layer2Bmp, stageManager.currentStage)
-          } else if (stageManager.isStage6Backdrop && timeline.elapsedSeconds() >= S6_CANOPY_AT) {
-            val canopyAsset = bgStage6Layer2Bmp
+          if (stageManager.isFacilityTheater) {
+            parallax.drawStage5Canopy(canvas, theater.canopy)
+          } else if (
+            stageManager.isAscentTheater &&
+            timeline.elapsedSeconds() >= stageManager.def.canopyAt
+          ) {
+            val canopyAsset = theater.canopy
             if (canopyAsset != null && !canopyAsset.isRecycled) {
-              parallax.drawStage6Canopy(canvas, canopyAsset, stageManager.currentStage)
+              parallax.drawStage6Canopy(canvas, canopyAsset)
             }
           }
           homingMissiles.draw(canvas)
@@ -1487,9 +1480,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun tickParallax(scrollSpeedY: Float, dt: Float) {
-    if (stageManager.isStage5Backdrop) {
+    if (stageManager.isFacilityTheater) {
       parallax.updateStage5(scrollSpeedY, dt)
-    } else if (stageManager.isStage6Backdrop) {
+    } else if (stageManager.isAscentTheater) {
       parallax.updateStage6(scrollSpeedY, dt, timeline.elapsedSeconds())
     } else {
       parallax.update(scrollSpeedY * dt)
@@ -1497,94 +1490,31 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun stageGroundBitmap(): Bitmap? {
-    return when (stageManager.currentStage) {
-      2 -> bgStage2Bmp
-      3 -> bgStage3Bmp
-      4 -> bgStage4Bmp
-      StageData.STAGE_5 -> bgStage5Layer1Bmp
-      StageData.STAGE_6 -> activeFloorBmp
-      else -> null
+    val def = stageManager.def
+    if (def.theaterKind == StageTheaterKind.SCROLL && def.hasOverlayClouds) {
+      return null
     }
+    return if (def.theaterKind == StageTheaterKind.ASCENT) theater.activeFloor else theater.floor
   }
 
-  /**
-   * Scales a raw level background bitmap asset to match the display width exactly,
-   * keeping the vertical loop proportions and seam stitch points completely uncropped.
-   */
-  private fun decodeWidthLockedScaled(width: Int, drawableId: Int): Bitmap {
-    val opts = BitmapFactory.Options().apply {
-      inScaled = false
-      inPreferredConfig = Bitmap.Config.ARGB_8888
-    }
-    val src = BitmapFactory.decodeResource(resources, drawableId, opts)
-      ?: error("Missing drawable background resource: $drawableId")
-
-    // Scale asset horizontally to fit viewport, then compute matching proportional height
-    val scale = width.toFloat() / src.width.toFloat()
-    val scaledW = width
-    val scaledH = kotlin.math.ceil(src.height * scale).toInt()
-
-    val scaledBmp = Bitmap.createScaledBitmap(src, scaledW, scaledH, true)
-    if (scaledBmp !== src) {
-      src.recycle()
-    }
-    return scaledBmp
-  }
-
-  private fun loadStage2Background(width: Int, height: Int) {
+  private fun reloadStageBackgrounds(width: Int, height: Int, restartPlayback: Boolean = false) {
     if (width <= 0 || height <= 0) return
-    val existing = bgStage2Bmp
-    if (existing != null && !existing.isRecycled && existing.width == width) {
-      return
-    }
-    recycleStageBitmap(existing)
-    bgStage2Bmp = decodeWidthLockedScaled(width, R.drawable.stage2_bg_layer1_ground)
+    val def = stageManager.def
+    enemies.bindTheaterSkins(null, null, null)
+    theater.load(context.assets, def, width, restartPlayback)
+    enemies.bindTheaterSkins(theater.skinTank, theater.skinDestroyer, theater.skinWagon)
+    val floorLayer =
+      if (def.theaterKind == StageTheaterKind.ASCENT) theater.activeFloor else theater.floor
+    parallax.setScrollLayers(floorLayer, theater.mid, theater.high)
   }
 
-  private fun loadStage3Background(width: Int, height: Int) {
-    if (width <= 0 || height <= 0) return
-    val existing = bgStage3Bmp
-    if (existing != null && !existing.isRecycled && existing.width == width) {
-      return
-    }
-    recycleStageBitmap(existing)
-    bgStage3Bmp = decodeWidthLockedScaled(width, R.drawable.stage3_bg_layer1_ocean)
-  }
-
-  private fun loadStage4Background(width: Int, height: Int) {
-    if (width <= 0 || height <= 0) return
-    val existing = bgStage4Bmp
-    if (existing != null && !existing.isRecycled && existing.width == width) {
-      return
-    }
-    recycleStageBitmap(existing)
-    bgStage4Bmp = decodeWidthLockedScaled(width, R.drawable.stage4_bg_layer1_ground)
-  }
-
-  private fun loadStage5Bitmaps(width: Int, height: Int) {
-    if (width <= 0 || height <= 0) return
-    recycleStageBitmap(bgStage6Layer2Bmp)
-    bgStage6Layer2Bmp = null
-    val ready1 = bgStage5Layer1Bmp
-    val ready2 = bgStage5Layer2Bmp
-    if (ready1 != null && !ready1.isRecycled && ready1.width == width && ready2 != null && !ready2.isRecycled) {
-      return
-    }
-    recycleStageBitmap(bgStage4Bmp)
-    bgStage4Bmp = null
-    recycleStageBitmap(bgStage2Bmp)
-    bgStage2Bmp = null
-    recycleStageBitmap(bgStage3Bmp)
-    bgStage3Bmp = null
-    recycleStageBitmap(bgStage5Layer1Bmp)
-    recycleStageBitmap(bgStage5Layer2Bmp)
-
-    bgStage5Layer1Bmp = decodeWidthLockedScaled(width, R.drawable.stage5_bg_layer1_facility)
-    bgStage5Layer2Bmp = loadChromaKeyedBitmap(R.drawable.stage5_bg_layer2_giant_structures, 0xFF00FF00.toInt())
-  }
-
-  private fun recycleStageBitmap(bitmap: Bitmap?) {
-    if (bitmap != null && !bitmap.isRecycled) bitmap.recycle()
+  private fun maybeSwapStage6Floor() {
+    val def = stageManager.def
+    if (def.theaterKind != StageTheaterKind.ASCENT) return
+    if (theater.floorSwapped) return
+    if (timeline.elapsedSeconds() < def.spaceSwapAt) return
+    theater.swapToFloorAlt()
+    parallax.setScrollLayers(theater.activeFloor, theater.mid, theater.high)
   }
 
   private fun bootLaunchStageIfNeeded() {
@@ -1595,152 +1525,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     enemies.deactivateAll()
     enemyShots.deactivateAll()
     boss.bindStage(stageManager.currentStage)
-  }
-
-  private fun reloadStageBackgrounds(width: Int, height: Int) {
-    if (width <= 0 || height <= 0) return
-    if (stageManager.isStage6Backdrop) {
-      recycleStageBitmap(bgStage5Layer1Bmp)
-      bgStage5Layer1Bmp = null
-      recycleStageBitmap(bgStage5Layer2Bmp)
-      bgStage5Layer2Bmp = null
-      loadStage6Resources(width, height)
-    } else if (stageManager.isStage5Backdrop) {
-      recycleStage6Bitmaps()
-      loadStage5Bitmaps(width, height)
-    } else {
-      recycleStageBitmap(bgStage5Layer1Bmp)
-      bgStage5Layer1Bmp = null
-      recycleStageBitmap(bgStage5Layer2Bmp)
-      bgStage5Layer2Bmp = null
-      recycleStage6Bitmaps()
-      loadStage2Background(width, height)
-      loadStage3Background(width, height)
-      loadStage4Background(width, height)
-    }
-  }
-
-  private fun loadStage6Resources(w: Int, h: Int) {
-    if (w <= 0 || h <= 0) return
-    recycleStageBitmap(bgStage5Layer2Bmp)
-    bgStage5Layer2Bmp = null
-    recycleStageBitmap(bgStage5Layer1Bmp)
-    bgStage5Layer1Bmp = null
-    val clouds = bgStage6Phase1Bmp
-    val space = bgStage6Phase2Bmp
-    if (
-      !stage6FloorSwapped &&
-      clouds != null && !clouds.isRecycled &&
-      space != null && !space.isRecycled
-    ) {
-      activeFloorBmp = clouds
-      ensureStage6Canopy()
-      return
-    }
-    if (stage6FloorSwapped && space != null && !space.isRecycled) {
-      activeFloorBmp = space
-      ensureStage6Canopy()
-      return
-    }
-    recycleStageBitmap(bgStage4Bmp)
-    bgStage4Bmp = null
-    recycleStageBitmap(bgStage2Bmp)
-    bgStage2Bmp = null
-    recycleStageBitmap(bgStage3Bmp)
-    bgStage3Bmp = null
-    recycleStage6Bitmaps()
-    bgStage6Phase1Bmp = decodeUnscaledBitmap(R.drawable.stage6_bg_phase1_clouds)
-    bgStage6Phase2Bmp = decodeUnscaledBitmap(R.drawable.stage6_bg_phase2_space_clean)
-    activeFloorBmp = bgStage6Phase1Bmp
-    stage6FloorSwapped = false
-    bgStage6Layer2Bmp = loadChromaKeyedBitmap(
-      R.drawable.stage6_bg_layer2_orbit,
-      0xFF00FF00.toInt(),
-    )
-  }
-
-  private fun ensureStage6Canopy() {
-    val canopy = bgStage6Layer2Bmp
-    if (canopy != null && !canopy.isRecycled) return
-    bgStage6Layer2Bmp = loadChromaKeyedBitmap(
-      R.drawable.stage6_bg_layer2_orbit,
-      0xFF00FF00.toInt(),
-    )
-  }
-
-  private fun decodeUnscaledBitmap(resId: Int): Bitmap {
-    val opts = BitmapFactory.Options().apply {
-      inScaled = false
-      inPreferredConfig = Bitmap.Config.ARGB_8888
-    }
-    return BitmapFactory.decodeResource(resources, resId, opts)
-      ?: error("Missing drawable $resId")
-  }
-
-  private fun maybeSwapStage6Floor() {
-    if (!stageManager.isStage6Backdrop) return
-    if (stage6FloorSwapped) return
-    if (timeline.elapsedSeconds() < S6_SPACE_SWAP_AT) return
-    val space = bgStage6Phase2Bmp
-    if (space == null || space.isRecycled) return
-    activeFloorBmp = space
-    stage6FloorSwapped = true
-    recycleStage6Phase1()
-  }
-
-  private fun recycleStage6Phase1() {
-    val clouds = bgStage6Phase1Bmp
-    bgStage6Phase1Bmp = null
-    if (clouds != null && clouds !== activeFloorBmp && !clouds.isRecycled) {
-      clouds.recycle()
-    }
-  }
-
-  private fun recycleStage6Bitmaps() {
-    activeFloorBmp = null
-    val clouds = bgStage6Phase1Bmp
-    bgStage6Phase1Bmp = null
-    if (clouds != null && !clouds.isRecycled) clouds.recycle()
-    val space = bgStage6Phase2Bmp
-    bgStage6Phase2Bmp = null
-    if (space != null && !space.isRecycled) space.recycle()
-    recycleStageBitmap(bgStage6Layer2Bmp)
-    bgStage6Layer2Bmp = null
-    stage6FloorSwapped = false
-  }
-
-  /**
-   * Decode once at layout time. Punches [targetColor] (typically opaque neon green)
-   * to alpha 0 so [Canvas.drawBitmap] can composite with the default SRC_OVER paint.
-   */
-  private fun loadChromaKeyedBitmap(resId: Int, targetColor: Int): Bitmap {
-    val opts = BitmapFactory.Options().apply {
-      inScaled = false
-    }
-    val originalBitmap = BitmapFactory.decodeResource(resources, resId, opts)
-      ?: error("Missing drawable $resId")
-    val mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
-    originalBitmap.recycle()
-    val width = mutableBitmap.width
-    val height = mutableBitmap.height
-    val pixels = IntArray(width * height)
-    mutableBitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-    val rgbMask = 0x00FFFFFF
-    val want = targetColor and rgbMask
-    var i = 0
-    val n = pixels.size
-    while (i < n) {
-      val p = pixels[i]
-      val r = (p ushr 16) and 0xFF
-      val g = (p ushr 8) and 0xFF
-      val b = p and 0xFF
-      if ((p and rgbMask) == want || (g > 160 && g > r + 40 && g > b + 40)) {
-        pixels[i] = 0x00000000
-      }
-      i++
-    }
-    mutableBitmap.setPixels(pixels, 0, width, 0, 0, width, height)
-    return mutableBitmap
   }
 
   private fun decodeKeyed(drawableId: Int): Bitmap {
@@ -2324,6 +2108,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     running = false
     choreographer.removeFrameCallback(this)
     parallax.release()
+    enemies.bindTheaterSkins(null, null, null)
+    theater.recycle()
     player.release()
     enemies.release()
     particles.release()
@@ -2379,20 +2165,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       medalFrames[medalI] = null
       medalI++
     }
-    val stage2 = bgStage2Bmp
-    if (stage2 != null && !stage2.isRecycled) stage2.recycle()
-    bgStage2Bmp = null
-    val stage3 = bgStage3Bmp
-    if (stage3 != null && !stage3.isRecycled) stage3.recycle()
-    bgStage3Bmp = null
-    val stage4 = bgStage4Bmp
-    if (stage4 != null && !stage4.isRecycled) stage4.recycle()
-    bgStage4Bmp = null
-    recycleStageBitmap(bgStage5Layer1Bmp)
-    bgStage5Layer1Bmp = null
-    recycleStageBitmap(bgStage5Layer2Bmp)
-    bgStage5Layer2Bmp = null
-    recycleStage6Bitmaps()
     uiController.releaseInterstitials()
     super.onDetachedFromWindow()
   }
@@ -2458,14 +2230,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     boss.deactivate()
     boss.bindStage(stageManager.currentStage)
     timeline.reset()
-    if (stageManager.currentStage == 6) {
+    if (stageManager.def.introOnly) {
       enemies.deactivateAll()
       enemyShots.deactivateAll()
     }
     parallax.resetScroll()
     lastBgmRes = 0
     resetRegistration()
-    reloadStageBackgrounds(screenW, screenH)
+    reloadStageBackgrounds(screenW, screenH, restartPlayback = true)
   }
 
   private fun resetRegistration() {
@@ -2477,16 +2249,40 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     pendingInitials[2] = 'A'
   }
 
+  private fun pickAttractStage(lastId: Int): Int {
+    val catalog = StageCatalog.all
+    var eligible = 0
+    var i = 0
+    while (i < catalog.size) {
+      if (!catalog[i].introOnly) eligible++
+      i++
+    }
+    if (eligible <= 0) return catalog[0].id
+    var lcgSeed = System.nanoTime()
+    var tries = 0
+    var pick = lastId
+    while (tries < 32) {
+      lcgSeed = lcgSeed * 1664525L + 1013904223L
+      val def = catalog[(((lcgSeed ushr 16) and 0xFFFFL).toInt() and 0x7fffffff) % catalog.size]
+      if (!def.introOnly) {
+        pick = def.id
+        if (eligible == 1 || pick != lastId) return pick
+      }
+      tries++
+    }
+    i = 0
+    while (i < catalog.size) {
+      if (!catalog[i].introOnly) return catalog[i].id
+      i++
+    }
+    return catalog[0].id
+  }
+
   private fun beginDemo() {
     demoT = 0f
     attractCycleTimer = 0f
     attractCycleState = ATTRACT_CPU_DEMO
-    var nextDemoStage = lastDemoStage
-    var lcgSeed = System.nanoTime()
-    while (nextDemoStage == lastDemoStage) {
-      lcgSeed = lcgSeed * 1664525L + 1013904223L
-      nextDemoStage = (((lcgSeed ushr 16) and 0xFFFFL).toInt() % 5) + 1
-    }
+    val nextDemoStage = pickAttractStage(lastDemoStage)
     lastDemoStage = nextDemoStage
     stageManager.setCurrentStage(nextDemoStage)
     stageManager.resetCombatRank()
@@ -2929,10 +2725,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       return
     }
-    if (want != lastBgmRes) {
-      if (SoundManager.instance.switchBGM(want)) {
-        lastBgmRes = want
-      }
+    if (want == lastBgmRes && SoundManager.instance.isBgmPlaying(want)) return
+    if (SoundManager.instance.switchBGM(want)) {
+      lastBgmRes = want
+    } else {
+      lastBgmRes = 0
     }
   }
 
@@ -3012,8 +2809,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val TAP_SLOP_SQ = 48f * 48f
     const val HUD_SHADOW_PX = 2f
     const val HUD_OUTLINE_PX = 3f
-    const val S6_SPACE_SWAP_AT = 30.0f
-    const val S6_CANOPY_AT = 35.0f
   }
 }
 

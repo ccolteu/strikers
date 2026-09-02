@@ -170,9 +170,13 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
         active.prepare()
         currentBgmRes = resId
         applyBgmVolumeLocked()
-        if (!prepareNextPlayerLocked(resId)) {
-          currentBgmRes = 0
-          return false
+        val chained = prepareNextPlayerLocked(resId)
+        if (!chained) {
+          try {
+            active.setNextMediaPlayer(null)
+            active.isLooping = true
+          } catch (_: Exception) {
+          }
         }
         if (!paused && !muted) {
           active.start()
@@ -182,6 +186,18 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
       } catch (_: Exception) {
         currentBgmRes = 0
         return false
+      }
+    }
+  }
+
+  fun isBgmPlaying(resId: Int): Boolean {
+    synchronized(lock) {
+      if (resId == 0 || resId != currentBgmRes) return false
+      val active = activeBgmPlayer ?: return false
+      return try {
+        active.isPlaying
+      } catch (_: Exception) {
+        false
       }
     }
   }
