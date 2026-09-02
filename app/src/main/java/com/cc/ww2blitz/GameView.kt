@@ -392,6 +392,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           applyShipTether(dt)
         }
         player.update(dt)
+        if (gameState == STATE_PLAYING && dt > 0.0001f && player.isOnField()) {
+          stageManager.tickCombatRank(dt, player.getWeaponPower() >= 3)
+        }
+        if (gameState == STATE_PLAYING && player.consumeRespawnPowerDrop()) {
+          spawnRespawnPowerUp()
+        }
         bullets.update(dt, player, screenW, homingMissiles)
         homingMissiles.update(dt, enemies.getEnemyPool(), enemies.getPoolSize(), boss)
         powerUpItem.update(
@@ -2053,8 +2059,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun shotHitsEnemy(dx: Float, dy: Float, type: Int): Boolean {
-    val sx = SHOT_HIT_PAD + enemies.halfWOf(type) * SHOT_HIT_BODY_FRAC
-    val sy = SHOT_HIT_PAD + enemies.halfHOf(type) * SHOT_HIT_BODY_FRAC
+    val popcorn = type != ENEMY_TYPE_INTERCEPTOR && type != ENEMY_TYPE_HEAVY
+    val pad = if (popcorn) SHOT_HIT_PAD_POPCORN else SHOT_HIT_PAD
+    val frac = if (popcorn) SHOT_HIT_BODY_FRAC_POPCORN else SHOT_HIT_BODY_FRAC
+    val sx = pad + enemies.halfWOf(type) * frac
+    val sy = pad + enemies.halfHOf(type) * frac
     if (sx <= 0f || sy <= 0f) return false
     val nx = dx / sx
     val ny = dy / sy
@@ -2088,19 +2097,22 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun fireRevengeIfNeeded(enemy: Enemy) {
     if (enemy.deathClearBullets) return
-    val diff = stageManager.getDifficulty()
-    if (diff.index < 5) return
+    val popcorn =
+      enemy.type != ENEMY_TYPE_INTERCEPTOR && enemy.type != ENEMY_TYPE_HEAVY
+    if (!stageManager.revengeOnDeath()) {
+      if (!popcorn || !stageManager.popcornSuicide()) return
+    }
     val px = player.getHitboxX()
     val py = player.getHitboxY()
     val dx = px - enemy.x
     val dy = py - enemy.y
     val lenSq = dx * dx + dy * dy
     if (lenSq <= 0.0001f) return
-    val speed = REVENGE_SHOT_SPEED * diff.speedMultiplier
+    val speed = REVENGE_SHOT_SPEED * stageManager.shotSpeedScale()
     val inv = speed / kotlin.math.sqrt(lenSq)
     val vx = dx * inv
     val vy = dy * inv
-    if (enemy.type == ENEMY_TYPE_HEAVY && diff.index == 7) {
+    if (enemy.type == ENEMY_TYPE_HEAVY && stageManager.getDifficulty().index == 7) {
       val ang = kotlin.math.atan2(vy, vx)
       val left = ang - REVENGE_SPREAD_RAD
       val right = ang + REVENGE_SPREAD_RAD
@@ -2123,14 +2135,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_POWERUP)
       return
     }
-    val dropChance = if (
-      enemyType == ENEMY_TYPE_HEAVY ||
-      enemyType == ENEMY_TYPE_INTERCEPTOR
-    ) {
-      0.40f
-    } else {
-      0.15f
-    }
+    val armored =
+      enemyType == ENEMY_TYPE_HEAVY || enemyType == ENEMY_TYPE_INTERCEPTOR
+    var dropChance = if (armored) 0.40f else 0.15f
+    dropChance *= stageManager.lootChanceScale()
+    val cap = if (armored) 0.50f else 0.20f
+    if (dropChance > cap) dropChance = cap
     if (nextLootUnit() >= dropChance) return
     val pickupType = if (nextLootUnit() < 0.2f) {
       PowerUpItem.ITEM_TYPE_BOMB
@@ -2143,6 +2153,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private fun nextLootUnit(): Float {
     lootSeed = lootSeed * 1664525L + 1013904223L
     return ((lootSeed ushr 8) and 0xFFFFFFL).toFloat() / 16777215f
+  }
+
+  private fun spawnRespawnPowerUp() {
+    val x = player.getHitboxX()
+    var y = player.getHitboxY() - RESPAWN_POWERUP_LIFT
+    if (y < RESPAWN_POWERUP_MIN_Y) y = RESPAWN_POWERUP_MIN_Y
+    powerUpItem.spawnSway(x, y, PowerUpItem.ITEM_TYPE_POWERUP)
   }
 
   private fun collectPowerUp(x: Float, y: Float) {
@@ -2363,6 +2380,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun beginCampaignFromMenu() {
     stageManager.resetToStart()
+    stageManager.resetCombatRank()
     ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     player.resetWeaponPower()
     player.restoreLives()
@@ -2436,6 +2454,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     lastDemoStage = nextDemoStage
     stageManager.setCurrentStage(nextDemoStage)
+    stageManager.resetCombatRank()
     ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     player.resetWeaponPower()
     player.restoreLives()
@@ -2504,6 +2523,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private fun returnToTitle() {
     player.setAutoFire(false)
     stageManager.resetToStart()
+    stageManager.resetCombatRank()
     ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     player.resetWeaponPower()
     player.restoreLives()
@@ -2925,6 +2945,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val PLAYER_HIT_RADIUS = 12f
     const val SHOT_HIT_PAD = 10f
     const val SHOT_HIT_BODY_FRAC = 0.55f
+    const val SHOT_HIT_PAD_POPCORN = 3f
+    const val SHOT_HIT_BODY_FRAC_POPCORN = 0.28f
     const val BOSS_BULLET_PAD_X = 6f
     const val BOSS_BULLET_PAD_Y = 16f
     const val ENEMY_RAM_BODY_FRAC = 0.45f
@@ -2946,6 +2968,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val MAX_BOMBS = 3
     const val BOMB_FULL_SCORE = 5000
     const val POWERUP_FULL_SCORE = 2000
+    const val RESPAWN_POWERUP_LIFT = 160f
+    const val RESPAWN_POWERUP_MIN_Y = 96f
     const val DOUBLE_TAP_MS = 280L
     const val TAP_MAX_MS = 220L
     const val TAP_SLOP_SQ = 48f * 48f

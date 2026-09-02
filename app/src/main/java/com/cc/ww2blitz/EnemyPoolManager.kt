@@ -190,8 +190,7 @@ class EnemyPoolManager(private val resources: Resources) {
     synchronized(lock) {
       val w = screenW
       val h = screenH
-      val diff = activeDifficulty()
-      val speed = AIMED_SHOT_SPEED * diff.speedMultiplier
+      val speed = AIMED_SHOT_SPEED * shotSpeedScale()
       if (dt > 0.0001f && hasPlayerSample) {
         playerVelX = (playerX - lastPlayerX) / dt
         playerVelY = (playerY - lastPlayerY) / dt
@@ -209,7 +208,7 @@ class EnemyPoolManager(private val resources: Resources) {
           updateSweepArc(e, dt, w, h)
           continue
         }
-        if (e.type == TYPE_KAMIKAZE && diff.index >= 4) {
+        if (e.type == TYPE_KAMIKAZE && kamikazeSeeks()) {
           e.steerToward(playerX, playerY, dt, Enemy.KAMI_TURN_RATE)
         }
         when (e.pattern) {
@@ -235,7 +234,7 @@ class EnemyPoolManager(private val resources: Resources) {
           continue
         }
         if (e.type == TYPE_KAMIKAZE) continue
-        updateEnemyFire(e, dt, playerX, playerY, weapons, speed, diff)
+        updateEnemyFire(e, dt, playerX, playerY, weapons, speed)
       }
     }
   }
@@ -371,14 +370,13 @@ class EnemyPoolManager(private val resources: Resources) {
     playerY: Float,
     weapons: EnemyWeaponSystem,
     speed: Float,
-    diff: StageData.Difficulty,
   ) {
     // --- PATTERN 1: LIGHT DRONES AMED 3-SHOT BURST ---
     // If mid-burst, handle timed delay ticks between bullets
     if (e.burstLeft > 0) {
       e.burstWait -= dt
       if (e.burstWait <= 0f) {
-        writeSniperAim(e, playerX, playerY, speed, diff)
+        writeSniperAim(e, playerX, playerY, speed)
         weapons.fireBullet(e.x, e.y, e.aimVx, e.aimVy)
         SoundManager.instance.playSFX(SoundManager.SFX_LASER)
 
@@ -397,18 +395,18 @@ class EnemyPoolManager(private val resources: Resources) {
 
     when (e.type) {
       TYPE_HEAVY -> {
-        fireHeavyRing(e, weapons, RING_SPEED * diff.speedMultiplier)
+        fireHeavyRing(e, weapons, RING_SPEED * shotSpeedScale())
         e.fireTimer = scaledInterval(HEAVY_FIRE_GAP)
       }
       TYPE_INTERCEPTOR -> {
-        writeSniperAim(e, playerX, playerY, speed, diff)
+        writeSniperAim(e, playerX, playerY, speed)
         fireInterceptorSpread(e, weapons, speed)
         e.fireTimer = scaledInterval(
           if (e.pattern == PATTERN_V_HOLD && e.aiPhase == 1) HOLD_FIRE_GAP else INTERCEPT_REFIRE,
         )
       }
       else -> {
-        if (writeSniperAim(e, playerX, playerY, speed, diff)) {
+        if (writeSniperAim(e, playerX, playerY, speed)) {
           weapons.fireBullet(e.x, e.y, e.aimVx, e.aimVy)
           SoundManager.instance.playSFX(SoundManager.SFX_LASER)
           e.burstLeft = 2
@@ -425,27 +423,29 @@ class EnemyPoolManager(private val resources: Resources) {
     playerX: Float,
     playerY: Float,
     speed: Float,
-    diff: StageData.Difficulty,
   ): Boolean {
-    val idx = diff.index
-    val slop = if (idx < 3) {
-      (nextUnit() * 2f - 1f) * Enemy.AIM_SLOP_RAD
+    val s = StageData.liveInstance
+    val slopMag = if (s != null) s.aimSlopRad() else 0f
+    val slop = if (slopMag > 0f) {
+      (nextUnit() * 2f - 1f) * slopMag
     } else {
       0f
     }
+    val lead = s != null && s.shouldLeadShots()
     return e.writeAimedShot(
       playerX,
       playerY,
       playerVelX,
       playerVelY,
       speed,
-      idx >= 5,
+      lead,
       slop,
     )
   }
 
   private fun fireInterceptorSpread(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
-    val span = 1 + activeDifficulty().burstBonus
+    val s = StageData.liveInstance
+    val span = 1 + if (s != null) s.burstBonus() else 0
     val aimLenSq = e.aimVx * e.aimVx + e.aimVy * e.aimVy
     val baseAng = if (aimLenSq > 0.0001f) {
       kotlin.math.atan2(e.aimVy, e.aimVx).toDouble()
@@ -464,7 +464,8 @@ class EnemyPoolManager(private val resources: Resources) {
   }
 
   private fun fireHeavyRing(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
-    val customRingCount = 12 + activeDifficulty().burstBonus
+    val s = StageData.liveInstance
+    val customRingCount = 12 + if (s != null) s.burstBonus() else 0
     val count = if (customRingCount < 1) 1 else customRingCount
     val customRingStep = (Math.PI * 2.0) / count.toDouble()
     var k = 0
@@ -479,13 +480,19 @@ class EnemyPoolManager(private val resources: Resources) {
     SoundManager.instance.playSFX(SoundManager.SFX_LASER)
   }
 
-  private fun activeDifficulty(): StageData.Difficulty {
+  private fun shotSpeedScale(): Float {
     val s = StageData.liveInstance
-    return if (s != null) s.getDifficulty() else StageData.Difficulty.NORMAL
+    return if (s != null) s.shotSpeedScale() else 1f
+  }
+
+  private fun kamikazeSeeks(): Boolean {
+    val s = StageData.liveInstance
+    return if (s != null) s.kamikazeSeeks() else false
   }
 
   private fun scaledInterval(base: Float): Float {
-    val div = activeDifficulty().intervalDivider
+    val s = StageData.liveInstance
+    val div = if (s != null) s.fireIntervalDivider() else 1f
     return if (div < 0.01f) base else base / div
   }
 

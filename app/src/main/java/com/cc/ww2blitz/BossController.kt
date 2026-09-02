@@ -1522,8 +1522,8 @@ class BossController(private val resources: Resources) {
     const val RING_STEP = (Math.PI * 2.0 / RING_COUNT).toFloat()
     const val RING_SPEED = 420f
     const val S1_CORE_HP = 240
-    const val S1_WING_HP = 55
-    const val S1_TURRET_HP = 45
+    const val S1_WING_HP = 70
+    const val S1_TURRET_HP = 58
     const val S1_CHIN_INTERVAL = 0.70f
     const val S1_CHIN_SPEED = 620f
     const val S1_CHIN_SEP = 6f
@@ -1538,8 +1538,8 @@ class BossController(private val resources: Resources) {
     const val S1_SWEEP_AMP = 0.6f
     const val S1_SWEEP_ARC_STEP = 0.12f
     const val S2_CORE_HP = 330
-    const val S2_TREAD_HP = 80
-    const val S2_TURRET_HP = 70
+    const val S2_TREAD_HP = 100
+    const val S2_TURRET_HP = 88
     const val S2_TURRET_INTERVAL = 1.50f
     const val S2_TURRET_BARREL_SEP = 32f
     const val S2_TURRET_SPEED = 700f
@@ -1554,8 +1554,8 @@ class BossController(private val resources: Resources) {
     const val S2_SNIPER_SPEED = 600f
     const val S2_SNIPER_SEP = 8f
     const val S3_CORE_HP = 480
-    const val S3_FLAK_HP = 100
-    const val S3_CANNON_HP = 160
+    const val S3_FLAK_HP = 125
+    const val S3_CANNON_HP = 190
     const val S3_FLAK_INTERVAL = 0.60f
     const val S3_FLAK_SPEED = 560f
     const val S3_FLAK_SEP = 8f
@@ -1569,9 +1569,9 @@ class BossController(private val resources: Resources) {
     const val S3_SPIRAL_SPIN = 5.2f
     const val S3_SPIRAL_COUNT = 4
     const val S3_SPIRAL_STEP = (Math.PI * 2.0 / S3_SPIRAL_COUNT).toFloat()
-    const val S4_CORE_HP = 600
+    const val S4_CORE_HP = 520
     const val S4_MORTAR_HP = 140
-    const val S4_GATLING_HP = 200
+    const val S4_GATLING_HP = 160
     const val S4_FLAK_SPEED = 580f
     const val S4_GATLING_SPEED = 720f
     const val S4_GATLING_INTERVAL = 0.90f
@@ -1585,7 +1585,7 @@ class BossController(private val resources: Resources) {
     const val S4_SPIRAL_COUNT = 6
     const val S4_SPIRAL_STEP = (Math.PI * 2.0 / S4_SPIRAL_COUNT).toFloat()
     const val S5_CORE_HP = 350
-    const val S5_FLANK_HP = 150
+    const val S5_FLANK_HP = 180
     const val S5_LEFT_L = -0.50f
     const val S5_LEFT_R = -0.18f
     const val S5_RIGHT_L = 0.18f
@@ -1597,7 +1597,7 @@ class BossController(private val resources: Resources) {
     const val S5_CORE_T = -0.45f
     const val S5_CORE_B = 0.48f
     const val S6_CORE_HP = 380
-    const val S6_FLANK_HP = 160
+    const val S6_FLANK_HP = 190
     const val S6_LEFT_L = -0.50f
     const val S6_LEFT_R = -0.20f
     const val S6_RIGHT_L = 0.20f

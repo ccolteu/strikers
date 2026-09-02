@@ -45,6 +45,7 @@ class PlayerShip(private val resources: Resources) {
   private var isInvulnerable = false
   private var invulnTimer = 0f
   private var respawnTimer = 0f
+  private var respawnPowerDropLatched = false
   private var isGameOverFlag = false
 
   private var pointerId = MotionEvent.INVALID_POINTER_ID
@@ -166,6 +167,7 @@ class PlayerShip(private val resources: Resources) {
         }
         isInvulnerable = true
         invulnTimer = INVULN_SEC
+        respawnPowerDropLatched = true
       }
     }
     clamp()
@@ -198,6 +200,13 @@ class PlayerShip(private val resources: Resources) {
     weaponPowerLevel = 1
   }
 
+  /** True once after a life-explode respawn lands. GameView consumes this to drop a P. */
+  fun consumeRespawnPowerDrop(): Boolean {
+    if (!respawnPowerDropLatched) return false
+    respawnPowerDropLatched = false
+    return true
+  }
+
   fun restoreHits() {
     hitsLeft = HITS_PER_LIFE
   }
@@ -207,6 +216,7 @@ class PlayerShip(private val resources: Resources) {
     hitsLeft = HITS_PER_LIFE
     respawnTimer = 0f
     isGameOverFlag = false
+    respawnPowerDropLatched = false
   }
 
   fun isGameOver(): Boolean = isGameOverFlag
@@ -215,6 +225,7 @@ class PlayerShip(private val resources: Resources) {
     isInvulnerable = false
     invulnTimer = 0f
     respawnTimer = 0f
+    respawnPowerDropLatched = false
     isGameOverFlag = false
     isDragging = false
     isMovingHorizontal = false
@@ -243,6 +254,7 @@ class PlayerShip(private val resources: Resources) {
     lives -= 1
     hitsLeft = HITS_PER_LIFE
     weaponPowerLevel = 1
+    StageData.liveInstance?.dumpCombatRankOnDeath()
     releaseSteer()
     if (lives <= 0) {
       lives = 0
@@ -331,7 +343,16 @@ class PlayerShip(private val resources: Resources) {
 
   fun muzzleY(): Float = y - halfH * MUZZLE_Y_FRAC
 
-  fun vulcanInterval(): Float = fireInterval
+  fun vulcanInterval(): Float {
+    if (weaponPowerLevel == 2) {
+      return if (chosenFighterIndex == 1) {
+        HELLCAT_FIRE_INTERVAL_P2
+      } else {
+        P38_FIRE_INTERVAL_P2
+      }
+    }
+    return fireInterval
+  }
 
   fun draw(canvas: Canvas) {
     if (isGameOverFlag || respawnTimer > 0f) return
@@ -502,7 +523,9 @@ class PlayerShip(private val resources: Resources) {
     const val HELLCAT_MUZZLE_X = 0.58f
     const val HELLCAT_FAN_ANGLE = 0.32f
     const val P38_FIRE_INTERVAL = 0.090f
+    const val P38_FIRE_INTERVAL_P2 = 0.075f
     const val HELLCAT_FIRE_INTERVAL = 0.125f
+    const val HELLCAT_FIRE_INTERVAL_P2 = 0.105f
     const val BULLET_SPEED = 1600f
 
     const val MOVE_THRESHOLD = 0.5f

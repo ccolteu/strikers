@@ -670,15 +670,14 @@ class EnemyWeaponSystem {
     updateDeathClears(dt)
   }
 
-  private fun activeDifficulty(): StageData.Difficulty {
+  private fun scaledSpeed(base: Float): Float {
     val s = StageData.liveInstance
-    return if (s != null) s.getDifficulty() else StageData.Difficulty.NORMAL
+    return if (s != null) base * s.shotSpeedScale() else base
   }
 
-  private fun scaledSpeed(base: Float): Float = base * activeDifficulty().speedMultiplier
-
   private fun scaledInterval(base: Float): Float {
-    val div = activeDifficulty().intervalDivider
+    val s = StageData.liveInstance
+    val div = if (s != null) s.fireIntervalDivider() else 1f
     return if (div < 0.01f) base else base / div
   }
 

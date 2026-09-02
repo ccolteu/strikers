@@ -37,6 +37,7 @@ class StageData {
     var targetBossTimelineSeconds = 38f
     var stageMusicTrack = SoundManager.BGM_STAGE1
     private var currentDifficulty = Difficulty.NORMAL
+    private var combatRank = 0f
     private var savedFighterIndex = 0
 
     init {
@@ -45,6 +46,80 @@ class StageData {
     }
 
     fun getDifficulty(): Difficulty = currentDifficulty
+
+    fun resetCombatRank() {
+        combatRank = 0f
+    }
+
+    fun dumpCombatRankOnDeath() {
+        combatRank *= DEATH_KEEP
+    }
+
+    fun tickCombatRank(dt: Float, atMaxGun: Boolean) {
+        if (dt <= 0.0001f || !atMaxGun) return
+        combatRank += dt / RISE_SECS
+        val cap = rankCap()
+        if (combatRank > cap) combatRank = cap
+    }
+
+    fun shotSpeedScale(): Float =
+        currentDifficulty.speedMultiplier * (1f + SPEED_GAIN * combatRank)
+
+    fun fireIntervalDivider(): Float {
+        val div = currentDifficulty.intervalDivider * (1f + FIRE_GAIN * combatRank)
+        return if (div < 0.01f) 0.01f else div
+    }
+
+    fun burstBonus(): Int {
+        val extra = if (combatRank >= BURST_AT) 1 else 0
+        return currentDifficulty.burstBonus + extra
+    }
+
+    fun aimSlopRad(): Float {
+        if (currentDifficulty.index >= 3) return 0f
+        return Enemy.AIM_SLOP_RAD * (1f - combatRank)
+    }
+
+    fun shouldLeadShots(): Boolean =
+        currentDifficulty.index >= 5 || combatRank >= LEAD_AT
+
+    fun kamikazeSeeks(): Boolean =
+        currentDifficulty.index >= 3 || combatRank >= KAMI_AT
+
+    fun lootChanceScale(): Float {
+        val idx = currentDifficulty.index
+        return if (idx <= 1) {
+            0.75f
+        } else if (idx == 2) {
+            0.85f
+        } else if (idx == 4) {
+            1.08f
+        } else if (idx == 5) {
+            1.15f
+        } else if (idx == 6) {
+            1.20f
+        } else if (idx >= 7) {
+            1.25f
+        } else {
+            1.0f
+        }
+    }
+
+    fun revengeOnDeath(): Boolean =
+        currentDifficulty.index >= 5 || combatRank >= REVENGE_AT
+
+    fun popcornSuicide(): Boolean = currentDifficulty.index >= 3
+
+    private fun rankCap(): Float {
+        val idx = currentDifficulty.index
+        return if (idx <= 1) {
+            0.30f
+        } else if (idx == 2) {
+            0.55f
+        } else {
+            1f
+        }
+    }
 
     fun setDifficulty(diff: Difficulty) {
         currentDifficulty = diff
@@ -180,6 +255,14 @@ class StageData {
         private const val PREFS_NAME = "shmup_arcade_settings"
         private const val KEY_DIFFICULTY = "target_difficulty"
         private const val KEY_FIGHTER = "chosen_fighter"
+        private const val RISE_SECS = 48f
+        private const val DEATH_KEEP = 0.40f
+        private const val SPEED_GAIN = 0.22f
+        private const val FIRE_GAIN = 0.28f
+        private const val LEAD_AT = 0.60f
+        private const val KAMI_AT = 0.50f
+        private const val REVENGE_AT = 0.70f
+        private const val BURST_AT = 0.80f
 
         fun difficultyFromIndex(index: Int): Difficulty {
             return when (index) {

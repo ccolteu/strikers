@@ -1,6 +1,6 @@
 # WW2 Blitz
 
-Portrait Android shoot-’em-up (`com.cc.ww2blitz`). One fighter, six timed stages, peelable bosses. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
+Portrait Android shoot-’em-up (`com.cc.ww2blitz`), version **1.0.1**. One fighter, six timed stages, peelable bosses. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
 
 The software is a Kotlin engine on one `SurfaceView`, clocked by `Choreographer`. Combat is not a Compose tree. The hot path does not allocate.
 
@@ -34,7 +34,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 14 | Thumb must not hide the plane; finger must not run away from it | Arcade rubber band (thumb leash): chase `finger − grabOffset`, 40 px error cap, class speed | [Player motion](#12-player-motion) |
 | 15 | Bank must read at a glance | Seven-frame strip, lerp toward hard left or hard right | [Player motion](#12-player-motion) |
 | 16 | Hold-to-fire, two ship identities | Class vulcan in `BulletManager`; no trig on the fire path | [Vulcan](#13-vulcan-and-missiles) |
-| 17 | Missiles are a power reward, not the gun | Separate missile cooldown at weapon power ≥ 3 | [Vulcan](#13-vulcan-and-missiles) |
+| 17 | Missiles are a power reward, not the gun | Separate cooldown at power ≥ 3; nearest on-screen target | [Vulcan](#13-vulcan-and-missiles) |
 | 18 | Bomb must not fire from vulcan taps | Double-tap window + slop; discrete `PanicBomb` | [Bomb](#14-panic-bomb) |
 | 19 | Bomb must clear without deleting a core | DPS + per-frame bank, cap, AABB vs pools | [Bomb](#14-panic-bomb) |
 | 20 | Sprite is large; hurtbox is a dot | 6 px core, 24 px graze ring, Euclidean test | [Graze](#15-core-hitbox-and-graze) |
@@ -46,7 +46,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 26 | Boss must not share the screen with infinite fodder | Freeze `elapsedTime` at the gate (`locksElapsedAtBoss`) | [Director](#18-time-scripted-director) |
 | 27 | Formations must be readable, not random scatter | Related pool slots + pattern ids; no Formation object | [Formations](#19-formations) |
 | 28 | Silhouettes stay readable on a phone | Four enemy types; complexity in *when* and *pattern* | [Formations](#19-formations) |
-| 29 | Aim, lead, revenge scale with the dip | Primitive aim/lead/slop; revenge on Very Hard+ | [Grunt combat](#20-grunt-combat-and-aim) |
+| 29 | Aim, lead, revenge scale with the dip | Dip plus secret rank; popcorn suicide on Normal+ | [Grunt combat](#20-grunt-combat-and-aim) |
 | 30 | Killing a gunship must feel like peeling a machine | Multi-hitbox `BossComponent`; derived core vulnerability | [Boss peel](#21-boss-peel) |
 | 31 | Armor hits must confirm without a white flash | 2 px micro-shudder, 0.08 s | [Hit confirm and camera](#22-hit-confirm-and-camera) |
 | 32 | Cabinet kick on phase/death | Shake/flash as durations + LCG translate; HUD unshaken | [Hit confirm and camera](#22-hit-confirm-and-camera) |
@@ -54,13 +54,21 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 34 | Painted maps must not stretch | Cover-scale parallax; title is a still, center-cropped | [Theaters](#23-theaters-and-z-order) |
 | 35 | Green key at authoring time | Punch chroma once at bitmap load | [Chroma](#24-green-chroma) |
 | 36 | Recap must be readable | Sweep all combat pools on `STATE_CLEAR` | [Score and recap](#25-score-and-recap) |
-| 37 | Bonus roll like a cabinet ticker | Four-phase recap; combat × dip; recap lines unscaled | [Score and recap](#25-score-and-recap) |
+| 37 | Bonus roll like a cabinet ticker | Four-phase recap; combat × dip; ticks `SFX_PICKUP` | [Score and recap](#25-score-and-recap) |
 | 38 | Kill must tick the HUD without replacing medals | Token 100 / 300 / 1_000 × dip + popup; medals stay the skill money | [Score and recap](#25-score-and-recap) |
-| 39 | Power carries; death resets gun | Weapon power persists on continue; `takeDamage` sets power 1 | [Score and recap](#25-score-and-recap) |
+| 39 | Power carries; death resets gun | Continue keeps power; death → power 1 plus a catchable **P** | [Lives](#16-lives-hits-respawn) |
 | 40 | Ten-row table, no JSON on attract | `IntArray` / `CharArray`, in-place insert, `arcade_leaderboard` | [Name entry](#26-name-entry-and-campaign-end) |
 | 41 | Finish is the playlist latch, not “stage id 6” | `campaignFinishedLatch` → credits → qualify | [Name entry](#26-name-entry-and-campaign-end) |
 | 42 | Gunshots immediate, music gapless, nothing on the frame | `SoundPool` + dual `MediaPlayer`; volumes in prefs | [Audio](#27-audio) |
-| 43 | Collisions need every pool; fat gunships must take body hits | `GameView.resolveCollisions`; shots ellipse `10 + 0.55×half`; player stays a dot | [Collisions](#28-collision-ownership) |
+| 43 | Collisions need every pool; fat gunships must take body hits | Armor shots `10 + 0.55×half`; popcorn `3 + 0.28×half`; ram 45% | [Collisions](#28-collision-ownership) |
+| 44 | Dual columns are lines, not a broom | Popcorn shot ellipse pad 3 / 28% hull; armor keeps 10 / 55% | [Collisions](#28-collision-ownership) |
+| 45 | Max gun must not freeze the pot | Secret `combatRank` on `StageData`; climb only at power 3 | [Live rank](#29-live-rank) |
+| 46 | Deleting popcorn at the lip still threatens | Aimed suicide pellet on Normal+ drones/kami (vulcan/missile) | [Grunt combat](#20-grunt-combat-and-aim) |
+| 47 | Power 2 must change the vulcan | Faster interval at 2; power 3 is class-base gun + missiles | [Vulcan](#13-vulcan-and-missiles) |
+| 48 | Death is not a dry respawn | Swaying **P** 160 px above the ship after 0.4 s | [Lives](#16-lives-hits-respawn) |
+| 49 | Static hose must miss the rails | Side/cross director beats; kamikazes seek on Normal | [Formations](#19-formations) |
+| 50 | Extra drops follow the pot | `lootChanceScale` × dip, cap 20% popcorn / 50% armor | [Score and recap](#25-score-and-recap) |
+| 51 | Recap must not sound like the gun | Tally ticks `SFX_PICKUP`, not vulcan | [Audio](#27-audio) |
 
 ```mermaid
 flowchart TB
@@ -222,17 +230,17 @@ Stage table (metrics as coded):
 
 **Why.** Three floats cover the whole combat table. Score uses a parallel multiplier on `ScoreManager`. Recap line items stay raw so the ticker is not double-scaled.
 
-**Implementation.** Saved as `target_difficulty`. `saveDifficultySetting` writes prefs and the live enum. Combat: grunt shot speed × multiplier; spawn/refire delays ÷ `intervalDivider`; heavy ring `12 + burstBonus`; interceptor fan `1 + burstBonus`. Monkey/Easy: ±0.15 rad slop via `nextUnit()`. Very Hard+: first-order lead from sampled player velocity (two floats on the pool). Hard+: kamikaze `steerToward`. Very Hard+: revenge aimed shot on grunt death; Hardcore heavies a 3-way (death-clear ships skip so cancel radius does not eat the round). Boss muzzle speeds and timer resets in `EnemyWeaponSystem` use the same two floats. `syncDifficultyMultiplier` on stage reset / boot.
+**Implementation.** Saved as `target_difficulty`. `saveDifficultySetting` writes prefs and the live enum. Combat reads `shotSpeedScale()` / `fireIntervalDivider()` / `burstBonus()` so the dip **and** live rank share one multiply. Monkey/Easy: slop via `aimSlopRad()` (shrinks as rank climbs). Lead: Very Hard+ **or** rank ≥ 0.60. Kamikaze `steerToward`: Normal+ **or** rank ≥ 0.50. Revenge on interceptors/heavies: Very Hard+ **or** rank ≥ 0.70; Hardcore heavies a 3-way (death-clear ships skip). Drones/kami suicide on Normal+ even at rank 0 (see [grunt combat](#20-grunt-combat-and-aim)). Extra pickup chance × `lootChanceScale()` (Monkey 0.75 … Hardcore 1.25, capped). Boss muzzle speeds and timer resets in `EnemyWeaponSystem` use the same scales. `syncDifficultyMultiplier` on stage reset / boot. Rank is **not** written to prefs; it does carry between maps in one credit.
 
-| Index | Label | Speed | Interval | Extra shots | Score × |
-| --- | --- | --- | --- | --- | --- |
-| 1 | MONKEY | 0.65 | ÷ 0.75 | −1 | 0.5 |
-| 2 | EASY | 0.85 | ÷ 0.90 | 0 | 0.8 |
-| 3 | NORMAL | 1.00 | 1.00 | 0 | 1.0 |
-| 4 | HARD | 1.15 | ÷ 1.15 | 0 | 1.2 |
-| 5 | VERY HARD | 1.30 | ÷ 1.25 | +1 | 1.5 |
-| 6 | EXPERT | 1.45 | ÷ 1.40 | +1 | 2.0 |
-| 7 | HARDCORE | 1.60 | ÷ 1.55 | +2 | 3.0 |
+| Index | Label | Speed | Interval | Extra shots | Score × | Extra drop × |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | MONKEY | 0.65 | ÷ 0.75 | −1 | 0.5 | 0.75 |
+| 2 | EASY | 0.85 | ÷ 0.90 | 0 | 0.8 | 0.85 |
+| 3 | NORMAL | 1.00 | 1.00 | 0 | 1.0 | 1.00 |
+| 4 | HARD | 1.15 | ÷ 1.15 | 0 | 1.2 | 1.08 |
+| 5 | VERY HARD | 1.30 | ÷ 1.25 | +1 | 1.5 | 1.15 |
+| 6 | EXPERT | 1.45 | ÷ 1.40 | +1 | 2.0 | 1.20 |
+| 7 | HARDCORE | 1.60 | ÷ 1.55 | +2 | 3.0 | 1.25 |
 
 ---
 
@@ -244,7 +252,7 @@ Stage table (metrics as coded):
 
 **Why.** Mutating live stats + sprites in one function keeps demo, play, and title tags coherent. Staying in the select scene matches difficulty: dip first, credit from the title.
 
-**Implementation.** P-38: `player_ship_1…7`, `classBaseSpeed` 1600, `responsivenessTether` 1.0, fire 0.090 s, dual columns. Hellcat: `player_b_1…7`, speed 1150, tether 0.82, fire 0.125 s, 3-way. `applyFighterConfiguration` recycles the seven frames, `loadFrames()`, `refreshDrawSize()`. `GameView` init loads prefs then applies. Panel tap saves immediately. Gold focus stroke (4 px, 8 px corners, blinking alpha) reads `selectedFighterIndex`, synced from `chosenFighterIndex` when the scene opens.
+**Implementation.** P-38: `player_ship_1…7`, `classBaseSpeed` 1600, `responsivenessTether` 1.0, class fire 0.090 s (power 2: 0.075 s), dual columns. Hellcat: `player_b_1…7`, speed 1150, tether 0.82, class fire 0.125 s (power 2: 0.105 s), 3-way. `applyFighterConfiguration` recycles the seven frames, `loadFrames()`, `refreshDrawSize()`. `GameView` init loads prefs then applies. Panel tap saves immediately. Gold focus stroke (4 px, 8 px corners, blinking alpha) reads `selectedFighterIndex`, synced from `chosenFighterIndex` when the scene opens.
 
 ---
 
@@ -295,11 +303,11 @@ Stage table (metrics as coded):
 
 **Need.** Hold-to-fire was standard. Two ships must *play* differently. Homing is a power-up, not the default stream. Fire must not allocate or run trig every shot.
 
-**Choice.** `BulletManager` owns cooldown and spawn. Pattern branches on `chosenFighterIndex`. Missiles are a second timer at power ≥ 3.
+**Choice.** `BulletManager` owns cooldown and spawn. Pattern branches on `chosenFighterIndex`. Missiles are a second timer at weapon power ≥ 3. Power 2 is a **faster vulcan only**; power 3 returns to the class interval and adds seekers so max power is not “faster gun plus vacuum.”
 
-**Why.** One pool, two recipes. Hardcoded Hellcat components (`±280.68`, `-1320.55` at 1350 speed, 12°) avoid `toRadians`/`cos` on the fire path. Separate missile cadence (`MISSILE_INTERVAL = 0.480`) keeps vulcan rhythm class-specific.
+**Why.** One pool, two recipes. Hardcoded Hellcat components (`±280.68`, `-1320.55` at 1350 speed, 12°) avoid `toRadians`/`cos` on the fire path. Separate missile cadence (`MISSILE_INTERVAL = 0.480`) keeps vulcan rhythm class-specific. Stacking a shorter interval on missiles made Normal a top-of-screen hose.
 
-**Implementation.** While `isFiringHeld()` and `fireCooldownTimer <= 0`: `spawnWeaponStream`, reset timer to `player.vulcanInterval()`. P-38: two slots at `x±18`, `y-10`, `vx=0`, `vy=-1600`. Hellcat: three slots at `x`, `y-15`; center `vy=-1350`; flanks the precomputed vectors. `spawnPlayerBullet` walks the 100-slot pool for `!isActive`. Power ≥ 3: two homing missiles from `x±30` with seed velocities; 8-slot missile pool seeks nearest on-screen enemy or living boss part. Vulcan SFX on stream spawn.
+**Implementation.** `PlayerShip.vulcanInterval()`: power 2 uses `P38_FIRE_INTERVAL_P2` (0.075) / `HELLCAT_FIRE_INTERVAL_P2` (0.105); otherwise the class base. While `isFiringHeld()` and `fireCooldownTimer <= 0`: `spawnWeaponStream`, reset timer to that interval. P-38: two slots at `x±18`, `y-10`, `vx=0`, `vy=-1600`. Hellcat: three slots at `x`, `y-15`; center `vy=-1350`; flanks the precomputed vectors. `spawnPlayerBullet` walks the 100-slot pool for `!isActive`. Power ≥ 3: two homing missiles from `x±30` with seed velocities; 8-slot missile pool seeks the **nearest** on-screen enemy (`y > 0`) or living boss part. Vulcan SFX on stream spawn.
 
 ---
 
@@ -335,7 +343,7 @@ Stage table (metrics as coded):
 
 **Why.** Separating explosion from credit-over lets respawn, invuln, and HUD stay honest. Callers that treated `takeDamage() == true` as game over would skip remaining lives.
 
-**Implementation.** Invuln or respawn timer: ignore hits. Decrement hits; if hits remain, 2 s invuln, return false. Else spend a life, reset hits, **weapon power = 1**, `respawnTimer = 0.4 s`; if lives == 0 set `isGameOverFlag`. After respawn, snap to `(0.5w, 0.78h)` and invuln. `isOnField()` is false during respawn/game over so bullets do not chew a ghost. Shield pickup calls `restoreHits()`.
+**Implementation.** Invuln or respawn timer: ignore hits. Decrement hits; if hits remain, 2 s invuln, return false. Else spend a life, reset hits, **weapon power = 1**, dump live rank to 40%, `respawnTimer = 0.4 s`; if lives == 0 set `isGameOverFlag`. After respawn, snap to `(0.5w, 0.78h)` and invuln. Campaign only: `consumeRespawnPowerDrop` spawns a swaying **P** at `shipY − 160` (min Y 96) so it is catchable during i-frames and missable if you dodge. `isOnField()` is false during respawn/game over so bullets do not chew a ghost. Shield pickup calls `restoreHits()`. Demo does not drop the P.
 
 ---
 
@@ -371,7 +379,7 @@ Stage table (metrics as coded):
 
 **Why.** Clock = cabinet rhythm. Latch = one-shot even if `elapsedTime` jumps the threshold. Freeze = the fortress is the content.
 
-**Implementation.** `update` sets `activeStage` from `StageData`. Stage 6: increment until `S6_INTRO_SECS` (5), `beginEntranceForStage(6)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V on stages that `usesOpeningPowerV`. Flags: `vFormSpawned`, `wallSpawned`, `s2KamiDiamondSpawned`, … `countActive() >= MAX_ACTIVE` breaks inner spawn loops. `reset()` zeros the clock and flags. Stage 5 ramps `scrollSpeedY` 280→0 between 40–45 s with no spawns, then cues the engine.
+**Implementation.** `update` sets `activeStage` from `StageData`. Stage 6: increment until `S6_INTRO_SECS` (5), `beginEntranceForStage(6)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V on stages that `usesOpeningPowerV`. Flags: `vFormSpawned`, `s1CrossSpawned`, `wallSpawned`, `s2KamiDiamondSpawned`, `s3MidCrossSpawned`, … `countActive() >= MAX_ACTIVE` breaks inner spawn loops. `reset()` zeros the clock and flags. Stage 5 ramps `scrollSpeedY` 280→0 between 40–45 s with no spawns, then cues the engine. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
 
 ---
 
@@ -383,9 +391,11 @@ Stage table (metrics as coded):
 
 **Why.** The *look* of a V is three interceptors + `PATTERN_V_HOLD`. Follow-the-leader is extra RAM and extra bugs. Four silhouettes stay readable at phone size; complexity lives in the clock.
 
-**Implementation.** Types: `TYPE_DRONE`, `TYPE_KAMIKAZE`, `TYPE_INTERCEPTOR`, `TYPE_HEAVY`. Patterns: `PATTERN_V_HOLD` (descend, `aiPhase` hold, then aim), `PATTERN_WEAVE` (sine on `homeX`), `PATTERN_DIAGONAL_SWEEP`. Diamond: `diamondLeader` / `diamondWingSign`. Motion in `EnemyPoolManager.update` (`updateInterceptorHold`, weave, kamikaze `steerToward` on Hard+).
+**Implementation.** Types: `TYPE_DRONE`, `TYPE_KAMIKAZE`, `TYPE_INTERCEPTOR`, `TYPE_HEAVY`. Patterns: `PATTERN_V_HOLD` (descend, `aiPhase` hold, then aim), `PATTERN_WEAVE` (sine on `homeX`), `PATTERN_DIAGONAL_SWEEP`. Diamond: `diamondLeader` / `diamondWingSign`. Motion in `EnemyPoolManager.update` (`updateInterceptorHold`, weave, kamikaze `steerToward` when `kamikazeSeeks()` — Normal+ or rank ≥ 0.50). Dive speeds: `KAMI_VY` 560, fast 680; Stage 4/5 **side** kamis multiply `vy` by 0.70 so they are not a vertical wall.
 
-Jobs by stage: Stage 1 teach (sweep V that drops **P**, flanks, hold V, weaves, twin heavies). Stage 2 deny camping (pincers, death-clear heavies, diamond, staggered walls). Stage 3 scouts + cruiser. Stage 4 width + charge walls. Stage 5 facility approach then freeze. Stage 6 empty.
+Hull HP: drones 1, kami 2, interceptors 6, heavies 10, Stage 3/4 cruisers 16/20, Stage 5 heavies 32.
+
+Jobs by stage: Stage 1 teach (sweep V that drops **P**, flanks, hold V, weaves at 14/86% width, mid-Y cross at 16 s, twin heavies). Stage 2 deny camping (pincers, death-clear heavies, diamond, weaves/walls from rails, pre-boss bezels). Stage 3 scouts + cruiser + mid cross. Stage 4 width, weaves, side kami, charge walls in lanes. Stage 5 facility drizzle full width, kami V as a side pincer, then freeze. Stage 6 empty.
 
 Deliberately not done: steering groups, twelve enemy classes, random scatter inside a wave shape, spawn when pool full.
 
@@ -393,13 +403,15 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 ## 20. Grunt combat and aim
 
-**Need.** Shots must aim, sometimes lead, sometimes miss (Monkey), and on high dips punish kills with revenge—without allocating a bullet factory.
+**Need.** Shots must aim, sometimes lead, sometimes miss (Monkey), and punish parked max-gun play without allocating a bullet factory. Deleting popcorn at the lip must still threaten on Normal+.
 
-**Choice.** Each `Enemy` holds `aimVx/aimVy`, burst counters, `writeAimedShot` with optional lead and slop. Fire goes through `EnemyWeaponSystem.fireBullet` into the 720-pool. Difficulty scalars apply at fire-delay and speed write time.
+**Choice.** Each `Enemy` holds `aimVx/aimVy`, burst counters, `writeAimedShot` with optional lead and slop. Fire goes through `EnemyWeaponSystem.fireBullet` into the 720-pool. Dip **and** live rank share `shotSpeedScale` / `fireIntervalDivider` / `burstBonus`. Death pellets are a branch in `fireRevengeIfNeeded`, not a new system.
 
-**Why.** Aim is a few floats on the slot. Lead is `eta = dist/shotSpeed` times sampled player velocity (two floats on the pool, reset with `deactivateAll`). Revenge is a branch in `resolveCollisions` / death, not a new system.
+**Why.** Aim is a few floats on the slot. Lead is `eta = dist/shotSpeed` times sampled player velocity (two floats on the pool, reset with `deactivateAll`). Cabinets did not give a free screen wipe for popping drones at the bezel.
 
-**Implementation.** `scaledFireDelay()` uses `intervalDivider`. Interceptors on hold use `HOLD_FIRE_GAP`. Heavies fire rings `12 + burstBonus`. `writeAimedShot` uses `atan2` + `cos`/`sin` once when the burst is *aimed*, not per frame for every idle ship. Lasers are the same `EnemyBullet` with `FLAG_LASER` and a larger cull AABB (Stage 6).
+**Implementation.** `scaledFireDelay()` uses `fireIntervalDivider()`. Interceptors on hold use `HOLD_FIRE_GAP`. Heavies fire rings `12 + burstBonus`. `writeAimedShot` uses `atan2` + `cos`/`sin` once when the burst is *aimed*. Lasers are the same `EnemyBullet` with `FLAG_LASER` (Stage 6).
+
+`fireRevengeIfNeeded` (vulcan/missile kills only): death-clear ships skip. Interceptors/heavies fire when `revengeOnDeath()` (Very Hard+ **or** rank ≥ 0.70); Hardcore heavies a 3-way. Drones/kami fire one aimed pellet when `popcornSuicide()` (Normal+), even at rank 0. Bombs and rams do not spawn suicide. Speed × `shotSpeedScale()`.
 
 ---
 
@@ -411,7 +423,7 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Why.** Derived vulnerability is one rule: you cannot cheese the core. Shared bullet pool means boss patterns are data (angles, intervals), not object graphs.
 
-**Implementation.** `BossController` binds a stage, runs entrance, then combat. Hits that are not core-open bounce (or Stage 5: half damage while both flanks live). Flanks 150/150, core 350 on Stage 5; break +25k and a guaranteed drop (left **P**; right **P** if power < 3 else bomb/shield); core +100k and 4.5 s victory (freeze, bullets→medals, cascade, white flash, wreck center). Stage 6: rails then lens; cyan triples / pink column / helix in `updateStage6Boss`. Stages 1–4: last gun → `FX_PHASE` flash/shake; core death → `FX_DEATH`, explode overlay, then sweep. `GameView` consumes those flags after collisions. Bomb DPS uses the same parts array.
+**Implementation.** `BossController` binds a stage, runs entrance, then combat. Hits that are not core-open bounce (or Stage 5: half damage while both flanks live). Part HP: Stage 1 wings 70 / turret 58 / core 240; Stage 2 treads 100 / turret 88 / core 330; Stage 3 flak 125 / cannon 190 / core 480; Stage 4 mortars 140 / gatling 160 / core 520; Stage 5 flanks 180 / core 350; Stage 6 flanks 190 / core 380. Stage 5 break +25k and a guaranteed drop (left **P**; right **P** if power < 3 else bomb/shield); core +100k and 4.5 s victory (freeze, bullets→medals, cascade, white flash, wreck center). Stage 6: rails then lens; cyan triples / pink column / helix in `updateStage6Boss`. Stages 1–4: last gun → `FX_PHASE` flash/shake; core death → `FX_DEATH`, explode overlay, then sweep. `GameView` consumes those flags after collisions. Bomb DPS uses the same parts array. Muzzle speeds and timer resets in `EnemyWeaponSystem` use `shotSpeedScale` / `fireIntervalDivider`.
 
 ---
 
@@ -459,9 +471,9 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Why.** Cabinets always ticked the counter on explode, then paid again if you scooped the gold. A 100-point drone does not rival a 2000-point face medal, so the Psikyo “pick the gold” skill still decides the ranking. The player **sees** the HUD move on every wreck, even if they miss the coin. Demo does not pay (same honesty as graze).
 
-**Implementation.** `addScore` / `scalePoints`. `GameView.onEnemyKilled` (vulcan, missile, bomb, ram — `STATE_PLAYING` only) calls `awardKillScore`: `KILL_SCORE_*` × dip, `campaignScore +=`, `triggerFloatingScore` at the wreck. No extra medal or chip is spawned for the token. Graze count separate. Recap: `PHASE_LIVES` → `BOMBS` → `GRAZE` → `TOTAL` (~1 s each, vulcan click every 5 frames while rolling). `UIController.drawStageClear` from char buffers. `ACTION_UP` when `isRecapReady()`: `resetStageCounters`, `advanceToNextStage`; if latch → `STATE_CAMPAIGN_COMPLETE`, else interstitial. 40% black wash under the card. World sprites not drawn in `STATE_CLEAR`.
+**Implementation.** `addScore` / `scalePoints`. `GameView.onEnemyKilled` (vulcan, missile, bomb, ram — `STATE_PLAYING` only) calls `awardKillScore`: `KILL_SCORE_*` × dip, `campaignScore +=`, `triggerFloatingScore` at the wreck. No extra medal or chip is spawned for the token. Graze count separate. Recap: `PHASE_LIVES` → `BOMBS` → `GRAZE` → `TOTAL` (~1 s each, `SFX_PICKUP` every 5 frames while rolling — not the vulcan sample). `UIController.drawStageClear` from char buffers. `ACTION_UP` when `isRecapReady()`: `resetStageCounters`, `advanceToNextStage`; if latch → `STATE_CAMPAIGN_COMPLETE`, else interstitial. 40% black wash under the card. World sprites not drawn in `STATE_CLEAR`.
 
-Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FULL_SCORE` (2000) + floating popup (`collectPowerUp`), same pattern as extra **B** at 3 stock (`BOMB_FULL_SCORE` 5000 + popup). Falling medals still score face-up 2000 / edge 200 at Normal, then × dip. Shield `restoreHits()`. Stage 5 cancel medals during core-kill freeze. Medals **magnet**: within 96 px they slide toward the ship at 420 px/s; in the outer 10% of the screen, if the plane is hugging that same wall, the pull radius is 188 px so rim coins still collect (the sprite clamp cannot kiss the bezel). P/B are unchanged wall-bounce at 30 px.
+Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FULL_SCORE` (2000) + floating popup (`collectPowerUp`), same pattern as extra **B** at 3 stock (`BOMB_FULL_SCORE` 5000 + popup). Falling medals still score face-up 2000 / edge 200 at Normal, then × dip. Extra **P/B** chance after the medal: base 15% popcorn / 40% armor, × `lootChanceScale()`, then cap 20% / 50%. Shield `restoreHits()`. Stage 5 cancel medals during core-kill freeze. Medals **magnet**: within 96 px they slide toward the ship at 420 px/s; in the outer 10% of the screen, if the plane is hugging that same wall, the pull radius is 188 px so rim coins still collect (the sprite clamp cannot kiss the bezel). P/B are unchanged wall-bounce at 30 px.
 
 ---
 
@@ -485,7 +497,7 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 
 **Why.** Pool playback is the cabinet PCM channel. Cross-fading players is gapless without allocating a new player on the frame.
 
-**Implementation.** `playSFX` lock + `play`. Title / difficulty / character select → `bgm_title`. Play, demo, interstitial → `stageMusicTrack`. Clear / registration / campaign complete → victory. Stage 5 victory can `stopBGM()`. `syncBgm()` in `GameView` compares `want` vs `lastBgmRes`. Mute stops alarm loop. Pause/resume from `MainActivity`.
+**Implementation.** `playSFX` lock + `play`. Title / difficulty / character select → `bgm_title`. Play, demo, interstitial → `stageMusicTrack`. Clear / registration / campaign complete → victory. Recap tally uses `SFX_PICKUP` so the bonus roll does not sound like the gun. Stage 5 victory can `stopBGM()`. `syncBgm()` in `GameView` compares `want` vs `lastBgmRes`. Mute stops alarm loop. Pause/resume from `MainActivity`.
 
 ---
 
@@ -493,11 +505,23 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 
 **Need.** Hits involve every pool (player shots vs grunts vs boss parts vs player vs rams vs pickups vs bomb). Splitting that across classes creates order bugs. Graze math is still one tight loop.
 
-**Choice.** `GameView.resolveCollisions` orchestrates. Euclidean core/graze lives in `BulletManager`. Boss/player-shot tests are padded ellipses on parts. Rams use **45%** of enemy half-size plus the player 12 px dot. Vulcan/missiles vs grunts use a slightly fatter ellipse: `SHOT_HIT_PAD` (10) + **55%** of that type’s `halfW`/`halfH`. The player hurtbox stays a dot.
+**Choice.** `GameView.resolveCollisions` orchestrates. Euclidean core/graze lives in `BulletManager`. Boss/player-shot tests are padded ellipses on parts. Rams use **45%** of enemy half-size plus the player 12 px dot. Dual-column popcorn must not broom the whole hull: drones/kami use pad **3** / **28%** of half-size; interceptors/heavies keep pad **10** / **55%**. The player hurtbox stays a dot.
 
-**Why.** One place decides game-over. One place implements Psikyo graze. A shared 28 px disk on the enemy **center** made drones fair and heavies ghost except at the cockpit. Type-scaled shot ellipses let you walk fire across the painted hull without growing the player into a barn.
+**Why.** One place decides game-over. One place implements Psikyo graze. A shared 28 px disk on the enemy **center** made drones fair and heavies ghost except at the cockpit. Split ellipses keep the P-38 stream a pair of lines while armor still takes body hits.
 
-**Implementation.** `shotHitsEnemy(dx, dy, type)` for vulcan and homing vs the grunt pool. Rams: `PLAYER_HIT_RADIUS + half*ENEMY_RAM_BODY_FRAC` (0.45). Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except Stage 5 half-damage rule). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
+**Implementation.** `shotHitsEnemy(dx, dy, type)` for vulcan and homing vs the grunt pool. Rams: `PLAYER_HIT_RADIUS + half*ENEMY_RAM_BODY_FRAC` (0.45) — unchanged by the popcorn pad. Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except Stage 5 half-damage rule). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
+
+---
+
+## 29. Live rank
+
+**Need.** A 90s cabinet pot was the floor. Sitting at max gun for the whole credit must not freeze the board at the opening table. The meter is secret: no HUD, no persist to EEPROM.
+
+**Choice.** `combatRank` on `StageData`, 0–1 (Monkey cap 0.30, Easy 0.55, else 1.0). Climbs only in `STATE_PLAYING` while `isOnField()` and weapon power ≥ 3. About **48 s** of max-gun field time to the cap. Death keeps 40% (`dumpCombatRankOnDeath`). Reset on new credit, title return, and demo start. **Not** reset between stages.
+
+**Why.** Rank multiplies the same two combat floats the dip already owns, so enemy weapons do not grow a second code path. Climbing only at power 3 punishes parking the full stream without punishing a player who just respawned at power 1.
+
+**Implementation.** `GameView` ticks `tickCombatRank(dt, power >= 3)`. At rank 1: shot speed +22%, fire interval divider +28%. Burst +1 at 0.80. Lead at 0.60 (or Very Hard+). Kami seek at 0.50 (or Normal+). Revenge on interceptors/heavies at 0.70 (or Very Hard+). `aimSlopRad` shrinks toward 0 as rank climbs on Monkey/Easy. Never written to prefs.
 
 ---
 
@@ -507,7 +531,7 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 | --- | --- |
 | `MainActivity` | Window, audio lifetime |
 | `GameView` | Scene, vsync, attract, credit, collisions, bomb gesture, shake/flash |
-| `StageData` | Playlist, dipswitches, theater flags, metrics |
+| `StageData` | Playlist, dipswitches, live `combatRank`, theater flags, metrics |
 | `SpawnTimeline` | Wave clock, latches, formation cues |
 | `EnemyPoolManager` / `Enemy` | Grunt motion, types, patterns, aim |
 | `EnemyWeaponSystem` / `EnemyBullet` | Hostile shots, boss fire tables, lasers |

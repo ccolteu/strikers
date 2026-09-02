@@ -206,7 +206,7 @@ class ScoreManager private constructor() {
       setAwarded(which, want)
     }
     if (target > 0 && awardedOf(which) < target && (recapFrame % CLICK_EVERY_FRAMES) == 0) {
-      SoundManager.instance.playSFX(SoundManager.SFX_VULCAN)
+      SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
     }
   }
 
