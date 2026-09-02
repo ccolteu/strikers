@@ -2609,12 +2609,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           availableBombs > 0 &&
           !player.isGameOver()
         ) {
-          availableBombs--
-          panicBomb.activate(player.getHitboxX(), player.getHitboxY())
-          bombCoreWasOpen = boss.isCoreVulnerable()
-          bossBombDmgBank = 0f
-          addScreenShake(0.8f)
-          SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
+          if (!panicBomb.isActive) {
+            availableBombs--
+            panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+            bombCoreWasOpen = boss.isCoreVulnerable()
+            bossBombDmgBank = 0f
+            addScreenShake(0.8f)
+            SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
+          }
           awaitingSecondTap = false
         }
         touchDownMs = now
@@ -2631,12 +2633,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           availableBombs > 0 &&
           !player.isGameOver()
         ) {
-          availableBombs--
-          panicBomb.activate(player.getHitboxX(), player.getHitboxY())
-          bombCoreWasOpen = boss.isCoreVulnerable()
-          bossBombDmgBank = 0f
-          addScreenShake(0.8f)
-          SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
+          if (!panicBomb.isActive) {
+            availableBombs--
+            panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+            bombCoreWasOpen = boss.isCoreVulnerable()
+            bossBombDmgBank = 0f
+            addScreenShake(0.8f)
+            SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
+          }
           awaitingSecondTap = false
         }
         touchDownMs = now

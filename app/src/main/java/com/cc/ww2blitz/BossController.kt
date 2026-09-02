@@ -1244,7 +1244,7 @@ class BossController(private val resources: Resources) {
       if (s8FanTimer <= 0f) {
         s8FanTimer = S8_FAN_INTERVAL
         val ox = coreX
-        val oy = coreY + bodyHalfH * 0.945f
+        val oy = coreY + bodyHalfH * 0.912f
         val spd = S8_FAN_SPEED
         var i = -2
         while (i <= 2) {
@@ -1412,24 +1412,24 @@ class BossController(private val resources: Resources) {
         setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.36f, S8_CORE_HP)
         setupPart(
           TYPE_ATOLL_LEFT_GUN,
-          -bodyHalfW * 0.642f,
-          bodyHalfH * 0.771f,
-          bodyHalfW * 0.18f,
-          bodyHalfH * 0.16f,
+          -bodyHalfW * 0.650f,
+          bodyHalfH * 0.205f,
+          bodyHalfW * 0.14f,
+          bodyHalfH * 0.14f,
           S8_GUN_HP,
         )
         setupPart(
           TYPE_ATOLL_RIGHT_GUN,
-          bodyHalfW * 0.657f,
-          bodyHalfH * 0.775f,
-          bodyHalfW * 0.18f,
-          bodyHalfH * 0.16f,
+          bodyHalfW * 0.648f,
+          bodyHalfH * 0.203f,
+          bodyHalfW * 0.14f,
+          bodyHalfH * 0.14f,
           S8_GUN_HP,
         )
         setupPart(
           TYPE_ATOLL_AA,
           0f,
-          bodyHalfH * 0.945f,
+          bodyHalfH * 0.912f,
           bodyHalfW * 0.16f,
           bodyHalfH * 0.12f,
           S8_AA_HP,
@@ -1439,26 +1439,26 @@ class BossController(private val resources: Resources) {
         setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S7_CORE_HP)
         setupPart(
           TYPE_WINTER_LEFT_HOWITZER,
-          -bodyHalfW * 0.70f,
-          -bodyHalfH * 0.06f,
-          bodyHalfW * 0.20f,
-          bodyHalfH * 0.24f,
+          -bodyHalfW * 0.543f,
+          bodyHalfH * 0.318f,
+          bodyHalfW * 0.16f,
+          bodyHalfH * 0.16f,
           S7_HOWITZER_HP,
         )
         setupPart(
           TYPE_WINTER_RIGHT_HOWITZER,
-          bodyHalfW * 0.70f,
-          -bodyHalfH * 0.06f,
-          bodyHalfW * 0.20f,
-          bodyHalfH * 0.24f,
+          bodyHalfW * 0.531f,
+          bodyHalfH * 0.318f,
+          bodyHalfW * 0.16f,
+          bodyHalfH * 0.16f,
           S7_HOWITZER_HP,
         )
         setupPart(
           TYPE_WINTER_BLIZZARD,
           0f,
-          bodyHalfH * 0.52f,
-          bodyHalfW * 0.24f,
-          bodyHalfH * 0.24f,
+          bodyHalfH * 0.902f,
+          bodyHalfW * 0.20f,
+          bodyHalfH * 0.14f,
           S7_BLIZZARD_HP,
         )
       }
