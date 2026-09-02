@@ -3,7 +3,7 @@ Take the stick. Clear the sky.
 WW2 BLITZ is a portrait arcade shooter built like a cabinet: one credit, six operations, no waiting for a meter to refill. You grab your fighter and the guns stay up. The rest is skill, greed, and whether you save the bomb.
 
 HOW TO FLY
-Touch and hold on the plane. It follows your thumb on a short leash — tight enough for micro-dodges, loose enough that your finger does not sit on the sprite. Let go and you stop shooting. Double-tap to dump a screen-clearing bomb (you start with three). You have three lives, and each life takes three hits. Chip damage turns the hull pips gold, then red. The last pip blinks. The next solid hit is a funeral.
+Touch and hold on the plane. It follows your thumb on a short leash — tight enough for micro-dodges, loose enough that your finger does not sit on the sprite. Let go and you stop shooting. Double-tap to dump a screen-clearing bomb. You start with three lives, and each life takes three hits. Chip damage turns the hull pips gold, then red. The last pip blinks. The next solid hit is a funeral.
 
 CHOOSE YOUR FIGHTER
 P-38 Lightning — faster, twin-column vulcan, built to thread patterns.
