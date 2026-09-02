@@ -251,7 +251,7 @@ class StageData {
         var liveInstance: StageData? = null
         // val STAGE_SEQUENCE = intArrayOf(1) // test just one level
         // val STAGE_SEQUENCE = intArrayOf(3,2,6,6) // test any order even with duplicates
-        val STAGE_SEQUENCE = intArrayOf(2)//intArrayOf(1, 2, 3, 4, 5, 6)
+        val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4, 5, 6)
         private const val PREFS_NAME = "shmup_arcade_settings"
         private const val KEY_DIFFICULTY = "target_difficulty"
         private const val KEY_FIGHTER = "chosen_fighter"

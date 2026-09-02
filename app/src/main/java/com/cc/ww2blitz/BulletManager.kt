@@ -129,8 +129,9 @@ class BulletManager {
     val py = player.centerY()
     val coreR = player.coreHitboxRadius
     val grazeR = player.grazeRadius
-    val coreSq = coreR * coreR
     val grazeSq = grazeR * grazeR
+    val hitR = coreR + EnemyWeaponSystem.BULLET_HIT_RADIUS
+    val hitSq = hitR * hitR
     var damagedThisFrame = false
     var i = 0
     while (i < enemyBulletCount) {
@@ -154,7 +155,7 @@ class BulletManager {
           }
         } else {
           val distSq = (dx * dx) + (dy * dy)
-          if (distSq <= coreSq) {
+          if (distSq <= hitSq) {
             b.isActive = false
             b.flags = 0
             if (!damagedThisFrame) {

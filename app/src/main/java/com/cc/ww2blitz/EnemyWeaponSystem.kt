@@ -742,6 +742,7 @@ class EnemyWeaponSystem {
     const val POOL_SIZE = 720
     const val HALF_BULLET_WIDTH = 18f
     const val HALF_BULLET_HEIGHT = 18f
+    const val BULLET_HIT_RADIUS = 10f
     const val CLEAR_SLOTS = 4
     const val CLEAR_RADIUS = 150f
     const val CLEAR_LIFE = 0.15f

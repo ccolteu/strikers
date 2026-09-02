@@ -17,7 +17,7 @@ import android.view.MotionEvent
  */
 class PlayerShip(private val resources: Resources) {
 
-  val coreHitboxRadius = 6f
+  val coreHitboxRadius = 8f
   val grazeRadius = 24f
 
   private val frames = arrayOfNulls<Bitmap>(FRAME_COUNT)

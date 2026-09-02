@@ -37,7 +37,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 17 | Missiles are a power reward, not the gun | Separate cooldown at power ≥ 3; nearest on-screen target | [Vulcan](#13-vulcan-and-missiles) |
 | 18 | Bomb must not fire from vulcan taps | Double-tap window + slop; discrete `PanicBomb` | [Bomb](#14-panic-bomb) |
 | 19 | Bomb must clear without deleting a core | DPS + per-frame bank, cap, AABB vs pools | [Bomb](#14-panic-bomb) |
-| 20 | Sprite is large; hurtbox is a dot | 6 px core, 24 px graze ring, Euclidean test | [Graze](#15-core-hitbox-and-graze) |
+| 20 | Sprite is large; hurtbox is a dot | 8 px core + 10 px pellet radius; 24 px graze ring | [Graze](#15-core-hitbox-and-graze) |
 | 21 | Graze is a skill drip, once per shot; a chip must not abort the ring | `FLAG_GRAZED` latch; one `takeDamage` per frame; loop only dies on explode | [Graze](#15-core-hitbox-and-graze) |
 | 22 | Chip damage ≠ credit over | 3 lives × 3 hits; `GAME OVER` only if `isGameOver()` | [Lives](#16-lives-hits-respawn) |
 | 23 | Hardware sprite RAM, not `new` | Fixed pools: enemies 48, enemy shots 720, player shots 100, … | [Pools](#17-sprite-ram-pools) |
@@ -331,11 +331,11 @@ Stage table (metrics as coded):
 
 **Need.** If the whole sprite were solid, weaving would be impossible. Psikyo drew a generous plane and killed you on a **dot**. Sliding a bullet through the halo is a skill check with a score drip, not a second life.
 
-**Choice.** Two radii on the same center: core 6 px, graze 24 px. Euclidean test. Graze latches once per bullet. **One damage event per frame**; the shot loop does not return on a chip or i-frame spark. Rams/pickups keep a larger body radius.
+**Choice.** Two radii on the same center: core 8 px, graze 24 px. Pellets add `BULLET_HIT_RADIUS` 10 px (inside the 18 px draw glow). Euclidean test. Graze latches once per bullet. **One damage event per frame**; the shot loop does not return on a chip or i-frame spark. Rams/pickups keep a larger body radius.
 
 **Why.** Distance-squared avoids `RectF.intersects` and sqrt on the miss path. A flag on the bullet is the EEPROM of “already paid.” Cabinets chip you once per pulse, then still pay graze on the rest of the ring. Returning from the first overlap skipped stacked shots and i-frame grazes.
 
-**Implementation.** `BulletManager.resolveEnemyBulletsVsPlayer`: skip if `!player.isOnField()`. For each active `EnemyBullet`, if `FLAG_LASER` use AABB (`S6_LASER_HW/HH` + core); else `distSq` vs `coreSq` then `grazeSq`. Core/laser overlap: deactivate the shot. If `damagedThisFrame` is still false, set it and `takeDamage()`; **return true only if the body exploded**. Extra cores/lasers the same frame are cancelled with no second chip (i-frames included). The loop continues so remaining pellets can graze. Graze: set `FLAG_GRAZED`, `addGrazeScore` if `awardScore`, `triggerSpark` with outward velocity from the delta. Demo passes `awardScore = false`. Graze **count** for recap is incremented unscaled.
+**Implementation.** `BulletManager.resolveEnemyBulletsVsPlayer`: skip if `!player.isOnField()`. For each active `EnemyBullet`, if `FLAG_LASER` use AABB (`S6_LASER_HW/HH` + core); else `distSq` vs `(core + BULLET_HIT_RADIUS)²` then `grazeSq`. Core/laser overlap: deactivate the shot. If `damagedThisFrame` is still false, set it and `takeDamage()`; **return true only if the body exploded**. Extra cores/lasers the same frame are cancelled with no second chip (i-frames included). The loop continues so remaining pellets can graze. Graze: set `FLAG_GRAZED`, `addGrazeScore` if `awardScore`, `triggerSpark` with outward velocity from the delta. Demo passes `awardScore = false`. Graze **count** for recap is incremented unscaled. The drawn 36 px oval is larger than the hit sphere so the rim can still graze.
 
 ---
 
@@ -509,7 +509,7 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 
 **Need.** Hits involve every pool (player shots vs grunts vs boss parts vs player vs rams vs pickups vs bomb). Splitting that across classes creates order bugs. Graze math is still one tight loop.
 
-**Choice.** `GameView.resolveCollisions` orchestrates. Euclidean core/graze lives in `BulletManager`. Boss/player-shot tests are padded ellipses on parts. Rams use **45%** of enemy half-size plus the player 12 px dot. Dual-column popcorn must not broom the whole hull: drones/kami use pad **3** / **28%** of half-size; interceptors/heavies keep pad **10** / **55%**. The player hurtbox stays a dot.
+**Choice.** `GameView.resolveCollisions` orchestrates. Euclidean core/graze lives in `BulletManager`. Hostile pellets are not points: hit if `dist ≤ core 8 + pellet 10`. Boss/player-shot tests are padded ellipses on parts. Rams use **45%** of enemy half-size plus the player 12 px dot. Dual-column popcorn must not broom the whole hull: drones/kami use pad **3** / **28%** of half-size; interceptors/heavies keep pad **10** / **55%**. The player hull stays a small disk, not the sprite.
 
 **Why.** One place decides game-over. One place implements Psikyo graze. A shared 28 px disk on the enemy **center** made drones fair and heavies ghost except at the cockpit. Split ellipses keep the P-38 stream a pair of lines while armor still takes body hits.
 
