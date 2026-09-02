@@ -832,12 +832,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     val logo = logoBmp
     if (logo != null && screenW > 0 && screenH > 0) {
-      val maxH = screenH * 0.35f
+      val maxH = screenH * 0.35f * 0.67f
       val srcW = logo.width.toFloat().coerceAtLeast(1f)
       val srcH = logo.height.toFloat().coerceAtLeast(1f)
       var destH = maxH
       var destW = destH * (srcW / srcH)
-      val maxW = screenW * 0.92f
+      val maxW = screenW * 0.92f * 0.67f
       if (destW > maxW) {
         destW = maxW
         destH = destW * (srcH / srcW)
