@@ -22,6 +22,7 @@ class SpawnTimeline {
   private var s2TurretGuardsSpawned = false
   private var s2KamiDiamondSpawned = false
   private var s2KamiDiamondStep = 0
+  private var s2TanksSpawned = false
   private var s2LeftWallSpawned = false
   private var s2LeftWallCount = 0
   private var s2RightWallSpawned = false
@@ -30,6 +31,7 @@ class SpawnTimeline {
   private var s2CenterInterceptSpawned = false
   private var s3ScoutGap = 0f
   private var s3FlankGap = 0f
+  private var s3DestroyersSpawned = false
   private var s3CruiserSpawned = false
   private var s3MidCrossSpawned = false
   private var s3FlankFromLeft = true
@@ -39,6 +41,7 @@ class SpawnTimeline {
   private var s4KamiSpawned = false
   private var s4WallCount = 0
   private var s4CruiserSpawned = false
+  private var s4HoldVSpawned = false
   private var openingPowerVSpawned = false
   private var powerUpWaveQueued = false
   private var powerUpWaveTimer = 0f
@@ -48,6 +51,7 @@ class SpawnTimeline {
   private var s5KamiVSpawned = false
   private var s5HeavyLeftSpawned = false
   private var s5HeavyRightSpawned = false
+  private var s5WagonsSpawned = false
   private var s5DrizzleGap = 0f
   private var s5DrizzleSeed = 1L
   private var s5PowerWaveSpawned = false
@@ -140,6 +144,7 @@ class SpawnTimeline {
     s2TurretGuardsSpawned = false
     s2KamiDiamondSpawned = false
     s2KamiDiamondStep = 0
+    s2TanksSpawned = false
     s2LeftWallSpawned = false
     s2LeftWallCount = 0
     s2RightWallSpawned = false
@@ -148,6 +153,7 @@ class SpawnTimeline {
     s2CenterInterceptSpawned = false
     s3ScoutGap = S3_SCOUT_SPACING
     s3FlankGap = S3_FLANK_SPACING
+    s3DestroyersSpawned = false
     s3CruiserSpawned = false
     s3MidCrossSpawned = false
     s3FlankFromLeft = true
@@ -157,6 +163,7 @@ class SpawnTimeline {
     s4KamiSpawned = false
     s4WallCount = 0
     s4CruiserSpawned = false
+    s4HoldVSpawned = false
     openingPowerVSpawned = false
     powerUpWaveQueued = false
     powerUpWaveTimer = 0f
@@ -166,6 +173,7 @@ class SpawnTimeline {
     s5KamiVSpawned = false
     s5HeavyLeftSpawned = false
     s5HeavyRightSpawned = false
+    s5WagonsSpawned = false
     s5DrizzleGap = 0f
     s5DrizzleSeed = 1L
     s5PowerWaveSpawned = false
@@ -190,10 +198,8 @@ class SpawnTimeline {
       }
     }
     if (!vFormSpawned && elapsedTime >= V_FORM_AT) {
-      if (enemies.countActive() < MAX_ACTIVE) {
-        vFormSpawned = true
-        spawnVFormation(enemies, w, h)
-      }
+      vFormSpawned = true
+      spawnVFormation(enemies, w, h)
     }
     if (!weaveStarted && elapsedTime >= WEAVE_AT) {
       weaveStarted = true
@@ -211,17 +217,13 @@ class SpawnTimeline {
       }
     }
     if (!s1CrossSpawned && elapsedTime >= S1_CROSS_AT) {
-      if (enemies.countActive() < MAX_ACTIVE) {
-        s1CrossSpawned = true
-        spawnSideCross(enemies, w, h, S1_CROSS_Y, CROSS_VX, CROSS_VY, TYPE_DRONE)
-      }
+      s1CrossSpawned = true
+      spawnSideCross(enemies, w, h, S1_CROSS_Y, CROSS_VX, CROSS_VY, TYPE_DRONE)
     }
     if (!wallSpawned && elapsedTime >= WALL_AT) {
-      if (enemies.countActive() < MAX_ACTIVE) {
-        wallSpawned = true
-        enemies.spawnEnemy(0.30f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP)
-        enemies.spawnEnemy(0.70f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP)
-      }
+      wallSpawned = true
+      enemies.spawnEnemy(0.30f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP)
+      enemies.spawnEnemy(0.70f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, 0, HEAVY_HP)
     }
   }
 
@@ -304,6 +306,31 @@ class SpawnTimeline {
         s2KamiDiamondStep = 3
         s2KamiDiamondSpawned = true
       }
+    }
+    if (!s2TanksSpawned && elapsedTime >= S2_TANKS_AT) {
+      s2TanksSpawned = true
+      val y = -0.06f * h
+      val vy = HEAVY_VY * 2.2f
+      enemies.spawnEnemy(
+        S2_TANK_LANE_L * w,
+        y,
+        0f,
+        vy,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S2_TANK_HP,
+        isLandVehicle = true,
+      )
+      enemies.spawnEnemy(
+        S2_TANK_LANE_R * w,
+        y,
+        0f,
+        vy,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S2_TANK_HP,
+        isLandVehicle = true,
+      )
     }
     if (!s2LeftWallSpawned && elapsedTime >= S2_LEFT_WALL_AT) {
       var safeguard = 0
@@ -458,18 +485,36 @@ class SpawnTimeline {
       }
     }
     if (!s3CruiserSpawned && elapsedTime >= S3_CRUISER_AT) {
-      if (enemies.countActive() < MAX_ACTIVE) {
-        s3CruiserSpawned = true
-        enemies.spawnEnemy(
-          0.50f * w,
-          -0.10f * h,
-          0f,
-          HEAVY_VY * 0.85f,
-          TYPE_HEAVY,
-          PATTERN_V_HOLD,
-          S3_CRUISER_HP,
-        )
-      }
+      s3CruiserSpawned = true
+      val y = -0.10f * h
+      val vy = HEAVY_VY
+      enemies.spawnEnemy(0.30f * w, y, 0f, vy, TYPE_HEAVY, PATTERN_V_HOLD, S3_CRUISER_HP)
+      enemies.spawnEnemy(0.70f * w, y, 0f, vy, TYPE_HEAVY, PATTERN_V_HOLD, S3_CRUISER_HP)
+    }
+    if (!s3DestroyersSpawned && elapsedTime >= S3_DESTROYER_AT) {
+      s3DestroyersSpawned = true
+      val y = -0.06f * h
+      val vy = HEAVY_VY * 2.2f
+      enemies.spawnEnemy(
+        0.28f * w,
+        y,
+        0f,
+        vy,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S3_DESTROYER_HP,
+        isDestroyer = true,
+      )
+      enemies.spawnEnemy(
+        0.72f * w,
+        y,
+        0f,
+        vy,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S3_DESTROYER_HP,
+        isDestroyer = true,
+      )
     }
     if (!s3MidCrossSpawned && elapsedTime >= S3_CROSS_AT) {
       if (enemies.countActive() < MAX_ACTIVE) {
@@ -534,20 +579,6 @@ class SpawnTimeline {
         enemies.spawnEnemy(1.08f * w, y, -S4_FLANK_VX, 0f, TYPE_DRONE)
       }
     }
-    if (!s4CruiserSpawned && elapsedTime >= S4_CRUISER_AT) {
-      if (enemies.countActive() < MAX_ACTIVE) {
-        s4CruiserSpawned = true
-        enemies.spawnEnemy(
-          0.50f * w,
-          -0.10f * h,
-          0f,
-          S4_CRUISER_VY,
-          TYPE_HEAVY,
-          PATTERN_V_HOLD,
-          S4_CRUISER_HP,
-        )
-      }
-    }
     if (
       elapsedTime >= S4_WEAVE_START &&
       elapsedTime <= S4_WEAVE_END &&
@@ -564,16 +595,26 @@ class SpawnTimeline {
         enemies.spawnEnemy(0.88f * w, -0.02f * h, 0f, S4_WEAVE_VY, TYPE_DRONE, PATTERN_WEAVE)
       }
     }
+    if (!s4CruiserSpawned && elapsedTime >= S4_CRUISER_AT) {
+      s4CruiserSpawned = true
+      enemies.spawnEnemy(
+        0.50f * w,
+        -0.10f * h,
+        0f,
+        S4_CRUISER_VY,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S4_CRUISER_HP,
+      )
+    }
     if (!s4KamiSpawned && elapsedTime >= S4_KAMI_AT) {
-      if (enemies.countActive() < MAX_ACTIVE) {
-        s4KamiSpawned = true
-        enemies.spawnEnemy(-0.06f * w, 0.22f * h, S4_FLANK_VX * 0.90f, S4_KAMI_VY * 0.70f, TYPE_KAMIKAZE)
-        enemies.spawnEnemy(1.06f * w, 0.22f * h, -S4_FLANK_VX * 0.90f, S4_KAMI_VY * 0.70f, TYPE_KAMIKAZE)
-      }
+      s4KamiSpawned = true
+      enemies.spawnEnemy(-0.06f * w, 0.22f * h, S4_FLANK_VX * 0.90f, S4_KAMI_VY * 0.70f, TYPE_KAMIKAZE)
+      enemies.spawnEnemy(1.06f * w, 0.22f * h, -S4_FLANK_VX * 0.90f, S4_KAMI_VY * 0.70f, TYPE_KAMIKAZE)
     }
     if (elapsedTime >= S4_WALL_START && elapsedTime <= S4_WALL_END && s4WallCount < S4_WALL_COUNT) {
       val at = S4_WALL_START + s4WallCount * S4_WALL_SPACING
-      if (elapsedTime >= at && enemies.countActive() < MAX_ACTIVE) {
+      if (elapsedTime >= at) {
         val lane = if (s4WallCount == 0) {
           0.10f
         } else if (s4WallCount == 1) {
@@ -586,6 +627,10 @@ class SpawnTimeline {
         enemies.spawnEnemy(lane * w, -0.04f * h, 0f, S4_WALL_VY, TYPE_DRONE)
         s4WallCount++
       }
+    }
+    if (!s4HoldVSpawned && elapsedTime >= S4_HOLD_V_AT) {
+      s4HoldVSpawned = true
+      spawnVFormation(enemies, w, h)
     }
   }
 
@@ -643,6 +688,31 @@ class SpawnTimeline {
         TYPE_HEAVY,
         PATTERN_V_HOLD,
         S5_HEAVY_HP,
+      )
+    }
+    if (!s5WagonsSpawned && stageTimer >= S5_WAGONS_AT) {
+      s5WagonsSpawned = true
+      val y = -0.06f * h
+      val vy = HEAVY_VY * 2.2f
+      enemies.spawnEnemy(
+        0.22f * w,
+        y,
+        0f,
+        vy,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S5_WAGON_HP,
+        isWagon = true,
+      )
+      enemies.spawnEnemy(
+        0.78f * w,
+        y,
+        0f,
+        vy,
+        TYPE_HEAVY,
+        PATTERN_V_HOLD,
+        S5_WAGON_HP,
+        isWagon = true,
       )
     }
     if (stageTimer >= S5_DRIZZLE_START && stageTimer <= S5_DRIZZLE_END) {
@@ -813,16 +883,22 @@ class SpawnTimeline {
     const val S2_KAMI_LEADER_AT = 14.0f
     const val S2_KAMI_WINGS_AT = 14.5f
     const val S2_KAMI_TAIL_AT = 15.0f
-    const val S2_LEFT_WALL_AT = 20.0f
-    const val S2_RIGHT_WALL_AT = 22.0f
+    const val S2_TANKS_AT = 18.5f
+    const val S2_TANK_LANE_L = 0.30f
+    const val S2_TANK_LANE_R = 0.70f
+    const val S2_TANK_HP = 12
+    const val S2_LEFT_WALL_AT = 23.0f
+    const val S2_RIGHT_WALL_AT = 25.0f
     const val S2_WALL_STAGGER = 0.3f
-    const val S2_PRE_BOSS_AT = 24.5f
-    const val S2_CENTER_INTERCEPT_AT = 25.5f
+    const val S2_PRE_BOSS_AT = 27.0f
+    const val S2_CENTER_INTERCEPT_AT = 28.0f
     const val S3_SCOUT_START = 1.5f
     const val S3_SCOUT_END = 5.5f
     const val S3_SCOUT_SPACING = 1.65f
     const val S3_CRUISER_AT = 7.5f
     const val S3_CRUISER_HP = 16
+    const val S3_DESTROYER_AT = 16.0f
+    const val S3_DESTROYER_HP = 12
     const val S3_CROSS_AT = 10.5f
     const val S3_CROSS_Y = 0.38f
     const val S3_FLANK_START = 14.0f
@@ -833,7 +909,7 @@ class SpawnTimeline {
     const val S4_FLANK_END = 6.0f
     const val S4_FLANK_SPACING = 1.25f
     const val S4_FLANK_VX = 340f
-    const val S4_CRUISER_AT = 9.0f
+    const val S4_CRUISER_AT = 22.0f
     const val S4_CRUISER_HP = 20
     const val S4_CRUISER_VY = 80f
     const val S4_WEAVE_START = 15.0f
@@ -848,6 +924,7 @@ class SpawnTimeline {
     const val S4_WALL_SPACING = 1.0f
     const val S4_WALL_COUNT = 4
     const val S4_WALL_VY = 440f
+    const val S4_HOLD_V_AT = 35.0f
     const val S4_BOSS_AT = 45.0f
     const val S5_FLANK_END = 12.0f
     const val S5_FLANK_SPACING = 1.5f
@@ -856,15 +933,17 @@ class SpawnTimeline {
     const val S5_KAMI_V_AT = 8.0f
     const val S5_KAMI_VY = 680f
     const val S5_HEAVY_LEFT_AT = 14.0f
-    const val S5_HEAVY_RIGHT_AT = 22.0f
+    const val S5_HEAVY_RIGHT_AT = 32.0f
     const val S5_HEAVY_HP = 32
+    const val S5_WAGONS_AT = 18.5f
+    const val S5_WAGON_HP = 14
     const val S5_DRIZZLE_START = 14.0f
-    const val S5_DRIZZLE_END = 28.0f
+    const val S5_DRIZZLE_END = 17.5f
     const val S5_DRIZZLE_SPACING = 2.0f
     const val S5_DRIZZLE_VY = 170f
-    const val S5_POWER_WAVE_AT = 32.0f
+    const val S5_POWER_WAVE_AT = 34.0f
     const val S5_POWER_VY = 140f
-    const val S5_KAMI_WALL_AT = 36.0f
+    const val S5_KAMI_WALL_AT = 38.0f
     const val S5_SCROLL_DECAY_AT = 40.0f
     const val S5_SCROLL_DECAY_SPAN = 5.0f
     const val S5_SCROLL_START = 280f

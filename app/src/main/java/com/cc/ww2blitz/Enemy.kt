@@ -22,6 +22,10 @@ class Enemy {
   var health = 1
   var isActive = false
   var isRedShipAnchor = false
+  var isDestroyer = false
+  var isLandVehicle = false
+  var isWagon = false
+  fun isGroundHeavy(): Boolean = isDestroyer || isLandVehicle || isWagon
   var fireTimer = 0f
   var burstLeft = 0
   var burstWait = 0f

@@ -83,7 +83,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var hitPipMidBmp: Bitmap? = null
   private var hitPipWarnBmp: Bitmap? = null
   private var hitPipEmptyBmp: Bitmap? = null
-  private var availableBombs = 3
+  private var availableBombs = START_BOMBS
   private var gameState = STATE_TITLE
   private var isSettingsMenuOpen = false
   private var logoBmp: Bitmap? = null
@@ -204,6 +204,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     isAntiAlias = true
   }
   private val uiStringBuilder = StringBuilder(80)
+  private val appVersionName: String
   private val uiSmallPaint = Paint().apply {
     color = Color.WHITE
     typeface = Typeface.DEFAULT_BOLD
@@ -274,6 +275,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     popupPaint.typeface = face
     popupShadowPaint.typeface = face
     uiController.bindTypeface(face)
+    var ver = "1.0.1"
+    try {
+      val name = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+      if (name != null && name.isNotEmpty()) ver = name
+    } catch (_: Exception) {
+    }
+    appVersionName = ver
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -349,6 +357,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       STATE_CLEAR -> {
         tickParallax(0f, dt)
         ScoreManager.instance.updateRecap(dt)
+        applyPendingExtends()
         updateFloatingScores(dt)
         particles.update(dt)
       }
@@ -439,6 +448,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         updatePanicBomb(dt)
         particles.update(dt)
         resolveCollisions()
+        if (gameState == STATE_PLAYING) {
+          applyPendingExtends()
+        }
         boss.refreshPhaseFlags()
         val pulse = boss.consumeVisualFlags()
         if ((pulse and BossController.FX_PHASE) != 0) {
@@ -825,7 +837,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       canvas.drawBitmap(logo, null, hudIconDst, bodyPaint)
     }
     val cx = screenW * 0.5f
-    val creditY = screenH - 45f
+    val versionY = screenH - 32f
+    val creditY = versionY - 28f
     val menuBottomAnchorY = creditY - 130f
     val menuBlockStride = 180f
     val tagSubPadding = 32f
@@ -886,6 +899,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("CREDIT 2026 Claudiu Colteu. All rights reserved.")
     drawCenteredHud(canvas, uiStringBuilder, cx, creditY, uiSmallPaint, uiSmallShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("VER ")
+    uiStringBuilder.append(appVersionName)
+    drawCenteredHud(canvas, uiStringBuilder, cx, versionY, uiSmallPaint, uiSmallShadowPaint)
   }
 
   private fun drawDifficultySelectScreen(canvas: Canvas) {
@@ -1316,8 +1333,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       while (ei < enemyCount) {
         val enemy = enemyPool[ei]
         if (enemy.isActive) {
-          val ew = enemies.halfWOf(enemy.type)
-          val eh = enemies.halfHOf(enemy.type)
+          val ew = enemies.halfWOf(enemy)
+          val eh = enemies.halfHOf(enemy)
           if (
             enemy.x + ew >= bombLeft && enemy.x - ew <= bombRight &&
             enemy.y + eh >= bombTop && enemy.y - eh <= bombBottom
@@ -1813,7 +1830,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         while (ei < enemyCount) {
           val enemy = enemyPool[ei]
           if (enemy.isActive) {
-            if (shotHitsEnemy(bullet.x - enemy.x, bullet.y - enemy.y, enemy.type)) {
+            if (shotHitsEnemy(bullet.x - enemy.x, bullet.y - enemy.y, enemy)) {
               bullet.isActive = false
               enemy.health -= 1
               if (enemy.type == ENEMY_TYPE_HEAVY) {
@@ -1845,7 +1862,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         while (ei < enemyCount) {
           val enemy = enemyPool[ei]
           if (enemy.isActive) {
-            if (shotHitsEnemy(missile.x - enemy.x, missile.y - enemy.y, enemy.type)) {
+            if (shotHitsEnemy(missile.x - enemy.x, missile.y - enemy.y, enemy)) {
               missile.isActive = false
               enemy.health -= 1
               if (enemy.type == ENEMY_TYPE_HEAVY) {
@@ -1980,8 +1997,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       while (ei < enemyCount) {
         val enemy = enemyPool[ei]
         if (enemy.isActive) {
-          val sx = playerRadius + enemies.halfWOf(enemy.type) * ramBody
-          val sy = playerRadius + enemies.halfHOf(enemy.type) * ramBody
+          val sx = playerRadius + enemies.halfWOf(enemy) * ramBody
+          val sy = playerRadius + enemies.halfHOf(enemy) * ramBody
           if (sx > 0f && sy > 0f) {
             val nx = (enemy.x - playerX) / sx
             val ny = (enemy.y - playerY) / sy
@@ -2058,12 +2075,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
-  private fun shotHitsEnemy(dx: Float, dy: Float, type: Int): Boolean {
+  private fun shotHitsEnemy(dx: Float, dy: Float, enemy: Enemy): Boolean {
+    val type = enemy.type
     val popcorn = type != ENEMY_TYPE_INTERCEPTOR && type != ENEMY_TYPE_HEAVY
     val pad = if (popcorn) SHOT_HIT_PAD_POPCORN else SHOT_HIT_PAD
     val frac = if (popcorn) SHOT_HIT_BODY_FRAC_POPCORN else SHOT_HIT_BODY_FRAC
-    val sx = pad + enemies.halfWOf(type) * frac
-    val sy = pad + enemies.halfHOf(type) * frac
+    val sx = pad + enemies.halfWOf(enemy) * frac
+    val sy = pad + enemies.halfHOf(enemy) * frac
     if (sx <= 0f || sy <= 0f) return false
     val nx = dx / sx
     val ny = dy / sy
@@ -2090,9 +2108,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     val awarded = ScoreManager.instance.scalePoints(base)
     if (awarded <= 0) return
-    campaignScore += awarded
-    if (campaignScore > 99_999_999) campaignScore = 99_999_999
+    ScoreManager.instance.addScore(awarded)
     triggerFloatingScore(enemy.x, enemy.y, awarded)
+  }
+
+  private fun applyPendingExtends() {
+    val scores = ScoreManager.instance
+    while (scores.consumeExtend()) {
+      if (player.grantExtraLife()) {
+        SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+      }
+    }
   }
 
   private fun fireRevengeIfNeeded(enemy: Enemy) {
@@ -2167,8 +2193,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       player.upgradeWeapon()
     } else {
       val awarded = ScoreManager.instance.scalePoints(POWERUP_FULL_SCORE)
-      campaignScore += awarded
-      if (campaignScore > 99_999_999) campaignScore = 99_999_999
+      ScoreManager.instance.addScore(awarded)
       triggerFloatingScore(x, y, awarded)
     }
     SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
@@ -2179,8 +2204,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       availableBombs++
     } else {
       val awarded = ScoreManager.instance.scalePoints(BOMB_FULL_SCORE)
-      campaignScore += awarded
-      if (campaignScore > 99_999_999) campaignScore = 99_999_999
+      ScoreManager.instance.addScore(awarded)
       triggerFloatingScore(x, y, awarded)
     }
     SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
@@ -2195,8 +2219,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       MEDAL_SCORE_EDGE
     }
     val awarded = ScoreManager.instance.scalePoints(points)
-    campaignScore += awarded
-    if (campaignScore > 99_999_999) campaignScore = 99_999_999
+    ScoreManager.instance.addScore(awarded)
     triggerFloatingScore(item.x, item.y, awarded)
     SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
   }
@@ -2384,8 +2407,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     player.resetWeaponPower()
     player.restoreLives()
-    availableBombs = 3
+    availableBombs = START_BOMBS
     ScoreManager.instance.reset()
+    ScoreManager.instance.armExtends()
     maxStageCleared = 0
     resetStage()
     attractCycleTimer = 0f
@@ -2458,7 +2482,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     player.resetWeaponPower()
     player.restoreLives()
-    availableBombs = 3
+    availableBombs = START_BOMBS
     resetStage()
     player.upgradeWeapon()
     player.upgradeWeapon()
@@ -2527,7 +2551,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     ScoreManager.instance.syncDifficultyMultiplier(stageManager.getDifficulty().index)
     player.resetWeaponPower()
     player.restoreLives()
-    availableBombs = 3
+    availableBombs = START_BOMBS
+    ScoreManager.instance.reset()
     campaignScore = 0
     maxStageCleared = 0
     resetStage()
@@ -2966,6 +2991,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val REVENGE_SHOT_SPEED = 550f
     const val REVENGE_SPREAD_RAD = 0.18f
     const val MAX_BOMBS = 3
+    const val START_BOMBS = 2
     const val BOMB_FULL_SCORE = 5000
     const val POWERUP_FULL_SCORE = 2000
     const val RESPAWN_POWERUP_LIFT = 160f

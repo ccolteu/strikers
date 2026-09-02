@@ -69,6 +69,10 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 49 | Static hose must miss the rails | Side/cross director beats; kamikazes seek on Normal | [Formations](#19-formations) |
 | 50 | Extra drops follow the pot | `lootChanceScale` × dip, cap 20% popcorn / 50% armor | [Score and recap](#25-score-and-recap) |
 | 51 | Recap must not sound like the gun | Tally ticks `SFX_PICKUP`, not vulcan | [Audio](#27-audio) |
+| 52 | A clean loop must pay a 1UP | 50k, then every 100k; `grantExtraLife` cap 6; credit-only | [Lives](#16-lives-hits-respawn) |
+| 53 | Teach beats must not vanish at the pool cap | Scripted one-shots ignore `MAX_ACTIVE` | [Director](#18-time-scripted-director) |
+| 54 | Attract card must show the ROM revision | `VER` + installed `versionName` under CREDIT, same small typeface | [Attract](#6-attract) |
+| 55 | Tanks and ships sit on the ground, not in the flight | Two-pass grunt blit: `isGroundHeavy()` then airborne | [Theaters](#23-theaters-and-z-order) |
 
 ```mermaid
 flowchart TB
@@ -195,7 +199,7 @@ Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / d
 
 **Why.** A fake “attract-only” spawn list would desync from the product. Reusing the director means the window always shows shippable waves. Forbidding insert keeps the operator table honest.
 
-**Implementation.** `ATTRACT_TITLE_SECS = 4`, `ATTRACT_DEMO_SECS = 30`, `ATTRACT_HIGH_SCORE_SECS = 4`. On title timeout, `beginDemo()` picks stage `1…5` with an LCG, skipping `lastDemoStage`. Stage 6 is never attract. `demoPilot` steers toward the lowest living enemy or boss part, sidesteps nearby downward bullets, sine-wanders if idle (`DEMO_SPEED`). `resolveEnemyBulletsVsPlayer(..., awardScore = false)`. Touch on demo or ranking returns to interactive title. Surface recreate does **not** force `ATTRACT_TITLE`; ranking can survive a flap. `HighScoreManager` insert is not called on this path.
+**Implementation.** `ATTRACT_TITLE_SECS = 4`, `ATTRACT_DEMO_SECS = 30`, `ATTRACT_HIGH_SCORE_SECS = 4`. Title footer: CREDIT line, then `VER` plus `PackageManager` `versionName` (cached at `GameView` init), both `uiSmallPaint` / arcade face. On title timeout, `beginDemo()` picks stage `1…5` with an LCG, skipping `lastDemoStage`. Stage 6 is never attract. `demoPilot` steers toward the lowest living enemy or boss part, sidesteps nearby downward bullets, sine-wanders if idle (`DEMO_SPEED`). `resolveEnemyBulletsVsPlayer(..., awardScore = false)`. Touch on demo or ranking returns to interactive title. Surface recreate does **not** force `ATTRACT_TITLE`; ranking can survive a flap. `HighScoreManager` insert is not called on this path.
 
 ---
 
@@ -315,7 +319,7 @@ Stage table (metrics as coded):
 
 **Need.** A bomb is a rare panic, not a second vulcan. Same tap as fire would dump stock. A 0.5 s blast must not delete a boss core through armor in one frame, nor tickle it.
 
-**Choice.** Double-tap (280 ms, pixel slop) spends one of three bombs. Damage is DPS accumulated in a float bank, applied as ints, AABB vs enemies/boss parts, shots cancelled inside the blast rect.
+**Choice.** Double-tap (280 ms, pixel slop) spends one bomb. Credit start is **2** (`START_BOMBS`); stock still caps at 3. Damage is DPS accumulated in a float bank, applied as ints, AABB vs enemies/boss parts, shots cancelled inside the blast rect.
 
 **Why.** Gesture isolation is how cabinets separated buttons. DPS+bank is frame-rate stable. Cancelling bullets is the Psikyo bomb language.
 
@@ -339,11 +343,11 @@ Stage table (metrics as coded):
 
 **Need.** Cabinets chip a shield bar, then explode a life, then GAME OVER. Blowing the sprite with lives left is not the end of the credit.
 
-**Choice.** `lives` (3) × `hitsLeft` (3). `takeDamage` returns true when **this body exploded**, not only when the credit is dead. `GameView` enters GAME OVER only if `player.isGameOver()`.
+**Choice.** `lives` (3) × `hitsLeft` (3). Score extend: first 1UP at 50k, then every 100k (150k, 250k, …), cap 6 lives. `takeDamage` returns true when **this body exploded**, not only when the credit is dead. `GameView` enters GAME OVER only if `player.isGameOver()`.
 
 **Why.** Separating explosion from credit-over lets respawn, invuln, and HUD stay honest. Callers that treated `takeDamage() == true` as game over would skip remaining lives.
 
-**Implementation.** Invuln or respawn timer: ignore hits. Decrement hits; if hits remain, 2 s invuln, return false. Else spend a life, reset hits, **weapon power = 1**, dump live rank to 40%, `respawnTimer = 0.4 s`; if lives == 0 set `isGameOverFlag`. After respawn, snap to `(0.5w, 0.78h)` and invuln. Campaign only: `consumeRespawnPowerDrop` spawns a swaying **P** at `shipY − 160` (min Y 96) so it is catchable during i-frames and missable if you dodge. `isOnField()` is false during respawn/game over so bullets do not chew a ghost. Shield pickup calls `restoreHits()`. Demo does not drop the P.
+**Implementation.** Invuln or respawn timer: ignore hits. Decrement hits; if hits remain, 2 s invuln, return false. Else spend a life, reset hits, **weapon power = 1**, dump live rank to 40%, `respawnTimer = 0.4 s`; if lives == 0 set `isGameOverFlag`. After respawn, snap to `(0.5w, 0.78h)` and invuln. Campaign only: `consumeRespawnPowerDrop` spawns a swaying **P** at `shipY − 160` (min Y 96) so it is catchable during i-frames and missable if you dodge. `isOnField()` is false during respawn/game over so bullets do not chew a ghost. Shield pickup calls `restoreHits()`. Demo does not drop the P. Extends: `ScoreManager.armExtends()` on credit start; `addScore` latches crossed thresholds; `GameView.applyPendingExtends` in play and recap calls `grantExtraLife` + `SFX_PICKUP`. Demo and title stay disarmed.
 
 ---
 
@@ -353,7 +357,7 @@ Stage table (metrics as coded):
 
 **Choice.** Fixed arrays, inactive flag, linear scan. If the timeline would exceed a safety cap, **skip** the spawn.
 
-**Why.** Skip-beats-overwrite: a dropped drone is better than a live heavy teleporting. Caps (`MAX_ACTIVE = 10` on the director vs 48 physical slots) keep overlap readable.
+**Why.** Skip-beats-overwrite: a dropped drone is better than a live heavy teleporting. Caps (`MAX_ACTIVE = 10` on drizzle/flank loops vs 48 physical slots) keep overlap readable. Scripted one-shots (Stage 1 V/cross/wall, Stage 3/4 cruisers, destroyers/tanks/wagons, Stage 4 kami/walls/hold-V) ignore the cap so a teach beat cannot vanish.
 
 **Implementation.**
 
@@ -379,7 +383,7 @@ Stage table (metrics as coded):
 
 **Why.** Clock = cabinet rhythm. Latch = one-shot even if `elapsedTime` jumps the threshold. Freeze = the fortress is the content.
 
-**Implementation.** `update` sets `activeStage` from `StageData`. Stage 6: increment until `S6_INTRO_SECS` (5), `beginEntranceForStage(6)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V on stages that `usesOpeningPowerV`. Flags: `vFormSpawned`, `s1CrossSpawned`, `wallSpawned`, `s2KamiDiamondSpawned`, `s3MidCrossSpawned`, … `countActive() >= MAX_ACTIVE` breaks inner spawn loops. `reset()` zeros the clock and flags. Stage 5 ramps `scrollSpeedY` 280→0 between 40–45 s with no spawns, then cues the engine. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
+**Implementation.** `update` sets `activeStage` from `StageData`. Stage 6: increment until `S6_INTRO_SECS` (5), `beginEntranceForStage(6)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V on stages that `usesOpeningPowerV`. Flags: `vFormSpawned`, `s1CrossSpawned`, `wallSpawned`, `s2KamiDiamondSpawned`, `s3MidCrossSpawned`, … `countActive() >= MAX_ACTIVE` breaks **drip** loops (flanks, weaves, scouts), not latched formations. Stage 4 cruiser parks at 22 s, after weaves end (21 s). `reset()` zeros the clock and flags. Stage 5 ramps `scrollSpeedY` 280→0 between 40–45 s with no spawns, then cues the engine. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
 
 ---
 
@@ -393,9 +397,9 @@ Stage table (metrics as coded):
 
 **Implementation.** Types: `TYPE_DRONE`, `TYPE_KAMIKAZE`, `TYPE_INTERCEPTOR`, `TYPE_HEAVY`. Patterns: `PATTERN_V_HOLD` (descend, `aiPhase` hold, then aim), `PATTERN_WEAVE` (sine on `homeX`), `PATTERN_DIAGONAL_SWEEP`. Diamond: `diamondLeader` / `diamondWingSign`. Motion in `EnemyPoolManager.update` (`updateInterceptorHold`, weave, kamikaze `steerToward` when `kamikazeSeeks()` — Normal+ or rank ≥ 0.50). Dive speeds: `KAMI_VY` 560, fast 680; Stage 4/5 **side** kamis multiply `vy` by 0.70 so they are not a vertical wall.
 
-Hull HP: drones 1, kami 2, interceptors 6, heavies 10, Stage 3/4 cruisers 16/20, Stage 5 heavies 32.
+Hull HP: drones 1, kami 2, interceptors 6, heavies 10, Stage 3 cruiser 16 / destroyers 12, Stage 4 cruiser 20, Stage 5 heavies 32.
 
-Jobs by stage: Stage 1 teach (sweep V that drops **P**, flanks, hold V, weaves at 14/86% width, mid-Y cross at 16 s, twin heavies). Stage 2 deny camping (pincers, death-clear heavies, diamond, weaves/walls from rails, pre-boss bezels). Stage 3 scouts + cruiser + mid cross. Stage 4 width, weaves, side kami, charge walls in lanes. Stage 5 facility drizzle full width, kami V as a side pincer, then freeze. Stage 6 empty.
+Jobs by stage: Stage 1 teach (sweep V that drops **P**, flanks, hold V, weaves at 14/86% width, mid-Y cross at 16 s, twin heavies). Stage 2 deny camping (pincers, death-clear heavies, diamond, a rest, then tanks at 30%/70% width, then walls). Stage 3 scouts, twin airborne heavies (high short hold, then off the top), mid cross, then a destroyer pair (mid-low Y, then slide off the bottom). Stage 4 width, weaves, then the cruiser, side kami, charge walls in lanes, interceptor hold-V before the fortress. Stage 5 facility drizzle, kami V, left gunship, wagons (then a rest), right gunship, power, kami wall, freeze. Stage 6 empty. Tanks, destroyers, and wagons are theater skins of `TYPE_HEAVY` + `isGroundHeavy()`; they blit under planes.
 
 Deliberately not done: steering groups, twelve enemy classes, random scatter inside a wave shape, spawn when pool full.
 
@@ -443,11 +447,11 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Need.** Painted maps are ~2:3. Stretching them on a tall phone melts hangars. Stage 5/6 have a roof that should hide **enemy** craft, not the player. The title must sell the product, not scroll a canyon behind the logo.
 
-**Choice.** Cover-scale parallax (uniform scale, crop overflow). Title is a center-cropped still. Stage 5/6 draw floor, then hostiles, then canopy, then player/shots/HUD.
+**Choice.** Cover-scale parallax (uniform scale, crop overflow). Title is a center-cropped still. Stage 5/6 draw floor, then hostiles, then canopy, then player/shots/HUD. Inside the grunt pass, ground heavies draw before airborne so tanks and destroyers cannot cover planes.
 
 **Why.** Cover preserves proportions. Z-order is the 1942 “you fly under the bridge” trick. A still title is an attract card.
 
-**Implementation.** `ParallaxBackground` cover-scales layers; mid/high clouds `PorterDuff.SCREEN`. Stages 2–4 swap ground bitmaps only. Stage 5: floor at `scrollSpeedY`, keyed canopy at 1.5×. Stage 6: cloud floor, recycle/swap to space at 30 s (`S6_SPACE_SWAP_AT`), orbit overlay from 35 s (`S6_CANOPY_AT`), speed envelope in `updateStage6`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are Stage 1 identity.
+**Implementation.** `ParallaxBackground` cover-scales layers; mid/high clouds `PorterDuff.SCREEN`. Stages 2–4 swap ground bitmaps only. Stage 5: floor at `scrollSpeedY`, keyed canopy at 1.5×. Stage 6: cloud floor, recycle/swap to space at 30 s (`S6_SPACE_SWAP_AT`), orbit overlay from 35 s (`S6_CANOPY_AT`), speed envelope in `updateStage6`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are Stage 1 identity. Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne, so ground units never paint over planes regardless of pool slot.
 
 ---
 
@@ -471,7 +475,7 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Why.** Cabinets always ticked the counter on explode, then paid again if you scooped the gold. A 100-point drone does not rival a 2000-point face medal, so the Psikyo “pick the gold” skill still decides the ranking. The player **sees** the HUD move on every wreck, even if they miss the coin. Demo does not pay (same honesty as graze).
 
-**Implementation.** `addScore` / `scalePoints`. `GameView.onEnemyKilled` (vulcan, missile, bomb, ram — `STATE_PLAYING` only) calls `awardKillScore`: `KILL_SCORE_*` × dip, `campaignScore +=`, `triggerFloatingScore` at the wreck. No extra medal or chip is spawned for the token. Graze count separate. Recap: `PHASE_LIVES` → `BOMBS` → `GRAZE` → `TOTAL` (~1 s each, `SFX_PICKUP` every 5 frames while rolling — not the vulcan sample). `UIController.drawStageClear` from char buffers. `ACTION_UP` when `isRecapReady()`: `resetStageCounters`, `advanceToNextStage`; if latch → `STATE_CAMPAIGN_COMPLETE`, else interstitial. 40% black wash under the card. World sprites not drawn in `STATE_CLEAR`.
+**Implementation.** `addScore` / `scalePoints`. `GameView.onEnemyKilled` (vulcan, missile, bomb, ram — `STATE_PLAYING` only) calls `awardKillScore`: `KILL_SCORE_*` × dip, `addScore`, `triggerFloatingScore` at the wreck. No extra medal or chip is spawned for the token. Graze count separate. Recap: `PHASE_LIVES` → `BOMBS` → `GRAZE` → `TOTAL` (~1 s each, `SFX_PICKUP` every 5 frames while rolling — not the vulcan sample). Recap tally can cross an extend threshold. `UIController.drawStageClear` from char buffers. `ACTION_UP` when `isRecapReady()`: `resetStageCounters`, `advanceToNextStage`; if latch → `STATE_CAMPAIGN_COMPLETE`, else interstitial. 40% black wash under the card. World sprites not drawn in `STATE_CLEAR`.
 
 Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FULL_SCORE` (2000) + floating popup (`collectPowerUp`), same pattern as extra **B** at 3 stock (`BOMB_FULL_SCORE` 5000 + popup). Falling medals still score face-up 2000 / edge 200 at Normal, then × dip. Extra **P/B** chance after the medal: base 15% popcorn / 40% armor, × `lootChanceScale()`, then cap 20% / 50%. Shield `restoreHits()`. Stage 5 cancel medals during core-kill freeze. Medals **magnet**: within 96 px they slide toward the ship at 420 px/s; in the outer 10% of the screen, if the plane is hugging that same wall, the pull radius is 188 px so rim coins still collect (the sprite clamp cannot kiss the bezel). P/B are unchanged wall-bounce at 30 px.
 
@@ -543,7 +547,7 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 | `PowerUpItem` | P / B / shield / medal slots |
 | `ParallaxBackground` | Cover-scaled theaters |
 | `ParticleManager` | Explosions, graze sparks |
-| `ScoreManager` | Score, graze count, recap phases |
+| `ScoreManager` | Score, graze count, recap phases, score-extend latch |
 | `HighScoreManager` | Top 10 EEPROM |
 | `UIController` | Interstitials, recap HUD, credits |
 | `SoundManager` | SFX pool, looped BGM, volume prefs |

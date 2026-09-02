@@ -17,6 +17,9 @@ class ScoreManager private constructor() {
   private var grazeAwarded = 0
   private var recapActive = false
   private var activeMultiplier = 1.0f
+  private var nextExtendAt = EXTEND_FIRST
+  private var pendingExtends = 0
+  private var extendsArmed = false
 
   fun getScore(): Int = score
 
@@ -28,7 +31,20 @@ class ScoreManager private constructor() {
   }
 
   fun addScore(points: Int) {
+    if (points <= 0) return
+    val before = score
     setScore(score + points)
+    latchExtends(before, score)
+  }
+
+  fun armExtends() {
+    extendsArmed = true
+  }
+
+  fun consumeExtend(): Boolean {
+    if (pendingExtends <= 0) return false
+    pendingExtends--
+    return true
   }
 
   fun syncDifficultyMultiplier(difficultyIndex: Int) {
@@ -188,7 +204,26 @@ class ScoreManager private constructor() {
   fun reset() {
     score = 0
     popupCount = 0
+    nextExtendAt = EXTEND_FIRST
+    pendingExtends = 0
+    extendsArmed = false
     resetStageCounters()
+  }
+
+  private fun latchExtends(before: Int, after: Int) {
+    if (!extendsArmed) return
+    var threshold = nextExtendAt
+    if (threshold <= 0) return
+    while (threshold > 0 && before < threshold && after >= threshold) {
+      pendingExtends++
+      val next = threshold + EXTEND_STEP
+      if (next <= threshold || next > MAX_SCORE) {
+        nextExtendAt = 0
+        break
+      }
+      nextExtendAt = next
+      threshold = next
+    }
   }
 
   private fun tickPhase(target: Int, which: Int) {
@@ -262,6 +297,8 @@ class ScoreManager private constructor() {
     const val LIFE_BONUS = 50_000
     const val BOMB_BONUS = 20_000
     const val GRAZE_BONUS = 500
+    const val EXTEND_FIRST = 50_000
+    const val EXTEND_STEP = 100_000
     const val PHASE_IDLE = -1
     const val PHASE_LIVES = 0
     const val PHASE_BOMBS = 1

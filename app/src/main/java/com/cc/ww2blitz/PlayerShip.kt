@@ -219,6 +219,14 @@ class PlayerShip(private val resources: Resources) {
     respawnPowerDropLatched = false
   }
 
+  /** Extra life from a score extend. No-op if the credit is dead or the HUD cap is full. */
+  fun grantExtraLife(): Boolean {
+    if (isGameOverFlag) return false
+    if (lives >= MAX_LIVES) return false
+    lives++
+    return true
+  }
+
   fun isGameOver(): Boolean = isGameOverFlag
 
   fun resetForStage() {
@@ -533,6 +541,7 @@ class PlayerShip(private val resources: Resources) {
     const val MUZZLE_Y_FRAC = 0.38f
     const val INVULN_SEC = 2.0f
     const val START_LIVES = 3
+    const val MAX_LIVES = 6
     const val HITS_PER_LIFE = 3
     const val RESPAWN_SEC = 0.4f
     const val DEMO_SPEED = 920f

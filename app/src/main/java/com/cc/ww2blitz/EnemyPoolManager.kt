@@ -31,6 +31,9 @@ class EnemyPoolManager(private val resources: Resources) {
   private val drawRect = RectF()
   private val sheets = arrayOfNulls<Bitmap>(TYPE_COUNT)
   private var droneRedSheet: Bitmap? = null
+  private var destroyerSheet: Bitmap? = null
+  private var tankSheet: Bitmap? = null
+  private var wagonSheet: Bitmap? = null
   private val halfW = FloatArray(TYPE_COUNT)
   private val halfH = FloatArray(TYPE_COUNT)
   private var screenW = 0f
@@ -89,12 +92,22 @@ class EnemyPoolManager(private val resources: Resources) {
 
   fun halfHOf(type: Int): Float = halfH[typeIndex(type)]
 
+  fun halfWOf(e: Enemy): Float = halfWOf(e.type) * drawScaleOf(e)
+
+  fun halfHOf(e: Enemy): Float = halfHOf(e.type) * drawScaleOf(e)
+
+  private fun drawScaleOf(e: Enemy): Float =
+    if (e.isLandVehicle || e.isWagon) GROUND_DRAW_SCALE else 1f
+
   fun deactivateAll() {
     synchronized(lock) {
       var i = 0
       while (i < POOL_SIZE) {
         pool[i].isActive = false
         pool[i].isRedShipAnchor = false
+        pool[i].isDestroyer = false
+        pool[i].isLandVehicle = false
+        pool[i].isWagon = false
         pool[i].flightProfile = 0
         pool[i].flightTime = 0f
         pool[i].patternDelay = 0f
@@ -123,6 +136,9 @@ class EnemyPoolManager(private val resources: Resources) {
     flightProfile: Int = 0,
     patternDelay: Float = 0f,
     spawnCue: Int = 0,
+    isDestroyer: Boolean = false,
+    isLandVehicle: Boolean = false,
+    isWagon: Boolean = false,
   ) {
     synchronized(lock) {
       for (i in 0 until POOL_SIZE) {
@@ -148,6 +164,9 @@ class EnemyPoolManager(private val resources: Resources) {
         e.aimVx = 0f
         e.aimVy = 0f
         e.isRedShipAnchor = isRedShipAnchor
+        e.isDestroyer = isDestroyer
+        e.isLandVehicle = isLandVehicle
+        e.isWagon = isWagon
         e.deathClearBullets = spawnCue == SpawnEvent.CUE_DEATH_CLEAR
         e.diamondLeader = spawnCue == SpawnEvent.CUE_DIAMOND_LEADER
         e.diamondWingSign = 0f
@@ -226,11 +245,14 @@ class EnemyPoolManager(private val resources: Resources) {
             e.y += e.vy * dt
           }
         }
-        val eh = halfHOf(e.type)
-        val ew = halfWOf(e.type)
+        val eh = halfHOf(e)
+        val ew = halfWOf(e)
         if (e.y - eh > h || e.x - ew > w || (e.x + ew < 0f && e.vx <= 0f) || (e.y + eh < 0f && e.vy <= 0f)) {
           e.isActive = false
           e.isRedShipAnchor = false
+          e.isDestroyer = false
+          e.isLandVehicle = false
+          e.isWagon = false
           continue
         }
         if (e.type == TYPE_KAMIKAZE) continue
@@ -242,6 +264,9 @@ class EnemyPoolManager(private val resources: Resources) {
   private fun recycleEnemy(e: Enemy) {
     e.isActive = false
     e.isRedShipAnchor = false
+    e.isDestroyer = false
+    e.isLandVehicle = false
+    e.isWagon = false
     e.flightProfile = 0
     e.flightTime = 0f
     e.patternDelay = 0f
@@ -333,7 +358,17 @@ class EnemyPoolManager(private val resources: Resources) {
 
   private fun updateInterceptorHold(e: Enemy, dt: Float, screenH: Float) {
     val heavyHold = e.type == TYPE_HEAVY
-    val holdY = screenH * if (heavyHold) HEAVY_HOLD_Y_FRAC else HOLD_Y_FRAC
+    val s3AirHeavy = heavyHold && !e.isGroundHeavy() &&
+      StageData.liveInstance?.isStage3Script == true
+    val holdY = screenH * if (e.isGroundHeavy()) {
+      DESTROYER_HOLD_Y_FRAC
+    } else if (s3AirHeavy) {
+      S3_AIR_HEAVY_HOLD_Y_FRAC
+    } else if (heavyHold) {
+      HEAVY_HOLD_Y_FRAC
+    } else {
+      HOLD_Y_FRAC
+    }
     when (e.aiPhase) {
       0 -> {
         e.x += e.vx * dt
@@ -343,7 +378,15 @@ class EnemyPoolManager(private val resources: Resources) {
           e.vx = 0f
           e.vy = 0f
           e.aiPhase = 1
-          e.holdTimer = if (heavyHold) HEAVY_HOLD_SEC else HOLD_SEC
+          e.holdTimer = if (e.isGroundHeavy()) {
+            DESTROYER_HOLD_SEC
+          } else if (s3AirHeavy) {
+            S3_AIR_HEAVY_HOLD_SEC
+          } else if (heavyHold) {
+            HEAVY_HOLD_SEC
+          } else {
+            HOLD_SEC
+          }
           e.fireTimer = 0f
         }
       }
@@ -351,7 +394,15 @@ class EnemyPoolManager(private val resources: Resources) {
         e.holdTimer -= dt
         if (e.holdTimer <= 0f) {
           e.aiPhase = 2
-          e.vy = if (heavyHold) HEAVY_RETREAT_VY else DIVE_VY
+          e.vy = if (e.isGroundHeavy()) {
+            DESTROYER_RETREAT_VY
+          } else if (s3AirHeavy) {
+            S3_AIR_HEAVY_RETREAT_VY
+          } else if (heavyHold) {
+            HEAVY_RETREAT_VY
+          } else {
+            DIVE_VY
+          }
         }
       }
       else -> {
@@ -508,47 +559,70 @@ class EnemyPoolManager(private val resources: Resources) {
 
   fun draw(canvas: Canvas) {
     synchronized(lock) {
-      for (i in 0 until POOL_SIZE) {
-        val e = pool[i]
-        if (!e.isActive) continue
-        if (e.flightProfile == Enemy.FLIGHT_PROFILE_SWEEP_ARC && e.patternDelay > 0f) continue
-        val base = sheetFor(e.type) ?: continue
-        val sheet = if (e.isRedShipAnchor) (droneRedSheet ?: base) else base
-        var drawX = e.x
-        if (e.type == TYPE_HEAVY && e.shudderTimer > 0f) {
-          drawX += if ((e.shudderTimer * 100f).toInt() % 2 == 0) {
-            Enemy.SHUDDER_AMPLITUDE
-          } else {
-            -Enemy.SHUDDER_AMPLITUDE
+      // Ground heavies first so tanks / destroyers / wagons sit under airborne planes.
+      var pass = 0
+      while (pass < 2) {
+        val groundPass = pass == 0
+        var i = 0
+        while (i < POOL_SIZE) {
+          val e = pool[i]
+          if (e.isActive && e.isGroundHeavy() == groundPass) {
+            blitEnemy(canvas, e)
           }
+          i++
         }
-        canvas.save()
-        canvas.translate(drawX, e.y)
-        canvas.rotate(180f)
-        val ew = halfWOf(e.type)
-        val eh = halfHOf(e.type)
-        drawRect.set(-ew, -eh, ew, eh)
-        // Local +x/+y is screen up-left after 180°, so negate for a screen down-right shadow.
-        drawRect.offset(-SHADOW_PX.toFloat(), -SHADOW_PX.toFloat())
-        canvas.drawBitmap(sheet, null, drawRect, shadowPaint)
-        drawRect.offset(SHADOW_PX.toFloat(), SHADOW_PX.toFloat())
-        var oy = -OUTLINE_PX
-        while (oy <= OUTLINE_PX) {
-          var ox = -OUTLINE_PX
-          while (ox <= OUTLINE_PX) {
-            if (ox != 0 || oy != 0) {
-              drawRect.offset(ox.toFloat(), oy.toFloat())
-              canvas.drawBitmap(sheet, null, drawRect, outlinePaint)
-              drawRect.offset(-ox.toFloat(), -oy.toFloat())
-            }
-            ox += OUTLINE_PX
-          }
-          oy += OUTLINE_PX
-        }
-        canvas.drawBitmap(sheet, null, drawRect, paint)
-        canvas.restore()
+        pass++
       }
     }
+  }
+
+  private fun blitEnemy(canvas: Canvas, e: Enemy) {
+    if (e.flightProfile == Enemy.FLIGHT_PROFILE_SWEEP_ARC && e.patternDelay > 0f) return
+    val base = sheetFor(e.type) ?: return
+    val sheet = if (e.isDestroyer) {
+      destroyerSheet ?: base
+    } else if (e.isLandVehicle) {
+      tankSheet ?: base
+    } else if (e.isWagon) {
+      wagonSheet ?: base
+    } else if (e.isRedShipAnchor) {
+      droneRedSheet ?: base
+    } else {
+      base
+    }
+    var drawX = e.x
+    if (e.type == TYPE_HEAVY && e.shudderTimer > 0f) {
+      drawX += if ((e.shudderTimer * 100f).toInt() % 2 == 0) {
+        Enemy.SHUDDER_AMPLITUDE
+      } else {
+        -Enemy.SHUDDER_AMPLITUDE
+      }
+    }
+    canvas.save()
+    canvas.translate(drawX, e.y)
+    canvas.rotate(180f)
+    val ew = halfWOf(e)
+    val eh = halfHOf(e)
+    drawRect.set(-ew, -eh, ew, eh)
+    // Local +x/+y is screen up-left after 180°, so negate for a screen down-right shadow.
+    drawRect.offset(-SHADOW_PX.toFloat(), -SHADOW_PX.toFloat())
+    canvas.drawBitmap(sheet, null, drawRect, shadowPaint)
+    drawRect.offset(SHADOW_PX.toFloat(), SHADOW_PX.toFloat())
+    var oy = -OUTLINE_PX
+    while (oy <= OUTLINE_PX) {
+      var ox = -OUTLINE_PX
+      while (ox <= OUTLINE_PX) {
+        if (ox != 0 || oy != 0) {
+          drawRect.offset(ox.toFloat(), oy.toFloat())
+          canvas.drawBitmap(sheet, null, drawRect, outlinePaint)
+          drawRect.offset(-ox.toFloat(), -oy.toFloat())
+        }
+        ox += OUTLINE_PX
+      }
+      oy += OUTLINE_PX
+    }
+    canvas.drawBitmap(sheet, null, drawRect, paint)
+    canvas.restore()
   }
 
   fun release() {
@@ -562,6 +636,15 @@ class EnemyPoolManager(private val resources: Resources) {
     val red = droneRedSheet
     if (red != null && !red.isRecycled) red.recycle()
     droneRedSheet = null
+    val dest = destroyerSheet
+    if (dest != null && !dest.isRecycled) dest.recycle()
+    destroyerSheet = null
+    val tank = tankSheet
+    if (tank != null && !tank.isRecycled) tank.recycle()
+    tankSheet = null
+    val wagon = wagonSheet
+    if (wagon != null && !wagon.isRecycled) wagon.recycle()
+    wagonSheet = null
   }
 
   private fun typeIndex(type: Int): Int =
@@ -576,6 +659,9 @@ class EnemyPoolManager(private val resources: Resources) {
     sheets[TYPE_KAMIKAZE] = loadKeyed(R.drawable.enemy_kamikaze)
     sheets[TYPE_INTERCEPTOR] = loadKeyed(R.drawable.enemy_interceptor)
     sheets[TYPE_HEAVY] = loadKeyed(R.drawable.enemy_heavy)
+    destroyerSheet = loadKeyed(R.drawable.enemy_destroyer)
+    tankSheet = loadKeyed(R.drawable.enemy_tank)
+    wagonSheet = loadKeyed(R.drawable.enemy_wagon)
   }
 
   private fun loadKeyed(drawableId: Int): Bitmap {
@@ -625,6 +711,12 @@ class EnemyPoolManager(private val resources: Resources) {
     const val HEAVY_HOLD_Y_FRAC = 0.25f
     const val HEAVY_HOLD_SEC = 5f
     const val HEAVY_RETREAT_VY = -160f
+    const val S3_AIR_HEAVY_HOLD_Y_FRAC = 0.16f
+    const val S3_AIR_HEAVY_HOLD_SEC = 2.2f
+    const val S3_AIR_HEAVY_RETREAT_VY = -280f
+    const val DESTROYER_HOLD_Y_FRAC = 0.50f
+    const val DESTROYER_HOLD_SEC = 4f
+    const val DESTROYER_RETREAT_VY = 240f
     const val HOLD_FIRE_GAP = 0.55f
     const val INTERCEPT_REFIRE = 0.85f
     const val HEAVY_FIRE_GAP = 1.5f
@@ -640,6 +732,7 @@ class EnemyPoolManager(private val resources: Resources) {
     const val WEAVE_RATE = 6.2f
     const val WEAVE_AMP_FRAC = 0.055f
     val WIDTH_FRAC = floatArrayOf(0.18f, 0.14f, 0.22f, 0.28f)
+    const val GROUND_DRAW_SCALE = 1.48f
     const val FIRE_DELAY_MIN = 0.5f
     const val FIRE_DELAY_MAX = 1.5f
     const val FIRE_ONCE_LOCK = 999f
