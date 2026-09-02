@@ -1,6 +1,6 @@
 # WW2 Blitz
 
-Portrait Android shoot-’em-up (`com.cc.ww2blitz`), version **1.0.1**. One fighter, eight timed stages, peelable bosses. Maps are composed (`StageDef` + director + theater/boss kit), not subclassed from a `BaseLevel`. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
+Portrait Android shoot-’em-up (`com.cc.ww2blitz`), version **1.0.2**. One fighter, eight timed stages, peelable bosses. Maps are composed (`StageDef` + director + theater/boss kit), not subclassed from a `BaseLevel`. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
 
 The software is a Kotlin engine on one `SurfaceView`, clocked by `Choreographer`. Combat is not a Compose tree. The hot path does not allocate.
 
