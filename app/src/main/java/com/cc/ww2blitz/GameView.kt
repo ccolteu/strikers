@@ -705,14 +705,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val lifeBmp = lifeIconBmp
     if (lifeBmp != null) {
       val currentLives = player.getHealth()
-      val marginLeft = 45f
-      val spacing = 16f
-      var i = 0
-      while (i < currentLives) {
-        val posX = marginLeft + i * (lifeSize + spacing)
-        hudIconDst.set(posX, lifeStartY, posX + lifeSize, lifeStartY + lifeSize)
+      if (currentLives > 0) {
+        val marginLeft = 45f
+        hudIconDst.set(marginLeft, lifeStartY, marginLeft + lifeSize, lifeStartY + lifeSize)
         blitHudIcon(canvas, lifeBmp)
-        i++
+        uiStringBuilder.setLength(0)
+        uiStringBuilder.append('x')
+        uiStringBuilder.append(currentLives)
+        val countX = marginLeft + lifeSize + 10f
+        val countY = lifeStartY + lifeSize * 0.70f
+        drawHudTextAt(
+          canvas,
+          uiStringBuilder,
+          0,
+          uiStringBuilder.length,
+          countX,
+          countY,
+          uiTextPaint,
+          uiShadowPaint,
+        )
       }
     }
     val bombBmp = bombIconBmp
