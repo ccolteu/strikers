@@ -70,6 +70,7 @@ class BossController(private val resources: Resources) {
   private var s4SpiralAngle = 0f
   private var s7RingTimer = 0f
   private var s7RingAngle = 0f
+  private var s8FanTimer = 0f
   private var entering = false
   private var active = false
   private var isExploding = false
@@ -182,6 +183,7 @@ class BossController(private val resources: Resources) {
     s4SpiralAngle = 0f
     s7RingTimer = 0f
     s7RingAngle = 0f
+    s8FanTimer = 0f
     leftFlankShudder[0] = 0f
     rightFlankShudder[0] = 0f
     coreShudder[0] = 0f
@@ -279,6 +281,7 @@ class BossController(private val resources: Resources) {
     s4SpiralAngle = 0f
     s7RingTimer = 0f
     s7RingAngle = 0f
+    s8FanTimer = 0f
     s1TurretTimer = 0f
     s1WingTimer = 0f
     s1SweepTimer = 0f
@@ -575,6 +578,8 @@ class BossController(private val resources: Resources) {
       updateStage6Combat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.CANOPY) {
       updateStage5Combat(dt, playerX, playerY, weapons)
+    } else if (combatKind == BossCombatKind.ATOLL) {
+      updateAtollBatteryCombat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.WINTER) {
       updateWinterKeepCombat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.JUNGLE) {
@@ -720,6 +725,17 @@ class BossController(private val resources: Resources) {
       BossCombatKind.ORBIT, BossCombatKind.CANOPY -> {
         // Multi-part module wrecks are handled independently via drawStage5()
         return
+      }
+      BossCombatKind.ATOLL -> {
+        if (leftWreck != null && parts[TYPE_ATOLL_LEFT_GUN].isDestroyed) {
+          canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (rightWreck != null && parts[TYPE_ATOLL_RIGHT_GUN].isDestroyed) {
+          canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (centerWreck != null && (parts[TYPE_ATOLL_AA].isDestroyed || parts[TYPE_CORE].isDestroyed)) {
+          canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+        }
       }
       BossCombatKind.WINTER -> {
         if (leftWreck != null && parts[TYPE_WINTER_LEFT_HOWITZER].isDestroyed) {
@@ -1036,6 +1052,9 @@ class BossController(private val resources: Resources) {
           i == TYPE_WINTER_LEFT_HOWITZER ||
           i == TYPE_WINTER_RIGHT_HOWITZER ||
           i == TYPE_WINTER_BLIZZARD ||
+          i == TYPE_ATOLL_LEFT_GUN ||
+          i == TYPE_ATOLL_RIGHT_GUN ||
+          i == TYPE_ATOLL_AA ||
           i == TYPE_LEFT_FLANK ||
           i == TYPE_RIGHT_FLANK
         ) {
@@ -1186,6 +1205,52 @@ class BossController(private val resources: Resources) {
           val ang = s7RingAngle + k * S7_RING_STEP
           weapons.fireBullet(ox, oy, cos(ang) * spd, sin(ang) * spd)
           k++
+        }
+      }
+    }
+  }
+
+  private fun updateAtollBatteryCombat(
+    dt: Float,
+    playerX: Float,
+    playerY: Float,
+    weapons: EnemyWeaponSystem,
+  ) {
+    playNewModuleSfx()
+    if (entering) {
+      weapons.resetStage8Boss()
+      return
+    }
+    val leftGun = parts[TYPE_ATOLL_LEFT_GUN]
+    val rightGun = parts[TYPE_ATOLL_RIGHT_GUN]
+    val aa = parts[TYPE_ATOLL_AA]
+    val leftDead = leftGun.isDestroyed || leftGun.halfW <= 0f
+    val rightDead = rightGun.isDestroyed || rightGun.halfW <= 0f
+    val aaDead = aa.isDestroyed || aa.halfW <= 0f
+    weapons.updateStage8Boss(
+      dt,
+      coreX,
+      coreY,
+      bodyHalfW * 2f,
+      bodyHalfH,
+      playerX,
+      playerY,
+      leftDead,
+      rightDead,
+      aaDead,
+    )
+    if (isCoreVulnerable()) {
+      s8FanTimer -= dt
+      if (s8FanTimer <= 0f) {
+        s8FanTimer = S8_FAN_INTERVAL
+        val ox = coreX
+        val oy = coreY + bodyHalfH * 0.945f
+        val spd = S8_FAN_SPEED
+        var i = -2
+        while (i <= 2) {
+          val ang = DOWN_ANGLE + i * S8_FAN_STEP
+          weapons.fireBullet(ox, oy, cos(ang) * spd, sin(ang) * spd)
+          i++
         }
       }
     }
@@ -1342,6 +1407,33 @@ class BossController(private val resources: Resources) {
           S5_FLANK_HP,
         )
         syncStage5Hitboxes()
+      }
+      BossCombatKind.ATOLL -> {
+        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.36f, S8_CORE_HP)
+        setupPart(
+          TYPE_ATOLL_LEFT_GUN,
+          -bodyHalfW * 0.642f,
+          bodyHalfH * 0.771f,
+          bodyHalfW * 0.18f,
+          bodyHalfH * 0.16f,
+          S8_GUN_HP,
+        )
+        setupPart(
+          TYPE_ATOLL_RIGHT_GUN,
+          bodyHalfW * 0.657f,
+          bodyHalfH * 0.775f,
+          bodyHalfW * 0.18f,
+          bodyHalfH * 0.16f,
+          S8_GUN_HP,
+        )
+        setupPart(
+          TYPE_ATOLL_AA,
+          0f,
+          bodyHalfH * 0.945f,
+          bodyHalfW * 0.16f,
+          bodyHalfH * 0.12f,
+          S8_AA_HP,
+        )
       }
       BossCombatKind.WINTER -> {
         setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S7_CORE_HP)
@@ -1578,6 +1670,9 @@ class BossController(private val resources: Resources) {
     const val TYPE_WINTER_LEFT_HOWITZER = 10
     const val TYPE_WINTER_RIGHT_HOWITZER = 11
     const val TYPE_WINTER_BLIZZARD = 12
+    const val TYPE_ATOLL_LEFT_GUN = 10
+    const val TYPE_ATOLL_RIGHT_GUN = 11
+    const val TYPE_ATOLL_AA = 12
     const val MAX_PART_COUNT = 14
     const val HOVER_Y_FRAC = 0.25f
     const val CORE_WIDTH_FRAC = 0.85f
@@ -1674,6 +1769,12 @@ class BossController(private val resources: Resources) {
     const val S7_RING_SPIN = 2.8f
     const val S7_RING_COUNT = 8
     const val S7_RING_STEP = (Math.PI * 2.0 / S7_RING_COUNT).toFloat()
+    const val S8_CORE_HP = 480
+    const val S8_GUN_HP = 145
+    const val S8_AA_HP = 165
+    const val S8_FAN_INTERVAL = 0.22f
+    const val S8_FAN_SPEED = 300f
+    const val S8_FAN_STEP = 0.2618f
     const val S5_CORE_HP = 350
     const val S5_FLANK_HP = 180
     const val S5_LEFT_L = -0.50f

@@ -70,6 +70,9 @@ class EnemyWeaponSystem {
   private var s7HowitzerTimer = 0f
   private var s7BlizzardTimer = 0f
   private var s7HowitzerLeft = true
+  private var s8CoastalTimer = 0f
+  private var s8AaTimer = 0f
+  private var s8CoastalLeft = true
 
   fun onSizeChanged(width: Int, height: Int) {
     screenW = width.toFloat()
@@ -171,6 +174,12 @@ class EnemyWeaponSystem {
     s7HowitzerTimer = scaledInterval(S7_HOWITZER_INTERVAL)
     s7BlizzardTimer = scaledInterval(S7_BLIZZARD_INTERVAL)
     s7HowitzerLeft = true
+  }
+
+  fun resetStage8Boss() {
+    s8CoastalTimer = scaledInterval(S8_COASTAL_INTERVAL)
+    s8AaTimer = scaledInterval(S8_AA_INTERVAL)
+    s8CoastalLeft = true
   }
 
   fun resetStage5Boss() {
@@ -456,6 +465,91 @@ class EnemyWeaponSystem {
     if (lenSq < 0.0001f) return
     val inv = scaledSpeed(S7_HOWITZER_SPEED) / sqrt(lenSq)
     fireBullet(originX, originY, dx * inv, dy * inv)
+  }
+
+  fun updateStage8Boss(
+    dt: Float,
+    cX: Float,
+    cY: Float,
+    bossW: Float,
+    bossHalfH: Float,
+    pX: Float,
+    pY: Float,
+    leftGunDead: Boolean,
+    rightGunDead: Boolean,
+    aaDead: Boolean,
+  ) {
+    val bossH = bossHalfH * 2f
+    if (!leftGunDead || !rightGunDead) {
+      s8CoastalTimer -= dt
+      if (s8CoastalTimer <= 0f) {
+        s8CoastalTimer = scaledInterval(S8_COASTAL_INTERVAL)
+        val fireLeft = s8CoastalLeft
+        s8CoastalLeft = !s8CoastalLeft
+        if (fireLeft && !leftGunDead) {
+          fireS8Aimed(
+            cX + S8_LEFT_MUZZLE_X * bossW,
+            cY + S8_LEFT_MUZZLE_Y * bossH,
+            pX,
+            pY,
+          )
+        } else if (!fireLeft && !rightGunDead) {
+          fireS8Aimed(
+            cX + S8_RIGHT_MUZZLE_X * bossW,
+            cY + S8_RIGHT_MUZZLE_Y * bossH,
+            pX,
+            pY,
+          )
+        } else if (!leftGunDead) {
+          fireS8Aimed(
+            cX + S8_LEFT_MUZZLE_X * bossW,
+            cY + S8_LEFT_MUZZLE_Y * bossH,
+            pX,
+            pY,
+          )
+        } else if (!rightGunDead) {
+          fireS8Aimed(
+            cX + S8_RIGHT_MUZZLE_X * bossW,
+            cY + S8_RIGHT_MUZZLE_Y * bossH,
+            pX,
+            pY,
+          )
+        }
+      }
+    }
+    if (aaDead) return
+    s8AaTimer -= dt
+    if (s8AaTimer > 0f) return
+    s8AaTimer = scaledInterval(S8_AA_INTERVAL)
+    val spd = scaledSpeed(S8_AA_SPEED)
+    fireS8AaBurst(
+      cX + S8_AA_LEFT_X * bossW,
+      cY + S8_AA_LEFT_Y * bossH,
+      spd,
+    )
+    fireS8AaBurst(
+      cX + S8_AA_RIGHT_X * bossW,
+      cY + S8_AA_RIGHT_Y * bossH,
+      spd,
+    )
+  }
+
+  private fun fireS8Aimed(originX: Float, originY: Float, targetX: Float, targetY: Float) {
+    val dx = targetX - originX
+    val dy = targetY - originY
+    val lenSq = dx * dx + dy * dy
+    if (lenSq < 0.0001f) return
+    val inv = scaledSpeed(S8_COASTAL_SPEED) / sqrt(lenSq)
+    fireBullet(originX, originY, dx * inv, dy * inv)
+  }
+
+  private fun fireS8AaBurst(originX: Float, originY: Float, spd: Float) {
+    var i = -1
+    while (i <= 1) {
+      val ang = S2_DOWN_ANGLE + i * S8_AA_STEP
+      fireBullet(originX, originY, cos(ang) * spd, sin(ang) * spd)
+      i++
+    }
   }
 
   private fun fireS4MortarFan(spawnX: Float, spawnY: Float, downAndRight: Boolean) {
@@ -868,6 +962,19 @@ class EnemyWeaponSystem {
     const val S7_RIGHT_MUZZLE_Y = 0.1387f
     const val S7_CHIN_MUZZLE_X = 0f // (512, 880) hull gun hole
     const val S7_CHIN_MUZZLE_Y = 0.3594f
+    const val S8_COASTAL_INTERVAL = 0.95f
+    const val S8_COASTAL_SPEED = 540f
+    const val S8_AA_INTERVAL = 1.10f
+    const val S8_AA_SPEED = 480f
+    const val S8_AA_STEP = 0.1745329f
+    const val S8_LEFT_MUZZLE_X = -0.3209f // (183, 907) left barrel hole
+    const val S8_LEFT_MUZZLE_Y = 0.3855f
+    const val S8_RIGHT_MUZZLE_X = 0.3287f // (849, 909) right barrel hole
+    const val S8_RIGHT_MUZZLE_Y = 0.3874f
+    const val S8_AA_LEFT_X = -0.0280f // (483, 996) twin AA hole
+    const val S8_AA_LEFT_Y = 0.4723f
+    const val S8_AA_RIGHT_X = 0.0250f // (538, 996) twin AA hole
+    const val S8_AA_RIGHT_Y = 0.4724f
     const val S5_VOLLEY_INTERVAL = 1.8f
     const val S5_PANIC_INTERVAL = 0.9f
     const val S5_RING_INTERVAL = 3.0f

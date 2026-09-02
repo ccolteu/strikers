@@ -35,6 +35,7 @@ object StageDirectors {
       StageWaveKind.ASCENT_CANOPY -> Stage5Director()
       StageWaveKind.ORBIT_INTRO -> Stage6Director()
       StageWaveKind.FROZEN_FRONT -> Stage7Director()
+      StageWaveKind.CORAL_ATOLL -> Stage8Director()
       else -> Stage1Director()
     }
   }
