@@ -48,8 +48,9 @@ class StageTheater {
     loadedWidth = width
     val lock = if (next.theaterKind == StageTheaterKind.ASCENT) 0 else width
     floor = StageBitmaps.decode(assets, next.floorPath(), keyed = false, widthLock = lock)
-    mid = StageBitmaps.tryDecode(assets, next.midPath(), keyed = false, widthLock = width)
-    high = StageBitmaps.tryDecode(assets, next.highPath(), keyed = false, widthLock = width)
+    val overlayKeyed = next.keyedOverlayLayers
+    mid = StageBitmaps.tryDecode(assets, next.midPath(), keyed = overlayKeyed, widthLock = width)
+    high = StageBitmaps.tryDecode(assets, next.highPath(), keyed = overlayKeyed, widthLock = width)
     canopy = StageBitmaps.tryDecode(assets, next.canopyPath(), keyed = true, widthLock = 0)
     floorAlt = StageBitmaps.tryDecode(assets, next.floorAltPath(), keyed = false, widthLock = 0)
     briefing = StageBitmaps.tryDecode(assets, next.briefingPath(), keyed = false, widthLock = 0)

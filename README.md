@@ -74,6 +74,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 54 | Attract card must show the ROM revision | `VER` + installed `versionName` under CREDIT, same small typeface | [Attract](#6-attract) |
 | 55 | Tanks and ships sit on the ground, not in the flight | Two-pass grunt blit: `isGroundHeavy()` then airborne | [Theaters](#23-theaters-and-z-order) |
 | 56 | A seventh map must not subclass the engine | Folder + `StageDef` + director slot; reuse theater/boss kinds | [Playlist](#7-playlist-and-stage-identity) |
+| 57 | A new map must ship with a fixed art/authoring order | Floor wrap → overlays → `boss.png` → muzzles → briefing (3D boss) → band wrecks | [New stage prompt](#30-new-stage-prompt) |
 
 ```mermaid
 flowchart TB
@@ -230,11 +231,11 @@ Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / d
 
 **Why.** Index-based finish is what the operator programmed. Identity on the def lets a facility canopy and an ocean freeze work even if you reorder the array. A clone of jungle-over-new-art is a folder, a catalog row, a director object, and a playlist entry.
 
-**Implementation.** Default `intArrayOf(1, 2, 3, 4, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. `StageData.def` is `StageCatalog.get(stageId)`. Derived flags: `hasOverlayClouds`, `isFacilityTheater`, `isAscentTheater`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `introOnly`. `applyStageMetrics` copies `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport. Later title size bounces do not call it.
+**Implementation.** Default `intArrayOf(1, 2, 3, 4, 7, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. `StageData.def` is `StageCatalog.get(stageId)`. Derived flags: `hasOverlayClouds`, `isFacilityTheater`, `isAscentTheater`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `introOnly`. `applyStageMetrics` copies `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport. Later title size bounces do not call it.
 
 Theater kinds (`StageTheaterKind`): **SCROLL** (width-locked floor, optional overlay clouds), **FACILITY** (floor + keyed canopy over hostiles), **ASCENT** (unscaled floor, `floor_alt` swap, late canopy). GameView/Parallax branch on kind, not on ids 5 and 6.
 
-Boss kits (`BossCombatKind`): **PLANE**, **TANK**, **BATTLESHIP**, **JUNGLE**, **CANOPY**, **ORBIT**. Bind peels, wreck overlays, and fire tables. `BossKit.triPart` is canopy/orbit victory. Reuse a kind on a new def to clone an existing fortress.
+Boss kits (`BossCombatKind`): **PLANE**, **TANK**, **BATTLESHIP**, **JUNGLE**, **WINTER**, **CANOPY**, **ORBIT**. Bind peels, wreck overlays, and fire tables. `BossKit.triPart` is canopy/orbit victory. Reuse a kind on a new def to clone an existing fortress.
 
 Waves: `SpawnTimeline` is the clock (opening P-V, power safeguard, shared boss cue, `introOnly` gate). Each catalog id gets its own director instance from `StageDef.waveScript` (`StageWaveKind`), not from the id number. Gaps are idle. `FormationSpawner` is shared helpers. Directors stay Kotlin; there is no wave DSL.
 
@@ -248,6 +249,7 @@ Campaign maps as coded:
 | 2 | IRON TREADS | SCROLL + tank skin | TANK | ~260 | ~30 s (shared cue) |
 | 3 | STEEL ATLANTIC | SCROLL + destroyer skin | BATTLESHIP | ~200 | ~25 s (shared cue; clock freezes) |
 | 4 | JUNGLE RUINS | SCROLL | JUNGLE | ~310 | ~45 s (shared cue; clock freezes) |
+| 7 | FROZEN FRONT | SCROLL + keyed snow overlays | WINTER | ~240 | ~42 s (shared cue; clock freezes) |
 | 5 | ASCENT CANOPY | FACILITY + wagon skin | CANOPY | 280 → 0 | ~45 s (director cue; clock freezes) |
 | 6 | ORBIT THRESHOLD | ASCENT | ORBIT | envelope | **5 s** intro-only, no grunts |
 
@@ -257,7 +259,7 @@ The credit order is only `STAGE_SEQUENCE` (reorder, skip, duplicate). Each id is
 
 ```kotlin
 StageDef(
-  id = 7,
+  id = 8,
   artFolder = "stages/4",                       // jungle PNGs
   theaterKind = StageTheaterKind.SCROLL,
   waveScript = StageWaveKind.CLOUD_FORTRESS,    // stage 1 waves
@@ -266,13 +268,15 @@ StageDef(
 )
 ```
 
-Then `STAGE_SEQUENCE = intArrayOf(3, 7, 6, 6)`. No `Stage7Director` class. A unique fortress or a fourth theater kind still needs a new kit in engine code.
+Then `STAGE_SEQUENCE = intArrayOf(3, 8, 6, 6)`. No new director class if the wave kind already exists. A unique fortress or a fourth theater kind still needs a new kit in engine code.
 
 **To add a map that reuses an existing theater, waves, and fortress as a block**
 
 1. `assets/stages/N/` (or `artFolder` pointing at an existing kit).
 2. Append a `StageDef` (`waveScript`, `theaterKind`, `bossCombat`, flags, BGM, `bossAtSeconds`, `operationName`).
 3. `STAGE_SEQUENCE += N`.
+
+**New-map art (always)** is the pasteable pipeline in [New stage prompt](#30-new-stage-prompt).
 
 ---
 
@@ -330,7 +334,7 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 7, 6, 6)`. No `Stage7Director` class. A uni
 
 **Why.** A flag on the play state would still tick bullets. A full state makes the freeze obvious and the draw path a single card.
 
-**Implementation.** `INTERSTITIAL_SECS = 3`. Title start and recap-continue (when not finished) assign it. `StageTheater` loads `briefing.png` from `assets/stages/N/` with the rest of the map kit. Draw **contains** the card (`min(scaleW, scaleH)`), centers it, and fills letterbox from the card’s top-left pixel so short tablets keep side bars instead of cropping the header. Gold `OPERATION:` + `StageDef.operationName` sit at `cardTop + 4.2 × textSize` (always on-screen). Fade from remaining timer. `syncBgm` uses the **stage** track during interstitial so the card and the fight share music.
+**Implementation.** `INTERSTITIAL_SECS = 3`. Title start and recap-continue (when not finished) assign it. `StageTheater` loads `briefing.png` from `assets/stages/N/` with the rest of the map kit. Cards are **1080×2400** with **400 px** solid matching color bands top and bottom (illustration 1080×1600 in the middle). Draw **contains** the card (`min(scaleW, scaleH)`), centers it, and fills letterbox from the card’s top-left pixel so short tablets keep side bars instead of cropping the header. Gold `OPERATION:` + `StageDef.operationName` sit at `cardTop + 4.2 × textSize` (always on-screen, in the top band). Fade from remaining timer. `syncBgm` uses the **stage** track during interstitial so the card and the fight share music.
 
 ---
 
@@ -433,7 +437,7 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 7, 6, 6)`. No `Stage7Director` class. A uni
 
 **Why.** Clock = cabinet rhythm. Latch = one-shot even if `elapsedTime` jumps the threshold. Freeze = the fortress is the content. A new map is another director object, not a subclass of the whole engine, and not a wave DSL.
 
-**Implementation.** `update` reads `StageCatalog.get(activeStage)`. `introOnly`: increment until `introSecs`, `DirectorCue.fireBoss(def.id)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V when `usesOpeningPowerV`. Shared boss cue when `usesSharedBossEntranceCue` at `def.bossAtSeconds` (campaign 1–4). Stage 5 fires from its director at the same moment it ramps scroll to 0. Drip loops still honor `MAX_ACTIVE`; latched formations ignore the cap. Stage 4 cruiser parks at 22 s, after weaves end (21 s). `reset()` zeros the clock, the cue, and each bound director. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
+**Implementation.** `update` reads `StageCatalog.get(activeStage)`. `introOnly`: increment until `introSecs`, `DirectorCue.fireBoss(def.id)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V when `usesOpeningPowerV`. Shared boss cue when `usesSharedBossEntranceCue` at `def.bossAtSeconds` (campaign 1–4 and 7). Stage 5 fires from its director at the same moment it ramps scroll to 0. Drip loops still honor `MAX_ACTIVE`; latched formations ignore the cap. Stage 4 cruiser parks at 22 s, after weaves end (21 s). `reset()` zeros the clock, the cue, and each bound director. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
 
 ---
 
@@ -449,7 +453,7 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 7, 6, 6)`. No `Stage7Director` class. A uni
 
 Hull HP: drones 1, kami 2, interceptors 6, heavies 10, Stage 3 cruiser 16 / destroyers 12, Stage 4 cruiser 20, Stage 5 heavies 32.
 
-Jobs by stage: Stage 1 teach (sweep V that drops **P**, flanks, hold V, weaves at 14/86% width, mid-Y cross at 16 s, twin heavies). Stage 2 deny camping (pincers, death-clear heavies, diamond, a rest, then tanks at 30%/70% width, then walls). Stage 3 scouts, twin airborne heavies (high short hold, then off the top), mid cross, then a destroyer pair (mid-low Y, then slide off the bottom). Stage 4 width, weaves, then the cruiser, side kami, charge walls in lanes, interceptor hold-V before the fortress. Stage 5 facility drizzle, kami V, left gunship, wagons (then a rest), right gunship, power, kami wall, freeze. Stage 6 empty. Tanks, destroyers, and wagons are theater skins of `TYPE_HEAVY` + `isGroundHeavy()`; they blit under planes.
+Jobs by stage: Stage 1 teach (sweep V that drops **P**, flanks, hold V, weaves at 14/86% width, mid-Y cross at 16 s, twin heavies). Stage 2 deny camping (pincers, death-clear heavies, diamond, a rest, then tanks at 30%/70% width, then walls). Stage 3 scouts, twin airborne heavies (high short hold, then off the top), mid cross, then a destroyer pair (mid-low Y, then slide off the bottom). Stage 4 width, weaves, then the cruiser, side kami, charge walls in lanes, interceptor hold-V before the fortress. Stage 7 (playlist after jungle) snow-lane weaves, hold-V, side kami, mid cross, twin heavies, then a four-ship wall before the keep. Stage 5 facility drizzle, kami V, left gunship, wagons (then a rest), right gunship, power, kami wall, freeze. Stage 6 empty. Tanks, destroyers, and wagons are theater skins of `TYPE_HEAVY` + `isGroundHeavy()`; they blit under planes.
 
 Deliberately not done: steering groups, twelve enemy classes, random scatter inside a wave shape, spawn when pool full.
 
@@ -485,10 +489,11 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 | `TANK` | Treads / turret / core | Parked on X |
 | `BATTLESHIP` | Flak / cannon / core | |
 | `JUNGLE` | Mortars / gatling / core | |
+| `WINTER` | Howitzers / blizzard / core | Aimed sides, 7-way chin cone, slow ring when open |
 | `CANOPY` | Flanks / core (`triPart`) | Victory freeze, module drops |
 | `ORBIT` | Flanks / core (`triPart`) | Rails then lens; can `forceElapsed` for the ascent envelope |
 
-Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turret 88 / core 330; battleship flak 125 / cannon 190 / core 480; jungle mortars 140 / gatling 160 / core 520; canopy flanks 180 / core 350; orbit flanks 190 / core 380. Canopy/orbit flank break +25k and a guaranteed drop (left **P**; right **P** if power < 3 else bomb/shield); core +100k and 4.5 s victory. Non-tri-part: last gun → `FX_PHASE`; core death → `FX_DEATH`, explode overlay, then sweep. `GameView` consumes those flags after collisions. Bomb DPS uses the same parts array. Muzzle speeds follow the dip.
+Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turret 88 / core 330; battleship flak 125 / cannon 190 / core 480; jungle mortars 140 / gatling 160 / core 520; winter howitzers 150 / blizzard 170 / core 500; canopy flanks 180 / core 350; orbit flanks 190 / core 380. Canopy/orbit flank break +25k and a guaranteed drop (left **P**; right **P** if power < 3 else bomb/shield); core +100k and 4.5 s victory. Non-tri-part: last gun → `FX_PHASE`; core death → `FX_DEATH`, explode overlay, then sweep. `GameView` consumes those flags after collisions. Bomb DPS uses the same parts array. Muzzle speeds follow the dip.
 
 ---
 
@@ -512,7 +517,7 @@ Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turre
 
 **Why.** Width-lock preserves loop stitches. Z-order is the 1942 “you fly under the bridge” trick. A still title is an attract card. Theater kind, not map id, picks the blit path so a second facility map keeps the roof.
 
-**Implementation.** `StageTheater` decodes from `assets/stages/N/` via `StageBitmaps` (width-lock on scroll floors; unscaled on ascent so the limb stays straight). `ParallaxBackground` **borrows** those bitmaps and must not recycle them. Mid/high clouds `PorterDuff.SCREEN`. Facility: floor at `scrollSpeedY`, keyed canopy at 1.5×. Ascent: cloud floor, swap pointer to `floor_alt` at `def.spaceSwapAt` (30 s on map 6), orbit overlay from `def.canopyAt` (35 s on map 6), speed envelope in `updateStage6`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are a def flag (campaign map 1). Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne. Theater skins load with the map kit.
+**Implementation.** `StageTheater` decodes from `assets/stages/N/` via `StageBitmaps` (width-lock on scroll floors; unscaled on ascent so the limb stays straight). `ParallaxBackground` **borrows** those bitmaps and must not recycle them. Mid/high clouds `PorterDuff.SCREEN`. Facility: floor at `scrollSpeedY`, keyed canopy at 1.5×. Ascent: cloud floor, swap pointer to `floor_alt` at `def.spaceSwapAt` (30 s on map 6), orbit overlay from `def.canopyAt` (35 s on map 6), speed envelope in `updateStage6`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are a def flag (campaign maps 1 and 7; winter also sets `keyedOverlayLayers` so chroma snow punches to alpha). Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne. Theater skins load with the map kit.
 
 ---
 
@@ -616,3 +621,39 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 | `HighScoreManager` | Top 10 EEPROM |
 | `UIController` | Recap HUD, credits; interstitial uses theater briefing |
 | `SoundManager` | SFX pool, looped BGM, volume prefs |
+
+---
+
+## 30. New stage prompt
+
+**Need.** A new map is easy to ship half-finished: a parallax floor that seams, a boss whose shots spawn from the hull, a briefing that does not show that boss, wreck sheets that are a different vehicle, or overlays that paint over an earlier peel. The next request has to carry the whole authoring order, not a reminder to “add a stage.”
+
+**Choice.** One pasteable prompt. Playlist last-two rule, folder names, generate order, chroma, muzzle math, and band wrecks. Paste it when asking for a new map.
+
+**Why.** The engine already composes `StageDef` + director + kit. Failures are authoring order, not missing subclasses. A single chapter is the contract the agent (or a human) follows.
+
+**Implementation.** Copy from the fence below. Ask if anything in the request is unclear.
+
+```
+New WW2 Blitz stage. Follow this authoring pipeline; ask if anything is unclear.
+
+Playlist. Stages 5 and 6 stay the last two in a real campaign. Insert the new id before them (example: 1,2,3,4,N,5,6). Do not steal Stage 5 facility canopy or Stage 6 orbit.
+
+Kits. Unless I say reuse, give the map its own StageWaveKind and BossCombatKind (new director + peel + fire table). SCROLL theater unless I say otherwise.
+
+Art folder. app/src/main/assets/stages/N/ with new artwork only:
+
+1. floor.png first. Exact 1080x2400, same as every other map floor. Portrait vertical-scroll ground plate. It is a parallax tile: the top edge must match the bottom edge so it loops vertically with no seam. After generate, resize to 1080x2400 if needed, then post-process so the first and last rows are identical (thin wrap blend). No UI, no sky horizon seam.
+
+2. Optional mid.png / high.png. Exact 1080x2400, same canvas as the floor. They are also vertical parallax tiles: top must match bottom. Chroma #00FF00 plus the overlay (clouds, snow, etc.). Set hasOverlayClouds. If the overlay is keyed green rather than painted clouds, also set keyedOverlayLayers. After generate, resize to 1080x2400 and wrap-blend the same way as the floor.
+
+3. boss.png next, and only then guns. Top-down, facing down (toward the player). Flat #00FF00 background. Same canvas the wrecks will use (usually 1024×1024). After it exists: analyze that file, find each cannon’s muzzle hole in pixel space, convert to dest-rect fractions from center (px/W − 0.5, py/H − 0.5), and put those constants on the fire table so shots spawn on the barrels. Do not guess offsets.
+
+4. briefing.png after boss.png. Exact 1080x2400. Solid matching letterbox bands on top and bottom, each 400 px tall, identical RGB (same color, used as getPixel(0,0) for tablet letterbox). Illustration fills the middle 1080x1600. Prominently feature the boss in a dramatic 3D hero shot (low-angle / three-quarter), using boss.png as the reference so it is the same vehicle, not a different silhouette. Winter/desert/jungle/etc. matches the map. No English title baked in — gold OPERATION text is drawn in-engine. Pick the band color from the scene (sky/ground), one flat fill, not a gradient.
+
+5. Wrecks last, from boss.png as the reference image. Generate wreck_left.png, wreck_right.png, wreck_center.png with boss.png attached. Same size, same silhouette, same position — do not redesign the vehicle. Each wreck is a localized vertical band of damage (fire/smoke/torn armor) on the module that peel destroys. Every pixel outside that band is #00FF00, including the rest of the hull. Bands must not overlap: left wreck cannot include center/right, center cannot include the sides (center is drawn last and would otherwise erase earlier wrecks). If the generator paints a full tank, mask to the band before shipping. Runtime composites wrecks on top of intact boss.png.
+
+Chroma. #00FF00. Load punches g > 160 && g > r+40 && g > b+40.
+
+Catalog. New StageDef: operation name, scroll, bossAtSeconds, BGM, theater flags, waveScript, bossCombat, BossKit filenames. Wire the director factory. Compile.
+```

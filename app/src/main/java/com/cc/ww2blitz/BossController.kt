@@ -68,6 +68,8 @@ class BossController(private val resources: Resources) {
   private var s4GatlingTimer = 0f
   private var s4SpiralTimer = 0f
   private var s4SpiralAngle = 0f
+  private var s7RingTimer = 0f
+  private var s7RingAngle = 0f
   private var entering = false
   private var active = false
   private var isExploding = false
@@ -178,6 +180,8 @@ class BossController(private val resources: Resources) {
     s4GatlingTimer = 0f
     s4SpiralTimer = 0f
     s4SpiralAngle = 0f
+    s7RingTimer = 0f
+    s7RingAngle = 0f
     leftFlankShudder[0] = 0f
     rightFlankShudder[0] = 0f
     coreShudder[0] = 0f
@@ -273,6 +277,8 @@ class BossController(private val resources: Resources) {
     s4GatlingTimer = 0f
     s4SpiralTimer = 0f
     s4SpiralAngle = 0f
+    s7RingTimer = 0f
+    s7RingAngle = 0f
     s1TurretTimer = 0f
     s1WingTimer = 0f
     s1SweepTimer = 0f
@@ -569,6 +575,8 @@ class BossController(private val resources: Resources) {
       updateStage6Combat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.CANOPY) {
       updateStage5Combat(dt, playerX, playerY, weapons)
+    } else if (combatKind == BossCombatKind.WINTER) {
+      updateWinterKeepCombat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.JUNGLE) {
       updateJungleFortressCombat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.BATTLESHIP) {
@@ -712,6 +720,17 @@ class BossController(private val resources: Resources) {
       BossCombatKind.ORBIT, BossCombatKind.CANOPY -> {
         // Multi-part module wrecks are handled independently via drawStage5()
         return
+      }
+      BossCombatKind.WINTER -> {
+        if (leftWreck != null && parts[TYPE_WINTER_LEFT_HOWITZER].isDestroyed) {
+          canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (rightWreck != null && parts[TYPE_WINTER_RIGHT_HOWITZER].isDestroyed) {
+          canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
+        }
+        if (centerWreck != null && (parts[TYPE_WINTER_BLIZZARD].isDestroyed || parts[TYPE_CORE].isDestroyed)) {
+          canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
+        }
       }
       BossCombatKind.JUNGLE -> {
         if (leftWreck != null && parts[TYPE_STAGE4_LEFT_MORTAR].isDestroyed) {
@@ -1014,6 +1033,9 @@ class BossController(private val resources: Resources) {
           i == TYPE_STAGE4_LEFT_MORTAR ||
           i == TYPE_STAGE4_RIGHT_MORTAR ||
           i == TYPE_STAGE4_HEAVY_GATLING ||
+          i == TYPE_WINTER_LEFT_HOWITZER ||
+          i == TYPE_WINTER_RIGHT_HOWITZER ||
+          i == TYPE_WINTER_BLIZZARD ||
           i == TYPE_LEFT_FLANK ||
           i == TYPE_RIGHT_FLANK
         ) {
@@ -1116,6 +1138,53 @@ class BossController(private val resources: Resources) {
           val aCcw = -s4SpiralAngle + step
           weapons.fireBullet(ox, oy, cos(aCw) * spd, sin(aCw) * spd)
           weapons.fireBullet(ox, oy, cos(aCcw) * spd, sin(aCcw) * spd)
+          k++
+        }
+      }
+    }
+  }
+
+  private fun updateWinterKeepCombat(
+    dt: Float,
+    playerX: Float,
+    playerY: Float,
+    weapons: EnemyWeaponSystem,
+  ) {
+    playNewModuleSfx()
+    if (entering) {
+      weapons.resetStage7Boss()
+      return
+    }
+    val leftGun = parts[TYPE_WINTER_LEFT_HOWITZER]
+    val rightGun = parts[TYPE_WINTER_RIGHT_HOWITZER]
+    val blizzard = parts[TYPE_WINTER_BLIZZARD]
+    val leftDead = leftGun.isDestroyed || leftGun.halfW <= 0f
+    val rightDead = rightGun.isDestroyed || rightGun.halfW <= 0f
+    val blizzardDead = blizzard.isDestroyed || blizzard.halfW <= 0f
+    weapons.updateStage7Boss(
+      dt,
+      coreX,
+      coreY,
+      bodyHalfW * 2f,
+      bodyHalfH,
+      playerX,
+      playerY,
+      leftDead,
+      rightDead,
+      blizzardDead,
+    )
+    if (isCoreVulnerable()) {
+      s7RingAngle += S7_RING_SPIN * dt
+      s7RingTimer -= dt
+      if (s7RingTimer <= 0f) {
+        s7RingTimer = S7_RING_INTERVAL
+        val ox = coreX
+        val oy = coreY
+        val spd = S7_RING_SPEED
+        var k = 0
+        while (k < S7_RING_COUNT) {
+          val ang = s7RingAngle + k * S7_RING_STEP
+          weapons.fireBullet(ox, oy, cos(ang) * spd, sin(ang) * spd)
           k++
         }
       }
@@ -1273,6 +1342,33 @@ class BossController(private val resources: Resources) {
           S5_FLANK_HP,
         )
         syncStage5Hitboxes()
+      }
+      BossCombatKind.WINTER -> {
+        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S7_CORE_HP)
+        setupPart(
+          TYPE_WINTER_LEFT_HOWITZER,
+          -bodyHalfW * 0.70f,
+          -bodyHalfH * 0.06f,
+          bodyHalfW * 0.20f,
+          bodyHalfH * 0.24f,
+          S7_HOWITZER_HP,
+        )
+        setupPart(
+          TYPE_WINTER_RIGHT_HOWITZER,
+          bodyHalfW * 0.70f,
+          -bodyHalfH * 0.06f,
+          bodyHalfW * 0.20f,
+          bodyHalfH * 0.24f,
+          S7_HOWITZER_HP,
+        )
+        setupPart(
+          TYPE_WINTER_BLIZZARD,
+          0f,
+          bodyHalfH * 0.52f,
+          bodyHalfW * 0.24f,
+          bodyHalfH * 0.24f,
+          S7_BLIZZARD_HP,
+        )
       }
       BossCombatKind.JUNGLE -> {
         setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.30f, bodyHalfH * 0.40f, S4_CORE_HP)
@@ -1479,6 +1575,9 @@ class BossController(private val resources: Resources) {
     const val TYPE_STAGE4_LEFT_MORTAR = 10
     const val TYPE_STAGE4_RIGHT_MORTAR = 11
     const val TYPE_STAGE4_HEAVY_GATLING = 12
+    const val TYPE_WINTER_LEFT_HOWITZER = 10
+    const val TYPE_WINTER_RIGHT_HOWITZER = 11
+    const val TYPE_WINTER_BLIZZARD = 12
     const val MAX_PART_COUNT = 14
     const val HOVER_Y_FRAC = 0.25f
     const val CORE_WIDTH_FRAC = 0.85f
@@ -1567,6 +1666,14 @@ class BossController(private val resources: Resources) {
     const val S4_SPIRAL_SPIN = 4.5f
     const val S4_SPIRAL_COUNT = 6
     const val S4_SPIRAL_STEP = (Math.PI * 2.0 / S4_SPIRAL_COUNT).toFloat()
+    const val S7_CORE_HP = 500
+    const val S7_HOWITZER_HP = 150
+    const val S7_BLIZZARD_HP = 170
+    const val S7_RING_INTERVAL = 0.20f
+    const val S7_RING_SPEED = 280f
+    const val S7_RING_SPIN = 2.8f
+    const val S7_RING_COUNT = 8
+    const val S7_RING_STEP = (Math.PI * 2.0 / S7_RING_COUNT).toFloat()
     const val S5_CORE_HP = 350
     const val S5_FLANK_HP = 180
     const val S5_LEFT_L = -0.50f

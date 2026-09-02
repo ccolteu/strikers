@@ -67,6 +67,9 @@ class EnemyWeaponSystem {
   private var s3FlakLeft = true
   private var s4MortarTimer = 0f
   private var s4GatlingTimer = 0f
+  private var s7HowitzerTimer = 0f
+  private var s7BlizzardTimer = 0f
+  private var s7HowitzerLeft = true
 
   fun onSizeChanged(width: Int, height: Int) {
     screenW = width.toFloat()
@@ -162,6 +165,12 @@ class EnemyWeaponSystem {
   fun resetStage4Boss() {
     s4MortarTimer = scaledInterval(S4_MORTAR_INTERVAL)
     s4GatlingTimer = scaledInterval(S4_GATLING_INTERVAL)
+  }
+
+  fun resetStage7Boss() {
+    s7HowitzerTimer = scaledInterval(S7_HOWITZER_INTERVAL)
+    s7BlizzardTimer = scaledInterval(S7_BLIZZARD_INTERVAL)
+    s7HowitzerLeft = true
   }
 
   fun resetStage5Boss() {
@@ -373,6 +382,80 @@ class EnemyWeaponSystem {
       fireBullet(spawnX, spawnY, 0f, gatlingSpd)
       index++
     }
+  }
+
+  fun updateStage7Boss(
+    dt: Float,
+    cX: Float,
+    cY: Float,
+    bossW: Float,
+    bossHalfH: Float,
+    pX: Float,
+    pY: Float,
+    leftHowitzerDead: Boolean,
+    rightHowitzerDead: Boolean,
+    blizzardDead: Boolean,
+  ) {
+    val bossH = bossHalfH * 2f
+    if (!leftHowitzerDead || !rightHowitzerDead) {
+      s7HowitzerTimer -= dt
+      if (s7HowitzerTimer <= 0f) {
+        s7HowitzerTimer = scaledInterval(S7_HOWITZER_INTERVAL)
+        val fireLeft = s7HowitzerLeft
+        s7HowitzerLeft = !s7HowitzerLeft
+        if (fireLeft && !leftHowitzerDead) {
+          fireS7Aimed(
+            cX + S7_LEFT_MUZZLE_X * bossW,
+            cY + S7_LEFT_MUZZLE_Y * bossH,
+            pX,
+            pY,
+          )
+        } else if (!fireLeft && !rightHowitzerDead) {
+          fireS7Aimed(
+            cX + S7_RIGHT_MUZZLE_X * bossW,
+            cY + S7_RIGHT_MUZZLE_Y * bossH,
+            pX,
+            pY,
+          )
+        } else if (!leftHowitzerDead) {
+          fireS7Aimed(
+            cX + S7_LEFT_MUZZLE_X * bossW,
+            cY + S7_LEFT_MUZZLE_Y * bossH,
+            pX,
+            pY,
+          )
+        } else if (!rightHowitzerDead) {
+          fireS7Aimed(
+            cX + S7_RIGHT_MUZZLE_X * bossW,
+            cY + S7_RIGHT_MUZZLE_Y * bossH,
+            pX,
+            pY,
+          )
+        }
+      }
+    }
+    if (blizzardDead) return
+    s7BlizzardTimer -= dt
+    if (s7BlizzardTimer > 0f) return
+    s7BlizzardTimer = scaledInterval(S7_BLIZZARD_INTERVAL)
+    val spawnX = cX + S7_CHIN_MUZZLE_X * bossW
+    val spawnY = cY + S7_CHIN_MUZZLE_Y * bossH
+    val spd = scaledSpeed(S7_BLIZZARD_SPEED)
+    var i = -3
+    while (i <= 3) {
+      val ang = S2_DOWN_ANGLE + i * S7_BLIZZARD_STEP
+      fireBullet(spawnX, spawnY, cos(ang) * spd, sin(ang) * spd)
+      i++
+    }
+  }
+
+  private fun fireS7Aimed(originX: Float, originY: Float, targetX: Float, targetY: Float) {
+    val dx = targetX - originX
+    val dy = targetY - originY
+    val lenSq = dx * dx + dy * dy
+    if (lenSq < 0.0001f) return
+    val inv = scaledSpeed(S7_HOWITZER_SPEED) / sqrt(lenSq)
+    fireBullet(originX, originY, dx * inv, dy * inv)
   }
 
   private fun fireS4MortarFan(spawnX: Float, spawnY: Float, downAndRight: Boolean) {
@@ -773,6 +856,18 @@ class EnemyWeaponSystem {
     const val S4_FAN_STEP = 0.2618f
     const val S4_FAN_HALF = 0.2618f
     const val S4_MORTAR_SPEED = 580f
+    const val S7_HOWITZER_INTERVAL = 1.05f
+    const val S7_HOWITZER_SPEED = 520f
+    const val S7_BLIZZARD_INTERVAL = 1.35f
+    const val S7_BLIZZARD_SPEED = 360f
+    const val S7_BLIZZARD_STEP = 0.1745329f
+    // dest-rect fractions from sprite center; pixels on 1024² boss.png
+    const val S7_LEFT_MUZZLE_X = -0.2881f // (217, 654) left 88 hole
+    const val S7_LEFT_MUZZLE_Y = 0.1387f
+    const val S7_RIGHT_MUZZLE_X = 0.2871f // (806, 654) right 88 hole
+    const val S7_RIGHT_MUZZLE_Y = 0.1387f
+    const val S7_CHIN_MUZZLE_X = 0f // (512, 880) hull gun hole
+    const val S7_CHIN_MUZZLE_Y = 0.3594f
     const val S5_VOLLEY_INTERVAL = 1.8f
     const val S5_PANIC_INTERVAL = 0.9f
     const val S5_RING_INTERVAL = 3.0f

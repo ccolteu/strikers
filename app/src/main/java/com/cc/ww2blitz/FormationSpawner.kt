@@ -96,6 +96,17 @@ object FormationSpawner {
   const val S4_WALL_VY = 440f
   const val S4_HOLD_V_AT = 35.0f
   const val S4_BOSS_AT = 45.0f
+  const val S7_FLURRY_START = 6.0f
+  const val S7_FLURRY_END = 18.0f
+  const val S7_FLURRY_SPACING = 1.55f
+  const val S7_FLURRY_VY = 140f
+  const val S7_HOLD_V_AT = 20.0f
+  const val S7_KAMI_AT = 24.0f
+  const val S7_KAMI_VY = 620f
+  const val S7_CROSS_AT = 28.0f
+  const val S7_CROSS_Y = 0.40f
+  const val S7_HEAVIES_AT = 32.0f
+  const val S7_WALL_AT = 36.0f
   const val S5_FLANK_END = 12.0f
   const val S5_FLANK_SPACING = 1.5f
   const val S5_SWEEP_VX = 260f

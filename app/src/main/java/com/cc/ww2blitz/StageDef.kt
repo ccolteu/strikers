@@ -15,6 +15,7 @@ object BossCombatKind {
   const val JUNGLE = 4
   const val CANOPY = 5
   const val ORBIT = 6
+  const val WINTER = 7
 }
 
 /** Elapsed-time wave list. Independent of theater, boss peel, and playlist id. */
@@ -25,6 +26,7 @@ object StageWaveKind {
   const val JUNGLE_RUINS = 4
   const val ASCENT_CANOPY = 5
   const val ORBIT_INTRO = 6
+  const val FROZEN_FRONT = 7
 }
 
 class BossKit(
@@ -47,6 +49,7 @@ class StageDef(
   val stageMusicTrack: Int,
   val theaterKind: Int,
   val hasOverlayClouds: Boolean = false,
+  val keyedOverlayLayers: Boolean = false,
   val locksElapsedAtBoss: Boolean = false,
   val usesOpeningPowerV: Boolean = false,
   val airHeavyHighHold: Boolean = false,
@@ -154,6 +157,23 @@ object StageCatalog {
       usesOpeningPowerV = true,
       waveScript = StageWaveKind.JUNGLE_RUINS,
       bossCombat = BossCombatKind.JUNGLE,
+      boss = wrecks,
+    ),
+    StageDef(
+      id = 7,
+      operationName = charArrayOf('F', 'R', 'O', 'Z', 'E', 'N', ' ', 'F', 'R', 'O', 'N', 'T'),
+      scrollSpeedY = 240f,
+      bossAtSeconds = 42f,
+      stageMusicTrack = SoundManager.BGM_STAGE2,
+      theaterKind = StageTheaterKind.SCROLL,
+      hasOverlayClouds = true,
+      keyedOverlayLayers = true,
+      locksElapsedAtBoss = true,
+      usesOpeningPowerV = true,
+      midFile = "mid.png",
+      highFile = "high.png",
+      waveScript = StageWaveKind.FROZEN_FRONT,
+      bossCombat = BossCombatKind.WINTER,
       boss = wrecks,
     ),
     StageDef(
