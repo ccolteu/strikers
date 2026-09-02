@@ -180,31 +180,8 @@ class ParticleManager(private val resources: Resources) {
     val src = BitmapFactory.decodeResource(resources, R.drawable.explosion_sheet, opts)
       ?: error("Missing drawable explosion_sheet")
     val bmp = if (src.isMutable) src else src.copy(Bitmap.Config.ARGB_8888, true).also { src.recycle() }
-    keyGreen(bmp)
+    StageBitmaps.keyGreen(bmp)
     return bmp
-  }
-
-  private fun keyGreen(bmp: Bitmap) {
-    val w = bmp.width
-    val h = bmp.height
-    val row = IntArray(w)
-    var rowY = 0
-    while (rowY < h) {
-      bmp.getPixels(row, 0, w, 0, rowY, w, 1)
-      var i = 0
-      while (i < w) {
-        val c = row[i]
-        val r = (c ushr 16) and 0xFF
-        val g = (c ushr 8) and 0xFF
-        val b = c and 0xFF
-        if (g > 160 && g > r + 40 && g > b + 40) {
-          row[i] = 0
-        }
-        i++
-      }
-      bmp.setPixels(row, 0, w, 0, rowY, w, 1)
-      rowY++
-    }
   }
 
   companion object {

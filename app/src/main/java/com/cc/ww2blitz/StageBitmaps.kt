@@ -34,6 +34,7 @@ object StageBitmaps {
       val scaled = Bitmap.createScaledBitmap(bmp, widthLock, scaledH, true)
       if (scaled !== bmp) bmp.recycle()
       bmp = scaled
+      if (keyed) bmp.setHasAlpha(true)
     }
     return bmp
   }
@@ -77,5 +78,8 @@ object StageBitmaps {
       bmp.setPixels(row, 0, w, 0, y, w, 1)
       y++
     }
+    // Opaque chroma PNGs decode with hasAlpha=false. Punch writes a=0, but a hardware
+    // canvas then treats the sheet as opaque RGB — keyed pixels are black boxes.
+    bmp.setHasAlpha(true)
   }
 }

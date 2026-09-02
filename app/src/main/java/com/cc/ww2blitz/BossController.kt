@@ -1634,6 +1634,7 @@ class BossController(private val resources: Resources) {
       bmp.setPixels(row, 0, w, 0, rowY, w, 1)
       rowY++
     }
+    bmp.setHasAlpha(true)
   }
 
   companion object {

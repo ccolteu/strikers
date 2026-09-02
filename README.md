@@ -531,7 +531,7 @@ Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turre
 
 **Why.** Load hitch is acceptable; per-blit keying is not. Same helper on player, popcorn types, bosses, missiles, explosions, and keyed canopies (`#00FF00`). The title still (`title_screen_backdrop`) is **not** keyed — it is a photograph; green punch would eat olive and cloud pixels.
 
-**Implementation.** `BitmapFactory` `inMutable`, `inScaled = false`. Row buffer `IntArray(width)`, `getPixels`/`setPixels` per row. Stage kits use `StageBitmaps.keyGreen` from assets; shared HUD/player sheets still decode from drawable. Recycle on fighter swap and `StageTheater.recycle()`. Title uses `decodeOpaque`.
+**Implementation.** `BitmapFactory` `inMutable`, `inScaled = false`. Row buffer `IntArray(width)`, `getPixels`/`setPixels` per row. After punch, `setHasAlpha(true)` — chroma PNGs are opaque files, so a hardware canvas otherwise treats `a=0` as black boxes (outline `SRC_IN` fills the dest rect). Stage kits use `StageBitmaps.keyGreen` from assets; shared HUD/player sheets still decode from drawable. Recycle on fighter swap and `StageTheater.recycle()`. Title uses `decodeOpaque`.
 
 ---
 
