@@ -217,7 +217,7 @@ class StageData {
         var liveInstance: StageData? = null
         // val STAGE_SEQUENCE = intArrayOf(1) // test just one level
         // val STAGE_SEQUENCE = intArrayOf(3,2,6,6) // test any order even with duplicates
-        // 1 - Airfield
+        // 1 - Harbor
         // 2 - Desert canyon
         // 3 - Ocean
         // 4 - Jungle
