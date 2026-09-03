@@ -266,7 +266,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     popupPaint.typeface = face
     popupShadowPaint.typeface = face
     uiController.bindTypeface(face)
-    var ver = "1.0.2"
+    var ver = "1.0.3"
     try {
       val name = context.packageManager.getPackageInfo(context.packageName, 0).versionName
       if (name != null && name.isNotEmpty()) ver = name
