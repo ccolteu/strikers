@@ -8,6 +8,8 @@ class StageData {
     private var stageId = STAGE_SEQUENCE[0]
     val currentStage: Int
         get() = stageId
+    val missionNumber: Int
+        get() = sequenceIndex + 1
     val def: StageDef
         get() = StageCatalog.get(stageId)
     val hasOverlayClouds: Boolean

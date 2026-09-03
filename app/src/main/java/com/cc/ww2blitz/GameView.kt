@@ -48,6 +48,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val powerUpDst = RectF()
   private val bgmSliderRect = RectF()
   private val sfxSliderRect = RectF()
+  private val bgmVolumeDownRect = RectF()
+  private val bgmVolumeUpRect = RectF()
+  private val sfxVolumeDownRect = RectF()
+  private val sfxVolumeUpRect = RectF()
   private val backButtonRect = RectF()
   private val openSettingsButtonRect = RectF()
   private val openDifficultyButtonRect = RectF()
@@ -137,17 +141,49 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     strokeWidth = 4f
     isAntiAlias = true
   }
+  private val uiSelectWellPaint = Paint().apply {
+    color = 0x99000000.toInt()
+    style = Paint.Style.FILL
+    isAntiAlias = false
+  }
   private val uiSelectIdleStrokePaint = Paint().apply {
-    color = 0x5500E5FF.toInt()
+    color = 0xFF6E6E6E.toInt()
     style = Paint.Style.STROKE
-    strokeWidth = 4f
-    isAntiAlias = true
+    strokeWidth = 5f
+    strokeJoin = Paint.Join.MITER
+    strokeMiter = 8f
+    isAntiAlias = false
+  }
+  private val uiSelectIdleInnerPaint = Paint().apply {
+    color = 0xFF3A3A3A.toInt()
+    style = Paint.Style.STROKE
+    strokeWidth = 2f
+    strokeJoin = Paint.Join.MITER
+    strokeMiter = 8f
+    isAntiAlias = false
   }
   private val uiSelectFocusStrokePaint = Paint().apply {
-    color = Color.YELLOW
+    color = 0xFFFFD54A.toInt()
     style = Paint.Style.STROKE
-    strokeWidth = 4f
-    isAntiAlias = true
+    strokeWidth = 6f
+    strokeJoin = Paint.Join.MITER
+    strokeMiter = 8f
+    isAntiAlias = false
+  }
+  private val uiSelectFocusInnerPaint = Paint().apply {
+    color = 0xFF00E5FF.toInt()
+    style = Paint.Style.STROKE
+    strokeWidth = 2f
+    strokeJoin = Paint.Join.MITER
+    strokeMiter = 8f
+    isAntiAlias = false
+  }
+  private val uiSelectCornerPaint = Paint().apply {
+    color = 0xFFFFD54A.toInt()
+    style = Paint.Style.STROKE
+    strokeWidth = 8f
+    strokeCap = Paint.Cap.SQUARE
+    isAntiAlias = false
   }
   private val choreographer = Choreographer.getInstance()
   private var running = false
@@ -224,17 +260,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     color = Color.BLACK
     typeface = Typeface.DEFAULT_BOLD
     textSize = 28f
-    isAntiAlias = true
-  }
-  private val uiTrackPaint = Paint().apply {
-    color = 0xAA1A1A1A.toInt()
-    style = Paint.Style.FILL
-    isAntiAlias = true
-  }
-  private val uiTrackStrokePaint = Paint().apply {
-    color = 0xFFFFD54A.toInt()
-    style = Paint.Style.STROKE
-    strokeWidth = 5f
     isAntiAlias = true
   }
 
@@ -326,7 +351,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     lastNanos = frameTimeNanos
     when (gameState) {
       STATE_TITLE -> {
-        if (!isSettingsMenuOpen) {
+        if (isSettingsMenuOpen) {
+          registrationTextFlashTimer += dt
+        } else {
           attractCycleTimer += dt
           when (attractCycleState) {
             ATTRACT_TITLE -> {
@@ -466,8 +493,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           !boss.isExploding()
         ) {
           ScoreManager.instance.beginRecap(player.getHealth(), availableBombs)
-          if (stageManager.currentStage > maxStageCleared) {
-            maxStageCleared = stageManager.currentStage
+          if (stageManager.missionNumber > maxStageCleared) {
+            maxStageCleared = stageManager.missionNumber
           }
           sweepPlayfieldForClear()
           gameState = STATE_CLEAR
@@ -815,7 +842,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       return
     }
     if (gameState != STATE_CLEAR) return
-    uiController.drawStageClear(canvas, screenW, screenH, ScoreManager.instance, stageManager.currentStage)
+    uiController.drawStageClear(canvas, screenW, screenH, ScoreManager.instance, stageManager.missionNumber)
   }
 
   private fun drawTitleScreen(canvas: Canvas) {
@@ -825,12 +852,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     val logo = logoBmp
     if (logo != null && screenW > 0 && screenH > 0) {
-      val maxH = screenH * 0.35f * 0.67f
+      val maxH = screenH * 0.35f * 0.67f * 1.20f
       val srcW = logo.width.toFloat().coerceAtLeast(1f)
       val srcH = logo.height.toFloat().coerceAtLeast(1f)
       var destH = maxH
       var destW = destH * (srcW / srcH)
-      val maxW = screenW * 0.92f * 0.67f
+      val maxW = screenW * 0.92f * 0.67f * 1.20f
       if (destW > maxW) {
         destW = maxW
         destH = destW * (srcH / srcW)
@@ -845,7 +872,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val creditY = versionY - 28f
     val menuBottomAnchorY = creditY - 130f
     val menuBlockStride = 180f
-    val tagSubPadding = 32f
+    val tagSubPadding = 64f
     val fighterMenuY = menuBottomAnchorY
     val fighterTagY = fighterMenuY + tagSubPadding
     val difficultyMenuY = fighterMenuY - menuBlockStride
@@ -858,7 +885,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       drawCenteredHud(canvas, uiStringBuilder, cx, startPrompterY, uiGoldPaint, uiGoldShadowPaint)
     }
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("[ AUDIO SETTINGS ]")
+    uiStringBuilder.append("[ AUDIO ]")
     drawCenteredHud(canvas, uiStringBuilder, cx, audioMenuY, uiGoldPaint, uiGoldShadowPaint)
     val settingsW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
     openSettingsButtonRect.set(
@@ -881,9 +908,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     openDifficultyButtonRect.inset(-60f, -30f)
     uiStringBuilder.setLength(0)
     appendDifficultyName(stageManager.getDifficulty().index - 1)
+    val savedTag = uiSmallPaint.textSize
+    val savedTagShadow = uiSmallShadowPaint.textSize
+    uiSmallPaint.textSize = 32f
+    uiSmallShadowPaint.textSize = 32f
     drawCenteredHud(canvas, uiStringBuilder, cx, difficultyTagY, uiSmallPaint, uiSmallShadowPaint)
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("[ SELECT FIGHTER ]")
+    uiStringBuilder.append("[ FIGHTER ]")
     drawCenteredHud(canvas, uiStringBuilder, cx, fighterMenuY, uiGoldPaint, uiGoldShadowPaint)
     val fightW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
     openFighterSelectButtonRect.set(
@@ -895,11 +926,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     openFighterSelectButtonRect.inset(-60f, -30f)
     uiStringBuilder.setLength(0)
     if (player.chosenFighterIndex == 1) {
-      uiStringBuilder.append("TYPE-02: HELLCAT")
+      uiStringBuilder.append("TYPE-02: F6F HELLCAT")
     } else {
-      uiStringBuilder.append("TYPE-01: LIGHTNING")
+      uiStringBuilder.append("TYPE-01: P-38 LIGHTNING")
     }
     drawCenteredHud(canvas, uiStringBuilder, cx, fighterTagY, uiSmallPaint, uiSmallShadowPaint)
+    uiSmallPaint.textSize = savedTag
+    uiSmallShadowPaint.textSize = savedTagShadow
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("CREDIT 2026 Claudiu Colteu. All rights reserved.")
     drawCenteredHud(canvas, uiStringBuilder, cx, creditY, uiSmallPaint, uiSmallShadowPaint)
@@ -961,7 +994,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun drawCharacterSelectScreen(canvas: Canvas) {
-    canvas.drawColor(0xBB000000.toInt())
+    canvas.drawColor(0x66000000.toInt())
     val savedGold = uiGoldPaint.textSize
     val savedGoldShadow = uiGoldShadowPaint.textSize
     val savedText = uiTextPaint.textSize
@@ -975,36 +1008,36 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiStringBuilder.append("SELECT FIGHTER")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.14f, uiGoldPaint, uiGoldShadowPaint)
 
-    uiGoldPaint.textSize = 24f
-    uiGoldShadowPaint.textSize = 24f
-    uiTextPaint.textSize = 18f
-    uiShadowPaint.textSize = 18f
+    uiGoldPaint.textSize = 32f
+    uiGoldShadowPaint.textSize = 32f
+    uiTextPaint.textSize = 26f
+    uiShadowPaint.textSize = 26f
 
     val boxHeight = 320f
-    val textBlockHeight = 160f
+    val textBlockHeight = 340f
     val totalGroupHeight = boxHeight + textBlockHeight
     val boxTop = cy - (totalGroupHeight * 0.5f)
     val boxBottom = boxTop + boxHeight
     shipLeftSelectRect.set(screenW * 0.08f, boxTop, screenW * 0.46f, boxBottom)
     shipRightSelectRect.set(screenW * 0.54f, boxTop, screenW * 0.92f, boxBottom)
-    val panelCorner = 8f
-    canvas.drawRoundRect(shipLeftSelectRect, panelCorner, panelCorner, uiSelectIdleStrokePaint)
-    canvas.drawRoundRect(shipRightSelectRect, panelCorner, panelCorner, uiSelectIdleStrokePaint)
+    drawArcadeSelectFrame(canvas, shipLeftSelectRect, focused = false)
+    drawArcadeSelectFrame(canvas, shipRightSelectRect, focused = false)
     blitSelectPreview(canvas, selectPreviewP38, shipLeftSelectRect)
     blitSelectPreview(canvas, selectPreviewHellcat, shipRightSelectRect)
-    uiSelectFocusStrokePaint.alpha = if ((System.currentTimeMillis() / 400L) % 2L == 0L) 255 else 90
-    if (selectedFighterIndex == 1) {
-      canvas.drawRoundRect(shipRightSelectRect, panelCorner, panelCorner, uiSelectFocusStrokePaint)
-    } else {
-      canvas.drawRoundRect(shipLeftSelectRect, panelCorner, panelCorner, uiSelectFocusStrokePaint)
+    val focusOn = (System.currentTimeMillis() / 400L) % 2L == 0L
+    if (focusOn) {
+      if (selectedFighterIndex == 1) {
+        drawArcadeSelectFrame(canvas, shipRightSelectRect, focused = true)
+      } else {
+        drawArcadeSelectFrame(canvas, shipLeftSelectRect, focused = true)
+      }
     }
-    uiSelectFocusStrokePaint.alpha = 255
 
     val leftColumnCenterX = (shipLeftSelectRect.left + shipLeftSelectRect.right) * 0.5f
     val rightColumnCenterX = (shipRightSelectRect.left + shipRightSelectRect.right) * 0.5f
-    val line1Y = boxBottom + 50f
-    val line2Y = line1Y + 35f
-    val line3Y = line2Y + 45f
+    val line1Y = boxBottom + 110f
+    val line2Y = line1Y + 64f
+    val line3Y = line2Y + 72f
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("TYPE-01:")
     drawCenteredHud(canvas, uiStringBuilder, leftColumnCenterX, line1Y, uiGoldPaint, uiGoldShadowPaint)
@@ -1021,7 +1054,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiStringBuilder.append("F6F HELLCAT")
     drawCenteredHud(canvas, uiStringBuilder, rightColumnCenterX, line2Y, uiGoldPaint, uiGoldShadowPaint)
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("- LIGHTNING BLITZ OVERDRIVE -")
+    uiStringBuilder.append("- LIGHTNING BLITZ -")
     drawCenteredHud(canvas, uiStringBuilder, rightColumnCenterX, line3Y, uiTextPaint, uiShadowPaint)
 
     uiGoldPaint.textSize = savedGold
@@ -1041,6 +1074,37 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       returnBtnY + uiGoldPaint.descent(),
     )
     fighterReturnToTitleRect.inset(-60f, -30f)
+  }
+
+  private fun drawArcadeSelectFrame(canvas: Canvas, rect: RectF, focused: Boolean) {
+    if (!focused) {
+      canvas.drawRect(rect, uiSelectWellPaint)
+    }
+    val outer = if (focused) uiSelectFocusStrokePaint else uiSelectIdleStrokePaint
+    val inner = if (focused) uiSelectFocusInnerPaint else uiSelectIdleInnerPaint
+    canvas.drawRect(rect, outer)
+    val inset = 8f
+    canvas.drawRect(
+      rect.left + inset,
+      rect.top + inset,
+      rect.right - inset,
+      rect.bottom - inset,
+      inner,
+    )
+    uiSelectCornerPaint.color = if (focused) 0xFFFFD54A.toInt() else 0xFF6E6E6E.toInt()
+    val tick = 26f
+    val l = rect.left
+    val t = rect.top
+    val r = rect.right
+    val b = rect.bottom
+    canvas.drawLine(l, t, l + tick, t, uiSelectCornerPaint)
+    canvas.drawLine(l, t, l, t + tick, uiSelectCornerPaint)
+    canvas.drawLine(r, t, r - tick, t, uiSelectCornerPaint)
+    canvas.drawLine(r, t, r, t + tick, uiSelectCornerPaint)
+    canvas.drawLine(l, b, l + tick, b, uiSelectCornerPaint)
+    canvas.drawLine(l, b, l, b - tick, uiSelectCornerPaint)
+    canvas.drawLine(r, b, r - tick, b, uiSelectCornerPaint)
+    canvas.drawLine(r, b, r, b - tick, uiSelectCornerPaint)
   }
 
   private fun blitSelectPreview(canvas: Canvas, bmp: Bitmap?, box: RectF) {
@@ -1072,14 +1136,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun drawHighScoreScreen(canvas: Canvas) {
     val cx = screenW * 0.5f
+    val savedGold = uiGoldPaint.textSize
+    val savedGoldShadow = uiGoldShadowPaint.textSize
+    uiGoldPaint.textSize = 48f
+    uiGoldShadowPaint.textSize = 48f
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("TOP SCORES")
-    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.12f, uiGoldPaint, uiGoldShadowPaint)
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.11f, uiGoldPaint, uiGoldShadowPaint)
+    uiGoldPaint.textSize = savedGold
+    uiGoldShadowPaint.textSize = savedGoldShadow
     val savedSmall = uiSmallPaint.textSize
     val savedSmallShadow = uiSmallShadowPaint.textSize
-    uiSmallPaint.textSize = 26f
-    uiSmallShadowPaint.textSize = 26f
-    val rowStep = screenH * 0.054f
+    uiSmallPaint.textSize = 36f
+    uiSmallShadowPaint.textSize = 36f
+    val rowStep = screenH * 0.065f
     var i = 0
     while (i < HighScoreManager.SLOT_COUNT) {
       uiStringBuilder.setLength(0)
@@ -1193,46 +1263,61 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun drawSettingsOverlay(canvas: Canvas) {
-    canvas.drawColor(0x88000000.toInt())
+    canvas.drawColor(0x66000000.toInt())
     val cx = screenW * 0.5f
     val savedGold = uiGoldPaint.textSize
     val savedGoldShadow = uiGoldShadowPaint.textSize
     uiGoldPaint.textSize = 42f
     uiGoldShadowPaint.textSize = 42f
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("SOUND CONFIGURATION")
+    uiStringBuilder.append("AUDIO SETTINGS")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
     uiGoldPaint.textSize = savedGold
     uiGoldShadowPaint.textSize = savedGoldShadow
 
-    val trackW = screenW * 0.60f
-    val trackH = 28f
-    val trackLeft = cx - trackW * 0.5f
-    val corner = trackH * 0.45f
+    val savedText = uiTextPaint.textSize
+    val savedTextShadow = uiShadowPaint.textSize
+    uiTextPaint.textSize = 52f
+    uiShadowPaint.textSize = 52f
 
+    val mid = screenH * 0.52f
     val bgmScale = SoundManager.instance.getBgmVolumeScale()
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("BGM ")
     uiStringBuilder.append((bgmScale * 100f).toInt())
     uiStringBuilder.append('%')
-    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.32f, uiTextPaint, uiShadowPaint)
-    val bgmTop = screenH * 0.38f - trackH * 0.5f
-    bgmSliderRect.set(trackLeft, bgmTop, trackLeft + trackW, bgmTop + trackH)
-    drawCabinetSlider(canvas, bgmSliderRect, bgmScale, corner)
+    drawCenteredHud(canvas, uiStringBuilder, cx, mid - screenH * 0.14f, uiTextPaint, uiShadowPaint)
+    drawVolumeGage(
+      canvas,
+      cx,
+      mid - screenH * 0.06f,
+      bgmScale,
+      bgmSliderRect,
+      bgmVolumeDownRect,
+      bgmVolumeUpRect,
+    )
 
     val sfxScale = SoundManager.instance.getSfxVolumeScale()
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("SFX ")
     uiStringBuilder.append((sfxScale * 100f).toInt())
     uiStringBuilder.append('%')
-    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.48f, uiTextPaint, uiShadowPaint)
-    val sfxTop = screenH * 0.54f - trackH * 0.5f
-    sfxSliderRect.set(trackLeft, sfxTop, trackLeft + trackW, sfxTop + trackH)
-    drawCabinetSlider(canvas, sfxSliderRect, sfxScale, corner)
+    drawCenteredHud(canvas, uiStringBuilder, cx, mid + screenH * 0.06f, uiTextPaint, uiShadowPaint)
+    drawVolumeGage(
+      canvas,
+      cx,
+      mid + screenH * 0.14f,
+      sfxScale,
+      sfxSliderRect,
+      sfxVolumeDownRect,
+      sfxVolumeUpRect,
+    )
+    uiTextPaint.textSize = savedText
+    uiShadowPaint.textSize = savedTextShadow
 
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ RETURN TO TITLE ]")
-    val backY = screenH * 0.74f
+    val backY = screenH * 0.88f
     drawCenteredHud(canvas, uiStringBuilder, cx, backY, uiGoldPaint, uiGoldShadowPaint)
     val backW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
     val backX = cx - backW * 0.5f
@@ -1244,15 +1329,102 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     )
   }
 
-  private fun drawCabinetSlider(canvas: Canvas, track: RectF, fill: Float, corner: Float) {
-    canvas.drawRoundRect(track, corner, corner, uiTrackPaint)
-    if (fill > 0f) {
-      val inset = 4f
-      val innerRight = track.left + (track.width() - inset * 2f) * fill + inset
-      hudIconDst.set(track.left + inset, track.top + inset, innerRight, track.bottom - inset)
-      canvas.drawRoundRect(hudIconDst, corner * 0.7f, corner * 0.7f, uiGoldPaint)
+  private fun drawVolumeGage(
+    canvas: Canvas,
+    cx: Float,
+    baseline: Float,
+    fill: Float,
+    track: RectF,
+    downRect: RectF,
+    upRect: RectF,
+  ) {
+    val savedGold = uiGoldPaint.textSize
+    val savedGoldShadow = uiGoldShadowPaint.textSize
+    val savedText = uiTextPaint.textSize
+    val savedShadow = uiShadowPaint.textSize
+    val caretSize = 56f
+    val gageSize = 88f
+    uiGoldPaint.textSize = gageSize
+    uiGoldShadowPaint.textSize = gageSize
+    uiTextPaint.textSize = caretSize
+    uiShadowPaint.textSize = caretSize
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append('\u25A0')
+    val slotW = uiGoldPaint.measureText(uiStringBuilder, 0, 1)
+    val slots = 10
+    val squaresW = slotW * slots
+    val squaresLeft = cx - squaresW * 0.5f
+    uiTextPaint.getTextBounds("<", 0, 1, srcCore)
+    val caretCenterY = baseline + (srcCore.top + srcCore.bottom) * 0.5f
+    uiGoldPaint.getTextBounds("\u25A0", 0, 1, srcCore)
+    val squareBaseline = caretCenterY - (srcCore.top + srcCore.bottom) * 0.5f
+    val squareTop = squareBaseline + srcCore.top
+    val squareBottom = squareBaseline + srcCore.bottom
+    val lit = (fill * slots + 0.5f).toInt().coerceIn(0, slots)
+    val savedWhite = uiTextPaint.color
+    var i = 0
+    while (i < slots) {
+      val x = squaresLeft + i * slotW
+      if (i < lit) {
+        drawHudTextAt(canvas, uiStringBuilder, 0, 1, x, squareBaseline, uiGoldPaint, uiGoldShadowPaint)
+      } else {
+        uiTextPaint.textSize = gageSize
+        uiShadowPaint.textSize = gageSize
+        uiTextPaint.color = 0xFF5A5A5A.toInt()
+        drawHudTextAt(canvas, uiStringBuilder, 0, 1, x, squareBaseline, uiTextPaint, uiShadowPaint)
+        uiTextPaint.color = savedWhite
+        uiTextPaint.textSize = caretSize
+        uiShadowPaint.textSize = caretSize
+      }
+      i++
     }
-    canvas.drawRoundRect(track, corner, corner, uiTrackStrokePaint)
+    track.set(squaresLeft, squareTop, squaresLeft + squaresW, squareBottom)
+    val blink = kotlin.math.sin(registrationTextFlashTimer * 14f) * 0.5f + 0.5f
+    val blinkAlpha = (80f + blink * 175f).toInt()
+    uiTextPaint.alpha = blinkAlpha
+    uiShadowPaint.alpha = blinkAlpha
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append('<')
+    val caretW = uiTextPaint.measureText(uiStringBuilder, 0, 1)
+    val caretGap = 18f
+    drawCenteredHud(
+      canvas,
+      uiStringBuilder,
+      squaresLeft - caretGap - caretW * 0.5f,
+      baseline,
+      uiTextPaint,
+      uiShadowPaint,
+    )
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append('>')
+    drawCenteredHud(
+      canvas,
+      uiStringBuilder,
+      squaresLeft + squaresW + caretGap + caretW * 0.5f,
+      baseline,
+      uiTextPaint,
+      uiShadowPaint,
+    )
+    uiTextPaint.alpha = 255
+    uiShadowPaint.alpha = 255
+    layoutVolumeCaretHits(track, downRect, upRect)
+    uiGoldPaint.textSize = savedGold
+    uiGoldShadowPaint.textSize = savedGoldShadow
+    uiTextPaint.textSize = savedText
+    uiShadowPaint.textSize = savedShadow
+  }
+
+  private fun layoutVolumeCaretHits(track: RectF, downRect: RectF, upRect: RectF) {
+    val pad = 40f
+    downRect.set(0f, track.top - pad, track.left, track.bottom + pad)
+    upRect.set(track.right, track.top - pad, screenW.toFloat(), track.bottom + pad)
+  }
+
+  private fun bumpVolumeScale(current: Float, up: Boolean): Float {
+    val slots = 10
+    val cur = (current * slots + 0.5f).toInt().coerceIn(0, slots)
+    val next = (if (up) cur + 1 else cur - 1).coerceIn(0, slots)
+    return next / slots.toFloat()
   }
 
   private fun drawCenteredHud(
@@ -2455,30 +2627,33 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           val x = event.x
           val y = event.y
           if (isSettingsMenuOpen) {
-            val pad = 40f
-            if (
-              x >= bgmSliderRect.left && x <= bgmSliderRect.right &&
-              y >= bgmSliderRect.top - pad && y <= bgmSliderRect.bottom + pad
-            ) {
-              val trackW = bgmSliderRect.width().coerceAtLeast(1f)
-              val pct = ((x - bgmSliderRect.left) / trackW).coerceIn(0f, 1f)
-              SoundManager.instance.setBgmVolumeScale(pct)
-            } else if (
-              x >= sfxSliderRect.left && x <= sfxSliderRect.right &&
-              y >= sfxSliderRect.top - pad && y <= sfxSliderRect.bottom + pad
-            ) {
-              val trackW = sfxSliderRect.width().coerceAtLeast(1f)
-              val pct = ((x - sfxSliderRect.left) / trackW).coerceIn(0f, 1f)
-              SoundManager.instance.setSfxVolumeScale(pct)
-              if (down || ((event.eventTime.toInt() * 1103515245 + 12345) ushr 16 and 7) == 0) {
+            if (down) {
+              if (bgmVolumeDownRect.contains(x, y)) {
+                SoundManager.instance.setBgmVolumeScale(
+                  bumpVolumeScale(SoundManager.instance.getBgmVolumeScale(), false),
+                )
+              } else if (bgmVolumeUpRect.contains(x, y)) {
+                SoundManager.instance.setBgmVolumeScale(
+                  bumpVolumeScale(SoundManager.instance.getBgmVolumeScale(), true),
+                )
+              } else if (sfxVolumeDownRect.contains(x, y)) {
+                SoundManager.instance.setSfxVolumeScale(
+                  bumpVolumeScale(SoundManager.instance.getSfxVolumeScale(), false),
+                )
                 SoundManager.instance.playSFX(SoundManager.SFX_VULCAN)
+              } else if (sfxVolumeUpRect.contains(x, y)) {
+                SoundManager.instance.setSfxVolumeScale(
+                  bumpVolumeScale(SoundManager.instance.getSfxVolumeScale(), true),
+                )
+                SoundManager.instance.playSFX(SoundManager.SFX_VULCAN)
+              } else if (backButtonRect.contains(x, y)) {
+                isSettingsMenuOpen = false
+                SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
               }
-            } else if (down && backButtonRect.contains(x, y)) {
-              isSettingsMenuOpen = false
-              SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
             }
           } else if (down && openSettingsButtonRect.contains(x, y)) {
             isSettingsMenuOpen = true
+            registrationTextFlashTimer = 0f
             SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
           } else if (down && openDifficultyButtonRect.contains(x, y)) {
             attractCycleTimer = 0f
