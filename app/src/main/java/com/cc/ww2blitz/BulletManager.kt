@@ -140,8 +140,8 @@ class BulletManager {
         val dx = b.x - px
         val dy = b.y - py
         if ((b.flags and EnemyBullet.FLAG_LASER) != 0) {
-          val hw = EnemyWeaponSystem.S6_LASER_HW + coreR
-          val hh = EnemyWeaponSystem.S6_LASER_HH + coreR
+          val hw = EnemyWeaponSystem.S8_LASER_HW + coreR
+          val hh = EnemyWeaponSystem.S8_LASER_HH + coreR
           if (dx <= hw && dx >= -hw && dy <= hh && dy >= -hh) {
             b.isActive = false
             b.flags = 0

@@ -237,15 +237,15 @@ Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / d
 | `StageDef` / `StageCatalog` | Identity: metrics, flags, asset paths, `theaterKind`, `bossCombat`, briefing name | Spawn script, live bitmaps |
 | `StageDirector` | That map’s elapsed-time waves | Pools, HUD, player |
 
-`StageTheater` loads `assets/stages/N/`. `BossController` peels using `BossCombatKind`, not “if id == 5.” Shared systems stay global.
+`StageTheater` loads `assets/stages/N/`. `BossController` peels using `BossCombatKind` (same ints as catalog ids 1–8). Shared systems stay global.
 
 **Why.** Index-based finish is what the operator programmed. Identity on the def lets a facility canopy and an ocean freeze work even if you reorder the array. A clone of jungle-over-new-art is a folder, a catalog row, a director object, and a playlist entry.
 
-**Implementation.** Default `intArrayOf(1, 2, 3, 7, 8, 4, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. `currentStage` is the catalog id; `missionNumber` is `sequenceIndex + 1` (what recap prints as `STAGE N CLEAR`). `StageData.def` is `StageCatalog.get(stageId)`. Derived flags: `hasOverlayClouds`, `isFacilityTheater`, `isAscentTheater`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `introOnly`. `applyStageMetrics` copies `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport. Later title size bounces do not call it.
+**Implementation.** Default `intArrayOf(1, 2, 3, 4, 5, 6, 7, 8)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. `currentStage` is the catalog id; `missionNumber` is `sequenceIndex + 1` (what recap prints as `STAGE N CLEAR`). `StageData.def` is `StageCatalog.get(stageId)`. Derived flags: `hasOverlayClouds`, `isFacilityTheater`, `isAscentTheater`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `introOnly`. `applyStageMetrics` copies `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport. Later title size bounces do not call it.
 
-Theater kinds (`StageTheaterKind`): **SCROLL** (width-locked floor, optional overlay clouds), **FACILITY** (floor + keyed canopy over hostiles), **ASCENT** (unscaled floor, `floor_alt` swap, late canopy). GameView/Parallax branch on kind, not on ids 5 and 6.
+Theater kinds (`StageTheaterKind`): **SCROLL** (width-locked floor, optional overlay clouds), **FACILITY** (floor + keyed canopy over hostiles), **ASCENT** (unscaled floor, `floor_alt` swap, late canopy). GameView/Parallax branch on kind, not on ids 7 and 8.
 
-Boss kits (`BossCombatKind`): **PLANE**, **TANK**, **BATTLESHIP**, **JUNGLE**, **WINTER**, **ATOLL**, **CANOPY**, **ORBIT**. Bind peels, wreck overlays, and fire tables. `BossKit.triPart` is canopy/orbit victory. Reuse a kind on a new def to clone an existing fortress.
+Boss kits (`BossCombatKind`): **PLANE**, **TANK**, **BATTLESHIP**, **WINTER**, **ATOLL**, **JUNGLE**, **CANOPY**, **ORBIT** (ints 1–8, same as the maps). Bind peels, wreck overlays, and fire tables. `BossKit.triPart` is canopy/orbit victory. Reuse a kind on a new def to clone an existing fortress.
 
 Waves: `SpawnTimeline` is the clock (opening P-V, power safeguard, shared boss cue, `introOnly` gate, `HiddenMedalRoute` tick). Each catalog id gets its own director instance from `StageDef.waveScript` (`StageWaveKind`), not from the id number. Gaps are idle. `FormationSpawner` is shared helpers. Directors stay Kotlin; there is no wave DSL.
 
@@ -258,11 +258,11 @@ Campaign maps as coded:
 | 1 | CLOUD FORTRESS | SCROLL + clouds | PLANE | `bgm_stage1` | ~180 | ~38 s (shared cue) |
 | 2 | IRON TREADS | SCROLL + tank skin | TANK | `bgm_stage2` | ~260 | ~30 s (shared cue) |
 | 3 | STEEL ATLANTIC | SCROLL + destroyer skin | BATTLESHIP | `bgm_stage3` | ~200 | ~25 s (shared cue; clock freezes) |
-| 4 | JUNGLE RUINS | SCROLL | JUNGLE | `bgm_stage4` | ~310 | ~45 s (shared cue; clock freezes) |
-| 7 | FROZEN FRONT | SCROLL + keyed snow overlays | WINTER | `bgm_stage7` | ~240 | ~42 s (shared cue; clock freezes) |
-| 8 | CORAL ATOLL | SCROLL + keyed cloud/spray overlays | ATOLL | `bgm_stage8` | ~220 | ~40 s (shared cue; clock freezes) |
-| 5 | ASCENT CANOPY | FACILITY + wagon skin | CANOPY | `bgm_stage5` | 280 → 0 | ~45 s (director cue; clock freezes) |
-| 6 | ORBIT THRESHOLD | ASCENT | ORBIT | `bgm_stage6` | envelope | **5 s** intro-only, no grunts |
+| 4 | FROZEN FRONT | SCROLL + keyed snow overlays | WINTER | `bgm_stage4` | ~240 | ~42 s (shared cue; clock freezes) |
+| 5 | CORAL ATOLL | SCROLL + keyed cloud/spray overlays | ATOLL | `bgm_stage5` | ~220 | ~40 s (shared cue; clock freezes) |
+| 6 | JUNGLE RUINS | SCROLL | JUNGLE | `bgm_stage6` | ~310 | ~45 s (shared cue; clock freezes) |
+| 7 | ASCENT CANOPY | FACILITY + wagon skin | CANOPY | `bgm_stage7` | 280 → 0 | ~45 s (director cue; clock freezes) |
+| 8 | ORBIT THRESHOLD | ASCENT | ORBIT | `bgm_stage8` | envelope | **5 s** intro-only, no grunts |
 
 **To mix and match**
 
@@ -271,7 +271,7 @@ The credit order is only `STAGE_SEQUENCE` (reorder, skip, duplicate). Each id is
 ```kotlin
 StageDef(
   id = 8,
-  artFolder = "stages/4",                       // jungle PNGs
+  artFolder = "stages/6",                       // jungle PNGs
   theaterKind = StageTheaterKind.SCROLL,
   waveScript = StageWaveKind.CLOUD_FORTRESS,    // stage 1 waves
   bossCombat = BossCombatKind.TANK,             // stage 2 peel
@@ -400,7 +400,7 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 8, 6, 6)`. No new director class if the wav
 
 **Why.** Distance-squared avoids `RectF.intersects` and sqrt on the miss path. A flag on the bullet is the EEPROM of “already paid.” Cabinets chip you once per pulse, then still pay graze on the rest of the ring. Returning from the first overlap skipped stacked shots and i-frame grazes.
 
-**Implementation.** `BulletManager.resolveEnemyBulletsVsPlayer`: skip if `!player.isOnField()`. For each active `EnemyBullet`, if `FLAG_LASER` use AABB (`S6_LASER_HW/HH` + core); else `distSq` vs `(core + BULLET_HIT_RADIUS)²` then `grazeSq`. Core/laser overlap: deactivate the shot. If `damagedThisFrame` is still false, set it and `takeDamage()`; **return true only if the body exploded**. Extra cores/lasers the same frame are cancelled with no second chip (i-frames included). The loop continues so remaining pellets can graze. Graze: set `FLAG_GRAZED`, `addGrazeScore` if `awardScore`, `triggerSpark` with outward velocity from the delta. Demo passes `awardScore = false`. Graze **count** for recap is incremented unscaled. The drawn 36 px oval is larger than the hit sphere so the rim can still graze.
+**Implementation.** `BulletManager.resolveEnemyBulletsVsPlayer`: skip if `!player.isOnField()`. For each active `EnemyBullet`, if `FLAG_LASER` use AABB (`S8_LASER_HW/HH` + core); else `distSq` vs `(core + BULLET_HIT_RADIUS)²` then `grazeSq`. Core/laser overlap: deactivate the shot. If `damagedThisFrame` is still false, set it and `takeDamage()`; **return true only if the body exploded**. Extra cores/lasers the same frame are cancelled with no second chip (i-frames included). The loop continues so remaining pellets can graze. Graze: set `FLAG_GRAZED`, `addGrazeScore` if `awardScore`, `triggerSpark` with outward velocity from the delta. Demo passes `awardScore = false`. Graze **count** for recap is incremented unscaled. The drawn 36 px oval is larger than the hit sphere so the rim can still graze.
 
 ---
 
@@ -436,7 +436,7 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 8, 6, 6)`. No new director class if the wav
 | Graze sparks | 48 | `GrazeSpark` |
 | Pickups | 48 | `PowerUpSlot` |
 
-`spawnEnemy` / `fireBullet` / `spawnPlayerBullet` find `!isActive`, write primitives, set active. Off-screen cull deactivates. `deactivateAll` on stage boot, demo start, and `sweepPlayfieldForClear`. Some heavies set `deathClearBullets`; on death, nearby enemy shots deactivate (cancel medals on Stage 5 freeze).
+`spawnEnemy` / `fireBullet` / `spawnPlayerBullet` find `!isActive`, write primitives, set active. Off-screen cull deactivates. `deactivateAll` on stage boot, demo start, and `sweepPlayfieldForClear`. Some heavies set `deathClearBullets`; on death, nearby enemy shots deactivate (cancel medals on Stage 7 freeze).
 
 ---
 
@@ -448,7 +448,7 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 8, 6, 6)`. No new director class if the wav
 
 **Why.** Clock = cabinet rhythm. Latch = one-shot even if `elapsedTime` jumps the threshold. Freeze = the fortress is the content. A new map is another director object, not a subclass of the whole engine, and not a wave DSL.
 
-**Implementation.** `update` reads `StageCatalog.get(activeStage)`. `introOnly`: increment until `introSecs`, `DirectorCue.fireBoss(def.id)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V when `usesOpeningPowerV`. Shared boss cue when `usesSharedBossEntranceCue` at `def.bossAtSeconds` (campaign 1–4, 7, and 8). Stage 5 fires from its director at the same moment it ramps scroll to 0. Drip loops still honor `MAX_ACTIVE`; latched formations ignore the cap. Stage 4 cruiser parks at 22 s, after weaves end (21 s). `reset()` zeros the clock, the cue, and each bound director. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
+**Implementation.** `update` reads `StageCatalog.get(activeStage)`. `introOnly`: increment until `introSecs`, `DirectorCue.fireBoss(def.id)`, latch, return. Else increment unless `locksElapsedAtBoss && bossCueFired`. Opening power-V when `usesOpeningPowerV`. Shared boss cue when `usesSharedBossEntranceCue` at `def.bossAtSeconds` (campaign 1–6). Stage 7 fires from its director at the same moment it ramps scroll to 0. Drip loops still honor `MAX_ACTIVE`; latched formations ignore the cap. Stage 6 cruiser parks at 22 s, after weaves end (21 s). `reset()` zeros the clock, the cue, and each bound director. Side/cross beats use `spawnSideCross` / `PATTERN_DIAGONAL_SWEEP` at mid Y so a parked dual stream is not a full-width broom.
 
 ---
 
@@ -462,9 +462,9 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 8, 6, 6)`. No new director class if the wav
 
 **Implementation.** Types: `TYPE_DRONE`, `TYPE_KAMIKAZE`, `TYPE_INTERCEPTOR`, `TYPE_HEAVY`. Patterns: `PATTERN_V_HOLD` (descend, `aiPhase` hold, then aim), `PATTERN_WEAVE` (sine on `homeX`), `PATTERN_DIAGONAL_SWEEP`. Diamond: `diamondLeader` / `diamondWingSign`. Motion in `EnemyPoolManager.update` (`updateInterceptorHold`, weave, kamikaze `steerToward` when `kamikazeSeeks()` — Normal+ or rank ≥ 0.50). Dive speeds: `KAMI_VY` 560, fast 680; Stage 4/5 **side** kamis multiply `vy` by 0.70 so they are not a vertical wall.
 
-Hull HP: drones 1, kami 2, interceptors 6, heavies 10, Stage 3 cruiser 16 / destroyers 12, Stage 4 cruiser 20, Stage 5 heavies 32.
+Hull HP: drones 1, kami 2, interceptors 6, heavies 10, Stage 3 cruiser 16 / destroyers 12, Stage 6 cruiser 20, Stage 7 heavies 32.
 
-Jobs by stage: Stage 1 teach (sweep V that drops **P**, flanks, hold V, weaves at 14/86% width, mid-Y cross at 16 s, twin heavies). Stage 2 deny camping (pincers, death-clear heavies, diamond, a rest, then tanks at 30%/70% width, then walls). Stage 3 scouts, twin airborne heavies (high short hold, then off the top), mid cross, then a destroyer pair (mid-low Y, then slide off the bottom). Stage 4 width, weaves, then the cruiser, side kami, charge walls in lanes, interceptor hold-V before the fortress. Stage 7 (playlist after jungle) snow-lane weaves, hold-V, side kami, mid cross, twin heavies, then a four-ship wall before the keep. Stage 8 reef weaves in two lanes, hold-V, side kami, mid cross, twin heavies, four-ship wall, then the coastal battery. Stage 5 facility drizzle, kami V, left gunship, wagons (then a rest), right gunship, power, kami wall, freeze. Stage 6 empty. Tanks, destroyers, and wagons are theater skins of `TYPE_HEAVY` + `isGroundHeavy()`; they blit under planes.
+Jobs by stage: Stage 1 teach (sweep V that drops **P**, flanks, hold V, weaves at 14/86% width, mid-Y cross at 16 s, twin heavies). Stage 2 deny camping (pincers, death-clear heavies, diamond, a rest, then tanks at 30%/70% width, then walls). Stage 3 scouts, twin airborne heavies (high short hold, then off the top), mid cross, then a destroyer pair (mid-low Y, then slide off the bottom). Stage 4 snow-lane weaves, hold-V, side kami, mid cross, twin heavies, then a four-ship wall before the keep. Stage 5 reef weaves in two lanes, hold-V, side kami, mid cross, twin heavies, four-ship wall, then the coastal battery. Stage 6 width, weaves, then the cruiser, side kami, charge walls in lanes, interceptor hold-V before the fortress. Stage 7 facility drizzle, kami V, left gunship, wagons (then a rest), right gunship, power, kami wall, freeze. Stage 8 empty. Tanks, destroyers, and wagons are theater skins of `TYPE_HEAVY` + `isGroundHeavy()`; they blit under planes.
 
 Deliberately not done: steering groups, twelve enemy classes, random scatter inside a wave shape, spawn when pool full.
 
@@ -478,7 +478,7 @@ Deliberately not done: steering groups, twelve enemy classes, random scatter ins
 
 **Why.** Aim is a few floats on the slot. Lead is `eta = dist/shotSpeed` times sampled player velocity (two floats on the pool, reset with `deactivateAll`). Cabinets did not give a free screen wipe for popping drones at the bezel.
 
-**Implementation.** `scaledFireDelay()` uses `fireIntervalDivider()`. Interceptors on hold use `HOLD_FIRE_GAP`. Heavies fire rings `12 + burstBonus`. `writeAimedShot` uses `atan2` + `cos`/`sin` once when the burst is *aimed*. Lasers are the same `EnemyBullet` with `FLAG_LASER` (Stage 6).
+**Implementation.** `scaledFireDelay()` uses `fireIntervalDivider()`. Interceptors on hold use `HOLD_FIRE_GAP`. Heavies fire rings `12 + burstBonus`. `writeAimedShot` uses `atan2` + `cos`/`sin` once when the burst is *aimed*. Lasers are the same `EnemyBullet` with `FLAG_LASER` (Stage 8).
 
 `fireRevengeIfNeeded` (vulcan/missile kills only): death-clear ships skip. Interceptors/heavies fire when `revengeOnDeath()` (Very Hard+ **or** rank ≥ 0.70); Hardcore heavies a 3-way. Drones/kami fire one aimed pellet when `popcornSuicide()` (Normal+), even at rank 0. Bombs and rams do not spawn suicide. Speed × `shotSpeedScale()`.
 
@@ -529,7 +529,7 @@ Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turre
 
 **Why.** Width-lock preserves loop stitches. Z-order is the 1942 “you fly under the bridge” trick. A still title is an attract card. Theater kind, not map id, picks the blit path so a second facility map keeps the roof.
 
-**Implementation.** `StageTheater` decodes from `assets/stages/N/` via `StageBitmaps` (width-lock on scroll floors; unscaled on ascent so the limb stays straight). `ParallaxBackground` **borrows** those bitmaps and must not recycle them. Mid/high clouds `PorterDuff.SCREEN`. Facility: floor at `scrollSpeedY`, keyed canopy at 1.5×. Ascent: cloud floor, swap pointer to `floor_alt` at `def.spaceSwapAt` (30 s on map 6), orbit overlay from `def.canopyAt` (35 s on map 6), speed envelope in `updateStage6`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are a def flag (campaign maps 1, 7, and 8; winter and atoll also set `keyedOverlayLayers` so chroma snow/spray punches to alpha). Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne. Theater skins load with the map kit.
+**Implementation.** `StageTheater` decodes from `assets/stages/N/` via `StageBitmaps` (width-lock on scroll floors; unscaled on ascent so the limb stays straight). `ParallaxBackground` **borrows** those bitmaps and must not recycle them. Mid/high clouds `PorterDuff.SCREEN`. Facility: floor at `scrollSpeedY`, keyed canopy at 1.5×. Ascent: cloud floor, swap pointer to `floor_alt` at `def.spaceSwapAt` (30 s on map 8), orbit overlay from `def.canopyAt` (35 s on map 8), speed envelope in `updateStage8`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are a def flag (campaign maps 1, 4, and 5; winter and atoll also set `keyedOverlayLayers` so chroma snow/spray punches to alpha). Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne. Theater skins load with the map kit.
 
 ---
 
@@ -555,7 +555,7 @@ Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turre
 
 **Implementation.** `addScore` / `scalePoints`. `GameView.onEnemyKilled` (vulcan, missile, bomb, ram — `STATE_PLAYING` only) calls `awardKillScore`: `KILL_SCORE_*` × dip, `addScore`, `triggerFloatingScore` at the wreck. No extra medal or chip is spawned for the token. Graze count separate. `PlayerShip.takeDamage` (after i-frames fail) calls `markMiss`. Panic activate calls `markBombUsed`. Recap: `PHASE_LIVES` → `BOMBS` → `GRAZE` → `PHASE_SKILL` → `TOTAL` (~1.5 s each, `SFX_PICKUP` every 5 frames while rolling — not the vulcan sample). Skill lines gold if the bonus is > 0. Header `STAGE N CLEAR` uses `missionNumber`, not catalog id. Recap tally can cross an extend threshold. `UIController.drawStageClear` from char buffers. `ACTION_UP` when `isRecapReady()`: `resetStageCounters`, `advanceToNextStage`; if latch → `STATE_CAMPAIGN_COMPLETE`, else interstitial. 40% black wash under the card. World sprites not drawn in `STATE_CLEAR`.
 
-Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FULL_SCORE` (2000) + floating popup (`collectPowerUp`), same pattern as extra **B** at 3 stock (`BOMB_FULL_SCORE` 5000 + popup). Falling wreck medals still score face-up 2000 / edge 200 at Normal, then × dip. Extra **P/B** chance after the medal: base 15% popcorn / 40% armor, × `lootChanceScale()`, then cap 20% / 50%. Shield `restoreHits()`. Stage 5 cancel medals during core-kill freeze. Medals **magnet**: within 96 px they slide toward the ship at 420 px/s; in the outer 10% of the screen, if the plane is hugging that same wall, the pull radius is 188 px so rim coins still collect (the sprite clamp cannot kiss the bezel). P/B are unchanged wall-bounce at 30 px.
+Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FULL_SCORE` (2000) + floating popup (`collectPowerUp`), same pattern as extra **B** at 3 stock (`BOMB_FULL_SCORE` 5000 + popup). Falling wreck medals still score face-up 2000 / edge 200 at Normal, then × dip. Extra **P/B** chance after the medal: base 15% popcorn / 40% armor, × `lootChanceScale()`, then cap 20% / 50%. Shield `restoreHits()`. Stage 7 cancel medals during core-kill freeze. Medals **magnet**: within 96 px they slide toward the ship at 420 px/s; in the outer 10% of the screen, if the plane is hugging that same wall, the pull radius is 188 px so rim coins still collect (the sprite clamp cannot kiss the bezel). P/B are unchanged wall-bounce at 30 px.
 
 Hidden route: `HiddenMedalRoute` binds on `resetStage` / timeline tick. Five cues per map (three on Orbit Threshold), `at` seconds + `xFrac`/`yFrac`, mostly rails. `PowerUpItem.spawnSecretMedal` sets `isSecretMedal` and `pickupPoints = 2500` (then × dip on collect). Recap line is `SECRET: N x unit` with that same scaled unit. `armSecretRoute(cueCount)` sets the route length. Center magnet does not reach a rail spawn; hugging that wall does.
 
@@ -652,7 +652,7 @@ Hidden route: `HiddenMedalRoute` binds on `resetStage` / timeline tick. Five cue
 ```
 New WW2 Blitz stage. Follow this authoring pipeline; ask if anything is unclear.
 
-Playlist. Stages 5 and 6 stay the last two in a real campaign. Insert the new id before them (example: 1,2,3,4,N,5,6). Do not steal Stage 5 facility canopy or Stage 6 orbit.
+Playlist. Stages 7 and 8 stay the last two in a real campaign. Insert the new id before them (example: 1,2,3,4,5,6,N,7,8). Do not steal Stage 7 facility canopy or Stage 8 orbit.
 
 Kits. Unless I say reuse, give the map its own StageWaveKind, BossCombatKind (new director + peel + fire table), and BGM identity (`bgm_stageN` on `stageMusicTrack`; do not reuse another theater’s loop). SCROLL theater unless I say otherwise.
 

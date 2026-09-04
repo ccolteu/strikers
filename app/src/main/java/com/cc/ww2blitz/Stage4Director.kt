@@ -1,49 +1,44 @@
 package com.cc.ww2blitz
 
+import com.cc.ww2blitz.FormationSpawner.CROSS_VX
+import com.cc.ww2blitz.FormationSpawner.CROSS_VY
+import com.cc.ww2blitz.FormationSpawner.HEAVY_HP
+import com.cc.ww2blitz.FormationSpawner.HEAVY_VY
 import com.cc.ww2blitz.FormationSpawner.MAX_ACTIVE
 import com.cc.ww2blitz.FormationSpawner.PATTERN_V_HOLD
 import com.cc.ww2blitz.FormationSpawner.PATTERN_WEAVE
-import com.cc.ww2blitz.FormationSpawner.S4_CRUISER_AT
-import com.cc.ww2blitz.FormationSpawner.S4_CRUISER_HP
-import com.cc.ww2blitz.FormationSpawner.S4_CRUISER_VY
-import com.cc.ww2blitz.FormationSpawner.S4_FLANK_END
-import com.cc.ww2blitz.FormationSpawner.S4_FLANK_SPACING
-import com.cc.ww2blitz.FormationSpawner.S4_FLANK_START
-import com.cc.ww2blitz.FormationSpawner.S4_FLANK_VX
+import com.cc.ww2blitz.FormationSpawner.S4_CROSS_AT
+import com.cc.ww2blitz.FormationSpawner.S4_CROSS_Y
+import com.cc.ww2blitz.FormationSpawner.S4_FLURRY_END
+import com.cc.ww2blitz.FormationSpawner.S4_FLURRY_SPACING
+import com.cc.ww2blitz.FormationSpawner.S4_FLURRY_START
+import com.cc.ww2blitz.FormationSpawner.S4_FLURRY_VY
+import com.cc.ww2blitz.FormationSpawner.S4_HEAVIES_AT
 import com.cc.ww2blitz.FormationSpawner.S4_HOLD_V_AT
 import com.cc.ww2blitz.FormationSpawner.S4_KAMI_AT
 import com.cc.ww2blitz.FormationSpawner.S4_KAMI_VY
-import com.cc.ww2blitz.FormationSpawner.S4_WALL_COUNT
-import com.cc.ww2blitz.FormationSpawner.S4_WALL_END
-import com.cc.ww2blitz.FormationSpawner.S4_WALL_SPACING
-import com.cc.ww2blitz.FormationSpawner.S4_WALL_START
-import com.cc.ww2blitz.FormationSpawner.S4_WALL_VY
-import com.cc.ww2blitz.FormationSpawner.S4_WEAVE_END
-import com.cc.ww2blitz.FormationSpawner.S4_WEAVE_PAIRS
-import com.cc.ww2blitz.FormationSpawner.S4_WEAVE_SPACING
-import com.cc.ww2blitz.FormationSpawner.S4_WEAVE_START
-import com.cc.ww2blitz.FormationSpawner.S4_WEAVE_VY
+import com.cc.ww2blitz.FormationSpawner.S4_WALL_AT
+import com.cc.ww2blitz.FormationSpawner.SWEEP_VX
 import com.cc.ww2blitz.FormationSpawner.TYPE_DRONE
 import com.cc.ww2blitz.FormationSpawner.TYPE_HEAVY
 import com.cc.ww2blitz.FormationSpawner.TYPE_KAMIKAZE
 
+/** Winter front: slow snow-lane weaves, then a keep. Shared boss cue from the def. */
 class Stage4Director : StageDirector {
-  private var s4FlankTimer = 0f
-  private var s4WeaveTimer = 0f
-  private var s4WeaveCount = 0
-  private var s4KamiSpawned = false
-  private var s4WallCount = 0
-  private var s4CruiserSpawned = false
-  private var s4HoldVSpawned = false
+  private var flurryGap = 0f
+  private var holdVSpawned = false
+  private var kamiSpawned = false
+  private var crossSpawned = false
+  private var heaviesSpawned = false
+  private var wallSpawned = false
 
   override fun reset() {
-    s4FlankTimer = S4_FLANK_SPACING
-    s4WeaveTimer = S4_WEAVE_SPACING
-    s4WeaveCount = 0
-    s4KamiSpawned = false
-    s4WallCount = 0
-    s4CruiserSpawned = false
-    s4HoldVSpawned = false
+    flurryGap = S4_FLURRY_SPACING
+    holdVSpawned = false
+    kamiSpawned = false
+    crossSpawned = false
+    heaviesSpawned = false
+    wallSpawned = false
   }
 
   override fun tick(
@@ -58,70 +53,44 @@ class Stage4Director : StageDirector {
     cue: DirectorCue,
   ) {
     if (cue.bossCueFired) return
-    if (elapsed >= S4_FLANK_START && elapsed <= S4_FLANK_END) {
-      s4FlankTimer += dt
+    if (elapsed >= S4_FLURRY_START && elapsed <= S4_FLURRY_END) {
+      flurryGap += dt
       var safeguard = 0
-      while (s4FlankTimer >= S4_FLANK_SPACING && safeguard < 2) {
+      while (flurryGap >= S4_FLURRY_SPACING && safeguard < 2) {
         if (enemies.countActive() >= MAX_ACTIVE) break
-        s4FlankTimer -= S4_FLANK_SPACING
+        flurryGap -= S4_FLURRY_SPACING
         safeguard++
-        val y = h * 0.40f
-        enemies.spawnEnemy(-0.08f * w, y, S4_FLANK_VX, 0f, TYPE_DRONE)
-        enemies.spawnEnemy(1.08f * w, y, -S4_FLANK_VX, 0f, TYPE_DRONE)
+        enemies.spawnEnemy(0.18f * w, -0.04f * h, 0f, S4_FLURRY_VY, TYPE_DRONE, PATTERN_WEAVE)
+        enemies.spawnEnemy(0.50f * w, -0.08f * h, 0f, S4_FLURRY_VY * 0.92f, TYPE_DRONE, PATTERN_WEAVE)
+        enemies.spawnEnemy(0.82f * w, -0.04f * h, 0f, S4_FLURRY_VY, TYPE_DRONE, PATTERN_WEAVE)
       }
     }
-    if (
-      elapsed >= S4_WEAVE_START &&
-      elapsed <= S4_WEAVE_END &&
-      s4WeaveCount < S4_WEAVE_PAIRS
-    ) {
-      s4WeaveTimer += dt
-      var safeguard = 0
-      while (s4WeaveCount < S4_WEAVE_PAIRS && s4WeaveTimer >= S4_WEAVE_SPACING && safeguard < 2) {
-        if (enemies.countActive() >= MAX_ACTIVE) break
-        s4WeaveTimer -= S4_WEAVE_SPACING
-        safeguard++
-        s4WeaveCount++
-        enemies.spawnEnemy(0.12f * w, -0.02f * h, 0f, S4_WEAVE_VY, TYPE_DRONE, PATTERN_WEAVE)
-        enemies.spawnEnemy(0.88f * w, -0.02f * h, 0f, S4_WEAVE_VY, TYPE_DRONE, PATTERN_WEAVE)
-      }
-    }
-    if (!s4CruiserSpawned && elapsed >= S4_CRUISER_AT) {
-      s4CruiserSpawned = true
-      enemies.spawnEnemy(
-        0.50f * w,
-        -0.10f * h,
-        0f,
-        S4_CRUISER_VY,
-        TYPE_HEAVY,
-        PATTERN_V_HOLD,
-        S4_CRUISER_HP,
-      )
-    }
-    if (!s4KamiSpawned && elapsed >= S4_KAMI_AT) {
-      s4KamiSpawned = true
-      enemies.spawnEnemy(-0.06f * w, 0.22f * h, S4_FLANK_VX * 0.90f, S4_KAMI_VY * 0.70f, TYPE_KAMIKAZE)
-      enemies.spawnEnemy(1.06f * w, 0.22f * h, -S4_FLANK_VX * 0.90f, S4_KAMI_VY * 0.70f, TYPE_KAMIKAZE)
-    }
-    if (elapsed >= S4_WALL_START && elapsed <= S4_WALL_END && s4WallCount < S4_WALL_COUNT) {
-      val at = S4_WALL_START + s4WallCount * S4_WALL_SPACING
-      if (elapsed >= at) {
-        val lane = if (s4WallCount == 0) {
-          0.10f
-        } else if (s4WallCount == 1) {
-          0.22f
-        } else if (s4WallCount == 2) {
-          0.78f
-        } else {
-          0.90f
-        }
-        enemies.spawnEnemy(lane * w, -0.04f * h, 0f, S4_WALL_VY, TYPE_DRONE)
-        s4WallCount++
-      }
-    }
-    if (!s4HoldVSpawned && elapsed >= S4_HOLD_V_AT) {
-      s4HoldVSpawned = true
+    if (!holdVSpawned && elapsed >= S4_HOLD_V_AT) {
+      holdVSpawned = true
       FormationSpawner.spawnVFormation(enemies, w, h)
+    }
+    if (!kamiSpawned && elapsed >= S4_KAMI_AT) {
+      kamiSpawned = true
+      enemies.spawnEnemy(-0.06f * w, 0.28f * h, SWEEP_VX * 0.85f, S4_KAMI_VY, TYPE_KAMIKAZE)
+      enemies.spawnEnemy(1.06f * w, 0.28f * h, -SWEEP_VX * 0.85f, S4_KAMI_VY, TYPE_KAMIKAZE)
+    }
+    if (!crossSpawned && elapsed >= S4_CROSS_AT) {
+      if (enemies.countActive() < MAX_ACTIVE) {
+        crossSpawned = true
+        FormationSpawner.spawnSideCross(enemies, w, h, S4_CROSS_Y, CROSS_VX, CROSS_VY, TYPE_DRONE)
+      }
+    }
+    if (!heaviesSpawned && elapsed >= S4_HEAVIES_AT) {
+      heaviesSpawned = true
+      enemies.spawnEnemy(0.28f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, PATTERN_V_HOLD, HEAVY_HP)
+      enemies.spawnEnemy(0.72f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, PATTERN_V_HOLD, HEAVY_HP)
+    }
+    if (!wallSpawned && elapsed >= S4_WALL_AT) {
+      wallSpawned = true
+      enemies.spawnEnemy(0.12f * w, -0.06f * h, 0f, S4_FLURRY_VY, TYPE_DRONE)
+      enemies.spawnEnemy(0.36f * w, -0.10f * h, 0f, S4_FLURRY_VY, TYPE_DRONE)
+      enemies.spawnEnemy(0.64f * w, -0.10f * h, 0f, S4_FLURRY_VY, TYPE_DRONE)
+      enemies.spawnEnemy(0.88f * w, -0.06f * h, 0f, S4_FLURRY_VY, TYPE_DRONE)
     }
   }
 }

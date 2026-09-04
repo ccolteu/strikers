@@ -64,13 +64,13 @@ class BossController(private val resources: Resources) {
   private var s3MegaCannonTimer = 0f
   private var s3DesperationAngle = 0f
   private var s3SpiralTimer = 0f
-  private var s4MortarTimer = 0f
-  private var s4GatlingTimer = 0f
-  private var s4SpiralTimer = 0f
-  private var s4SpiralAngle = 0f
-  private var s7RingTimer = 0f
-  private var s7RingAngle = 0f
-  private var s8FanTimer = 0f
+  private var s6MortarTimer = 0f
+  private var s6GatlingTimer = 0f
+  private var s6SpiralTimer = 0f
+  private var s6SpiralAngle = 0f
+  private var s4RingTimer = 0f
+  private var s4RingAngle = 0f
+  private var s5FanTimer = 0f
   private var entering = false
   private var active = false
   private var isExploding = false
@@ -93,23 +93,23 @@ class BossController(private val resources: Resources) {
   private val leftFlankShudder = FloatArray(1)
   private val rightFlankShudder = FloatArray(1)
   private val coreShudder = FloatArray(1)
-  private val s5AreaQuery = RectF()
-  private var s5CoreArmorBank = 0f
-  private var s5HitDestroyed = false
-  private var s5HitDestroyX = 0f
-  private var s5HitDestroyY = 0f
+  private val s7AreaQuery = RectF()
+  private var s7CoreArmorBank = 0f
+  private var s7HitDestroyed = false
+  private var s7HitDestroyX = 0f
+  private var s7HitDestroyY = 0f
   private var hasDroppedLeftReward = false
   private var hasDroppedRightReward = false
   private var hasDroppedCoreReward = false
-  private var s5WeaponPower = 1
-  private var s5BombStock = 3
+  private var s7WeaponPower = 1
+  private var s7BombStock = 3
   private var victorySequenceTimer = 0f
   private var victoryCascadeGate = 0f
   private var victoryShatterFired = false
-  private var s5ShowTerminalWreck = false
+  private var s7ShowTerminalWreck = false
   private var victoryLcg = 2463534242L
-  private var s6SawOneFlankDown = false
-  private var s6SawBothFlanksDown = false
+  private var s8SawOneFlankDown = false
+  private var s8SawBothFlanksDown = false
   private var stageTimeline: SpawnTimeline? = null
 
   fun onSizeChanged(width: Int, height: Int) {
@@ -177,13 +177,13 @@ class BossController(private val resources: Resources) {
     s3MegaCannonTimer = 0f
     s3DesperationAngle = 0f
     s3SpiralTimer = 0f
-    s4MortarTimer = 0f
-    s4GatlingTimer = 0f
-    s4SpiralTimer = 0f
-    s4SpiralAngle = 0f
-    s7RingTimer = 0f
-    s7RingAngle = 0f
-    s8FanTimer = 0f
+    s6MortarTimer = 0f
+    s6GatlingTimer = 0f
+    s6SpiralTimer = 0f
+    s6SpiralAngle = 0f
+    s4RingTimer = 0f
+    s4RingAngle = 0f
+    s5FanTimer = 0f
     leftFlankShudder[0] = 0f
     rightFlankShudder[0] = 0f
     coreShudder[0] = 0f
@@ -196,16 +196,16 @@ class BossController(private val resources: Resources) {
     victorySequenceTimer = 0f
     victoryCascadeGate = 0f
     victoryShatterFired = false
-    s5ShowTerminalWreck = false
+    s7ShowTerminalWreck = false
     corePhaseOpen = false
     visualFlags = 0
-    s5CoreArmorBank = 0f
-    s5HitDestroyed = false
+    s7CoreArmorBank = 0f
+    s7HitDestroyed = false
     hasDroppedLeftReward = false
     hasDroppedRightReward = false
     hasDroppedCoreReward = false
-    s6SawOneFlankDown = false
-    s6SawBothFlanksDown = false
+    s8SawOneFlankDown = false
+    s8SawBothFlanksDown = false
     var i = 0
     while (i < MAX_PART_COUNT) {
       val p = parts[i]
@@ -272,17 +272,17 @@ class BossController(private val resources: Resources) {
     victorySequenceTimer = 0f
     victoryCascadeGate = 0f
     victoryShatterFired = false
-    s5ShowTerminalWreck = false
+    s7ShowTerminalWreck = false
     corePhaseOpen = false
     visualFlags = 0
     SoundManager.instance.stopAlarm()
-    s4MortarTimer = 0f
-    s4GatlingTimer = 0f
-    s4SpiralTimer = 0f
-    s4SpiralAngle = 0f
-    s7RingTimer = 0f
-    s7RingAngle = 0f
-    s8FanTimer = 0f
+    s6MortarTimer = 0f
+    s6GatlingTimer = 0f
+    s6SpiralTimer = 0f
+    s6SpiralAngle = 0f
+    s4RingTimer = 0f
+    s4RingAngle = 0f
+    s5FanTimer = 0f
     s1TurretTimer = 0f
     s1WingTimer = 0f
     s1SweepTimer = 0f
@@ -303,70 +303,70 @@ class BossController(private val resources: Resources) {
 
   fun getComponentCount(): Int = MAX_PART_COUNT
 
-  fun usesStage5Hitboxes(): Boolean = isTriPartBoss() && active && !isExploding
+  fun usesStage7Hitboxes(): Boolean = isTriPartBoss() && active && !isExploding
 
-  fun checkStage5Collision(bullet: PlayerBullet): Boolean {
+  fun checkStage7Collision(bullet: PlayerBullet): Boolean {
     if (!bullet.isActive) return false
-    return checkStage5CollisionAt(bullet.x, bullet.y, 1)
+    return checkStage7CollisionAt(bullet.x, bullet.y, 1)
   }
 
-  fun checkCollision(bullet: PlayerBullet): Boolean = checkStage5Collision(bullet)
+  fun checkCollision(bullet: PlayerBullet): Boolean = checkStage7Collision(bullet)
 
   fun checkCollisionAt(worldX: Float, worldY: Float, damage: Int): Boolean =
-    checkStage5CollisionAt(worldX, worldY, damage)
+    checkStage7CollisionAt(worldX, worldY, damage)
 
-  fun checkStage5CollisionAt(worldX: Float, worldY: Float, damage: Int): Boolean {
+  fun checkStage7CollisionAt(worldX: Float, worldY: Float, damage: Int): Boolean {
     if (!active || isExploding || !isTriPartBoss()) return false
-    s5HitDestroyed = false
+    s7HitDestroyed = false
     val left = parts[TYPE_LEFT_FLANK]
     val right = parts[TYPE_RIGHT_FLANK]
     val core = parts[TYPE_CORE]
     val leftFlankDestroyed = left.isDestroyed
     val rightFlankDestroyed = right.isDestroyed
     if (!leftFlankDestroyed && leftFlankBounds.contains(worldX, worldY)) {
-      applyStage5PartHit(left, damage)
+      applyStage7PartHit(left, damage)
       return true
     }
     if (!rightFlankDestroyed && rightFlankBounds.contains(worldX, worldY)) {
-      applyStage5PartHit(right, damage)
+      applyStage7PartHit(right, damage)
       return true
     }
     if (!core.isDestroyed && coreBounds.contains(worldX, worldY)) {
-      applyStage5CoreHit(core, left, right, damage)
+      applyStage7CoreHit(core, left, right, damage)
       return true
     }
     return false
   }
 
-  fun applyStage5AreaDamage(left: Float, top: Float, right: Float, bottom: Float, damage: Int) {
+  fun applyStage7AreaDamage(left: Float, top: Float, right: Float, bottom: Float, damage: Int) {
     if (!active || isExploding || !isTriPartBoss() || damage <= 0) return
-    s5HitDestroyed = false
+    s7HitDestroyed = false
     val leftPart = parts[TYPE_LEFT_FLANK]
     val rightPart = parts[TYPE_RIGHT_FLANK]
     val core = parts[TYPE_CORE]
-    s5AreaQuery.set(left, top, right, bottom)
-    if (!leftPart.isDestroyed && RectF.intersects(leftFlankBounds, s5AreaQuery)) {
-      applyStage5PartHit(leftPart, damage)
+    s7AreaQuery.set(left, top, right, bottom)
+    if (!leftPart.isDestroyed && RectF.intersects(leftFlankBounds, s7AreaQuery)) {
+      applyStage7PartHit(leftPart, damage)
     }
-    if (!rightPart.isDestroyed && RectF.intersects(rightFlankBounds, s5AreaQuery)) {
-      applyStage5PartHit(rightPart, damage)
+    if (!rightPart.isDestroyed && RectF.intersects(rightFlankBounds, s7AreaQuery)) {
+      applyStage7PartHit(rightPart, damage)
     }
-    if (!core.isDestroyed && RectF.intersects(coreBounds, s5AreaQuery)) {
-      applyStage5CoreHit(core, leftPart, rightPart, damage)
+    if (!core.isDestroyed && RectF.intersects(coreBounds, s7AreaQuery)) {
+      applyStage7CoreHit(core, leftPart, rightPart, damage)
     }
   }
 
-  fun consumeStage5Break(): Boolean {
-    val broke = s5HitDestroyed
-    s5HitDestroyed = false
+  fun consumeStage7Break(): Boolean {
+    val broke = s7HitDestroyed
+    s7HitDestroyed = false
     return broke
   }
 
-  fun stage5BreakX(): Float = s5HitDestroyX
+  fun stage7BreakX(): Float = s7HitDestroyX
 
-  fun stage5BreakY(): Float = s5HitDestroyY
+  fun stage7BreakY(): Float = s7HitDestroyY
 
-  private fun applyStage5PartHit(part: BossComponent, damage: Int) {
+  private fun applyStage7PartHit(part: BossComponent, damage: Int) {
     var dmg = damage
     if (dmg < 1) dmg = 1
     part.health -= dmg
@@ -375,14 +375,14 @@ class BossController(private val resources: Resources) {
     if (part.health <= 0) {
       part.health = 0
       part.isDestroyed = true
-      s5HitDestroyed = true
-      s5HitDestroyX = part.x
-      s5HitDestroyY = part.y
-      grantStage5ModuleReward(part.componentType)
+      s7HitDestroyed = true
+      s7HitDestroyX = part.x
+      s7HitDestroyY = part.y
+      grantStage7ModuleReward(part.componentType)
     }
   }
 
-  private fun applyStage5CoreHit(
+  private fun applyStage7CoreHit(
     core: BossComponent,
     left: BossComponent,
     right: BossComponent,
@@ -396,9 +396,9 @@ class BossController(private val resources: Resources) {
       pulseShudder(TYPE_CORE)
     }
     if (armored) {
-      s5CoreArmorBank += dmg * 0.5f
-      while (s5CoreArmorBank >= 1f && core.health > 0) {
-        s5CoreArmorBank -= 1f
+      s7CoreArmorBank += dmg * 0.5f
+      while (s7CoreArmorBank >= 1f && core.health > 0) {
+        s7CoreArmorBank -= 1f
         core.health -= 1
       }
     } else {
@@ -407,14 +407,14 @@ class BossController(private val resources: Resources) {
     if (core.health <= 0) {
       core.health = 0
       core.isDestroyed = true
-      s5HitDestroyed = true
-      s5HitDestroyX = core.x
-      s5HitDestroyY = core.y
-      grantStage5ModuleReward(TYPE_CORE)
+      s7HitDestroyed = true
+      s7HitDestroyX = core.x
+      s7HitDestroyY = core.y
+      grantStage7ModuleReward(TYPE_CORE)
     }
   }
 
-  private fun grantStage5ModuleReward(componentType: Int) {
+  private fun grantStage7ModuleReward(componentType: Int) {
     if (!triPartBoss) return
     if (componentType == TYPE_LEFT_FLANK && !hasDroppedLeftReward) {
       hasDroppedLeftReward = true
@@ -427,14 +427,14 @@ class BossController(private val resources: Resources) {
       val x = rightFlankBounds.centerX()
       val y = rightFlankBounds.centerY()
       ScoreManager.instance.addFlankBreakBonus(x, y)
-      PowerUpManager.instance.spawnRightFlankDrop(x, y, s5WeaponPower, s5BombStock)
+      PowerUpManager.instance.spawnRightFlankDrop(x, y, s7WeaponPower, s7BombStock)
     } else if (componentType == TYPE_CORE && !hasDroppedCoreReward) {
       hasDroppedCoreReward = true
       ScoreManager.instance.addCoreKillBonus(coreBounds.centerX(), coreBounds.centerY())
     }
   }
 
-  private fun syncStage5Hitboxes() {
+  private fun syncStage7Hitboxes() {
     val bossWidth = bodyHalfW * 2f
     val bossHeight = bodyHalfH * 2f
     val centerX = coreX
@@ -450,27 +450,27 @@ class BossController(private val resources: Resources) {
     val coreT: Float
     val coreB: Float
     if (combatKind == BossCombatKind.ORBIT) {
-      leftL = S6_LEFT_L
-      leftR = S6_LEFT_R
-      rightL = S6_RIGHT_L
-      rightR = S6_RIGHT_R
-      flankT = S6_FLANK_T
-      flankB = S6_FLANK_B
-      coreL = S6_CORE_L
-      coreR = S6_CORE_R
-      coreT = S6_CORE_T
-      coreB = S6_CORE_B
+      leftL = S8_LEFT_L
+      leftR = S8_LEFT_R
+      rightL = S8_RIGHT_L
+      rightR = S8_RIGHT_R
+      flankT = S8_FLANK_T
+      flankB = S8_FLANK_B
+      coreL = S8_CORE_L
+      coreR = S8_CORE_R
+      coreT = S8_CORE_T
+      coreB = S8_CORE_B
     } else {
-      leftL = S5_LEFT_L
-      leftR = S5_LEFT_R
-      rightL = S5_RIGHT_L
-      rightR = S5_RIGHT_R
-      flankT = S5_FLANK_T
-      flankB = S5_FLANK_B
-      coreL = S5_CORE_L
-      coreR = S5_CORE_R
-      coreT = S5_CORE_T
-      coreB = S5_CORE_B
+      leftL = S7_LEFT_L
+      leftR = S7_LEFT_R
+      rightL = S7_RIGHT_L
+      rightR = S7_RIGHT_R
+      flankT = S7_FLANK_T
+      flankB = S7_FLANK_B
+      coreL = S7_CORE_L
+      coreR = S7_CORE_R
+      coreT = S7_CORE_T
+      coreB = S7_CORE_B
     }
     leftFlankBounds.set(
       centerX + leftL * bossWidth,
@@ -519,14 +519,14 @@ class BossController(private val resources: Resources) {
     bombStock: Int,
     timeline: SpawnTimeline? = null,
   ) {
-    s5WeaponPower = playerWeaponPower
-    s5BombStock = bombStock
+    s7WeaponPower = playerWeaponPower
+    s7BombStock = bombStock
     stageTimeline = timeline
     if (!active) return
     tickShudder(dt)
     if (isExploding) {
       if (isTriPartBoss()) {
-        updateStage5Victory(dt)
+        updateStage7Victory(dt)
         return
       }
       explosionTimer += dt
@@ -541,7 +541,7 @@ class BossController(private val resources: Resources) {
     }
     if (parts[TYPE_CORE].isDestroyed) {
       if (isTriPartBoss()) {
-        beginStage5Victory(weapons)
+        beginStage7Victory(weapons)
         return
       }
       SoundManager.instance.stopAlarm()
@@ -573,12 +573,12 @@ class BossController(private val resources: Resources) {
       i++
     }
     if (isTriPartBoss()) {
-      syncStage5Hitboxes()
+      syncStage7Hitboxes()
     }
     if (combatKind == BossCombatKind.ORBIT) {
-      updateStage6Combat(dt, playerX, playerY, weapons)
+      updateStage8Combat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.CANOPY) {
-      updateStage5Combat(dt, playerX, playerY, weapons)
+      updateStage7Combat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.ATOLL) {
       updateAtollBatteryCombat(dt, playerX, playerY, weapons)
     } else if (combatKind == BossCombatKind.WINTER) {
@@ -616,7 +616,7 @@ class BossController(private val resources: Resources) {
       val sheet = bodySheet
       if (sheet != null) {
         if (isTriPartBoss()) {
-          drawStage5(canvas, sheet, hideBody)
+          drawStage7(canvas, sheet, hideBody)
         } else if (!hideBody) {
           var shudderTimer = 0f
           var i = 0
@@ -654,20 +654,20 @@ class BossController(private val resources: Resources) {
     return if ((timer * 100f).toInt() % 2 == 0) 2.0f else -2.0f
   }
 
-  private fun drawStage5(canvas: Canvas, bgStage5FullBmp: Bitmap, hideBody: Boolean) {
+  private fun drawStage7(canvas: Canvas, bgStage7FullBmp: Bitmap, hideBody: Boolean) {
     val leftFlankDestroyed = parts[TYPE_LEFT_FLANK].isDestroyed
     val rightFlankDestroyed = parts[TYPE_RIGHT_FLANK].isDestroyed
     val coreDestroyed = parts[TYPE_CORE].isDestroyed
     val leftFlankShake = leftFlankShudder[0]
     val rightFlankShake = rightFlankShudder[0]
     val coreShake = coreShudder[0]
-    val bgStage5WreckLeftBmp = leftWreckSheet
-    val bgStage5WreckRightBmp = rightWreckSheet
-    val bgStage5WreckCenterBmp = centerWreckSheet
+    val bgStage7WreckLeftBmp = leftWreckSheet
+    val bgStage7WreckRightBmp = rightWreckSheet
+    val bgStage7WreckCenterBmp = centerWreckSheet
     dstRect.set(coreX - bodyHalfW, coreY - bodyHalfH, coreX + bodyHalfW, coreY + bodyHalfH)
-    if (coreDestroyed && s5ShowTerminalWreck) {
-      if (bgStage5WreckCenterBmp != null) {
-        canvas.drawBitmap(bgStage5WreckCenterBmp, srcCore, dstRect, bodyPaint)
+    if (coreDestroyed && s7ShowTerminalWreck) {
+      if (bgStage7WreckCenterBmp != null) {
+        canvas.drawBitmap(bgStage7WreckCenterBmp, srcCore, dstRect, bodyPaint)
       }
       return
     }
@@ -676,43 +676,43 @@ class BossController(private val resources: Resources) {
     if (coreExposed && coreShake > 0f) {
       canvas.save()
       canvas.translate(shudderDx(coreShake), 0f)
-      blitOutlined(canvas, bgStage5FullBmp, srcCore, bodyPaint)
+      blitOutlined(canvas, bgStage7FullBmp, srcCore, bodyPaint)
       canvas.restore()
     } else {
-      blitOutlined(canvas, bgStage5FullBmp, srcCore, bodyPaint)
+      blitOutlined(canvas, bgStage7FullBmp, srcCore, bodyPaint)
       if (!leftFlankDestroyed && leftFlankShake > 0f) {
         canvas.save()
         canvas.clipRect(leftFlankBounds)
         canvas.translate(shudderDx(leftFlankShake), 0f)
-        blitOutlined(canvas, bgStage5FullBmp, srcCore, bodyPaint)
+        blitOutlined(canvas, bgStage7FullBmp, srcCore, bodyPaint)
         canvas.restore()
       }
       if (!rightFlankDestroyed && rightFlankShake > 0f) {
         canvas.save()
         canvas.clipRect(rightFlankBounds)
         canvas.translate(shudderDx(rightFlankShake), 0f)
-        blitOutlined(canvas, bgStage5FullBmp, srcCore, bodyPaint)
+        blitOutlined(canvas, bgStage7FullBmp, srcCore, bodyPaint)
         canvas.restore()
       }
     }
-    if (leftFlankDestroyed && bgStage5WreckLeftBmp != null) {
+    if (leftFlankDestroyed && bgStage7WreckLeftBmp != null) {
       canvas.save()
       canvas.clipRect(dstRect.left, dstRect.top, coreX, dstRect.bottom)
       if (leftFlankShake > 0f) {
         val currentOffset = if ((leftFlankShake * 100f).toInt() % 2 == 0) 2.0f else -2.0f
         canvas.translate(currentOffset, 0f)
       }
-      canvas.drawBitmap(bgStage5WreckLeftBmp, srcCore, dstRect, bodyPaint)
+      canvas.drawBitmap(bgStage7WreckLeftBmp, srcCore, dstRect, bodyPaint)
       canvas.restore()
     }
-    if (rightFlankDestroyed && bgStage5WreckRightBmp != null) {
+    if (rightFlankDestroyed && bgStage7WreckRightBmp != null) {
       canvas.save()
       canvas.clipRect(coreX, dstRect.top, dstRect.right, dstRect.bottom)
       if (rightFlankShake > 0f) {
         val currentOffset = if ((rightFlankShake * 100f).toInt() % 2 == 0) 2.0f else -2.0f
         canvas.translate(currentOffset, 0f)
       }
-      canvas.drawBitmap(bgStage5WreckRightBmp, srcCore, dstRect, bodyPaint)
+      canvas.drawBitmap(bgStage7WreckRightBmp, srcCore, dstRect, bodyPaint)
       canvas.restore()
     }
   }
@@ -724,7 +724,7 @@ class BossController(private val resources: Resources) {
 
     when (combatKind) {
       BossCombatKind.ORBIT, BossCombatKind.CANOPY -> {
-        // Multi-part module wrecks are handled independently via drawStage5()
+        // Multi-part module wrecks are handled independently via drawStage7()
         return
       }
       BossCombatKind.ATOLL -> {
@@ -750,13 +750,13 @@ class BossController(private val resources: Resources) {
         }
       }
       BossCombatKind.JUNGLE -> {
-        if (leftWreck != null && parts[TYPE_STAGE4_LEFT_MORTAR].isDestroyed) {
+        if (leftWreck != null && parts[TYPE_STAGE6_LEFT_MORTAR].isDestroyed) {
           canvas.drawBitmap(leftWreck, srcCore, dstRect, bodyPaint)
         }
-        if (rightWreck != null && parts[TYPE_STAGE4_RIGHT_MORTAR].isDestroyed) {
+        if (rightWreck != null && parts[TYPE_STAGE6_RIGHT_MORTAR].isDestroyed) {
           canvas.drawBitmap(rightWreck, srcCore, dstRect, bodyPaint)
         }
-        if (centerWreck != null && (parts[TYPE_STAGE4_HEAVY_GATLING].isDestroyed || parts[TYPE_CORE].isDestroyed)) {
+        if (centerWreck != null && (parts[TYPE_STAGE6_HEAVY_GATLING].isDestroyed || parts[TYPE_CORE].isDestroyed)) {
           canvas.drawBitmap(centerWreck, srcCore, dstRect, bodyPaint)
         }
       }
@@ -872,7 +872,7 @@ class BossController(private val resources: Resources) {
     }
   }
 
-  private fun updateStage5Combat(
+  private fun updateStage7Combat(
     dt: Float,
     playerX: Float,
     playerY: Float,
@@ -880,12 +880,12 @@ class BossController(private val resources: Resources) {
   ) {
     playNewModuleSfx()
     if (entering) {
-      weapons.resetStage5Boss()
+      weapons.resetStage7Boss()
       return
     }
     val left = parts[TYPE_LEFT_FLANK]
     val right = parts[TYPE_RIGHT_FLANK]
-    weapons.updateStage5Boss(
+    weapons.updateStage7Boss(
       dt,
       coreX,
       coreY,
@@ -897,7 +897,7 @@ class BossController(private val resources: Resources) {
     )
   }
 
-  private fun updateStage6Combat(
+  private fun updateStage8Combat(
     dt: Float,
     playerX: Float,
     playerY: Float,
@@ -905,7 +905,7 @@ class BossController(private val resources: Resources) {
   ) {
     playNewModuleSfx()
     if (entering) {
-      weapons.resetStage6Boss()
+      weapons.resetStage8Boss()
       return
     }
     val left = parts[TYPE_LEFT_FLANK]
@@ -913,32 +913,32 @@ class BossController(private val resources: Resources) {
     val leftDead = left.isDestroyed
     val rightDead = right.isDestroyed
     if (leftDead && rightDead) {
-      if (!s6SawBothFlanksDown) {
-        s6SawBothFlanksDown = true
-        s6SawOneFlankDown = true
-        stageTimeline?.forceElapsed(S6_PHASE3_CLOCK)
+      if (!s8SawBothFlanksDown) {
+        s8SawBothFlanksDown = true
+        s8SawOneFlankDown = true
+        stageTimeline?.forceElapsed(S8_PHASE3_CLOCK)
       }
     } else if (leftDead || rightDead) {
-      if (!s6SawOneFlankDown) {
-        s6SawOneFlankDown = true
-        stageTimeline?.forceElapsed(S6_PHASE2_CLOCK)
+      if (!s8SawOneFlankDown) {
+        s8SawOneFlankDown = true
+        stageTimeline?.forceElapsed(S8_PHASE2_CLOCK)
       }
     }
     val bossWidth = bodyHalfW * 2f
     val bossHeight = bodyHalfH * 2f
-    val leftMuzzleXOffset = S6_LEFT_MUZZLE_X * bossWidth
-    val leftMuzzleYOffset = S6_LEFT_MUZZLE_Y * bossHeight
-    val rightMuzzleXOffset = S6_RIGHT_MUZZLE_X * bossWidth
-    val rightMuzzleYOffset = S6_RIGHT_MUZZLE_Y * bossHeight
-    val coreLensXOffset = S6_CORE_LENS_X * bossWidth
-    val coreLensYOffset = S6_CORE_LENS_Y * bossHeight
+    val leftMuzzleXOffset = S8_LEFT_MUZZLE_X * bossWidth
+    val leftMuzzleYOffset = S8_LEFT_MUZZLE_Y * bossHeight
+    val rightMuzzleXOffset = S8_RIGHT_MUZZLE_X * bossWidth
+    val rightMuzzleYOffset = S8_RIGHT_MUZZLE_Y * bossHeight
+    val coreLensXOffset = S8_CORE_LENS_X * bossWidth
+    val coreLensYOffset = S8_CORE_LENS_Y * bossHeight
     val leftX = coreX + leftMuzzleXOffset
     val leftY = coreY + leftMuzzleYOffset
     val rightX = coreX + rightMuzzleXOffset
     val rightY = coreY + rightMuzzleYOffset
     val lensX = coreX + coreLensXOffset
     val lensY = coreY + coreLensYOffset
-    weapons.updateStage6Boss(
+    weapons.updateStage8Boss(
       dt,
       leftX,
       leftY,
@@ -953,7 +953,7 @@ class BossController(private val resources: Resources) {
     )
   }
 
-  private fun beginStage5Victory(weapons: EnemyWeaponSystem) {
+  private fun beginStage7Victory(weapons: EnemyWeaponSystem) {
     SoundManager.instance.stopAlarm()
     SoundManager.instance.stopBGM()
     SoundManager.instance.playSFX(SoundManager.SFX_HEAVY_EXPLOSION)
@@ -964,11 +964,11 @@ class BossController(private val resources: Resources) {
     victorySequenceTimer = 0f
     victoryCascadeGate = 0f
     victoryShatterFired = false
-    s5ShowTerminalWreck = false
+    s7ShowTerminalWreck = false
     visualFlags = visualFlags or FX_VICTORY_START
   }
 
-  private fun updateStage5Victory(dt: Float) {
+  private fun updateStage7Victory(dt: Float) {
     val prev = victorySequenceTimer
     victorySequenceTimer += dt
     val t = victorySequenceTimer
@@ -985,7 +985,7 @@ class BossController(private val resources: Resources) {
     }
     if (!victoryShatterFired && t >= VICTORY_SHATTER_AT) {
       victoryShatterFired = true
-      s5ShowTerminalWreck = true
+      s7ShowTerminalWreck = true
       spawnVictoryShatterCluster()
       SoundManager.instance.playSFX(SoundManager.SFX_BOMB)
       visualFlags = visualFlags or FX_VICTORY_SHATTER
@@ -1047,9 +1047,9 @@ class BossController(private val resources: Resources) {
           i == TYPE_STAGE3_LEFT_FLAK ||
           i == TYPE_STAGE3_RIGHT_FLAK ||
           i == TYPE_STAGE3_MEGA_CANNON ||
-          i == TYPE_STAGE4_LEFT_MORTAR ||
-          i == TYPE_STAGE4_RIGHT_MORTAR ||
-          i == TYPE_STAGE4_HEAVY_GATLING ||
+          i == TYPE_STAGE6_LEFT_MORTAR ||
+          i == TYPE_STAGE6_RIGHT_MORTAR ||
+          i == TYPE_STAGE6_HEAVY_GATLING ||
           i == TYPE_WINTER_LEFT_HOWITZER ||
           i == TYPE_WINTER_RIGHT_HOWITZER ||
           i == TYPE_WINTER_BLIZZARD ||
@@ -1122,16 +1122,16 @@ class BossController(private val resources: Resources) {
   ) {
     playNewModuleSfx()
     if (entering) {
-      weapons.resetStage4Boss()
+      weapons.resetStage6Boss()
       return
     }
-    val leftMortar = parts[TYPE_STAGE4_LEFT_MORTAR]
-    val rightMortar = parts[TYPE_STAGE4_RIGHT_MORTAR]
-    val gatling = parts[TYPE_STAGE4_HEAVY_GATLING]
+    val leftMortar = parts[TYPE_STAGE6_LEFT_MORTAR]
+    val rightMortar = parts[TYPE_STAGE6_RIGHT_MORTAR]
+    val gatling = parts[TYPE_STAGE6_HEAVY_GATLING]
     val leftDead = leftMortar.isDestroyed || leftMortar.halfW <= 0f
     val rightDead = rightMortar.isDestroyed || rightMortar.halfW <= 0f
     val gatlingDead = gatling.isDestroyed || gatling.halfW <= 0f
-    weapons.updateStage4Boss(
+    weapons.updateStage6Boss(
       dt,
       coreX,
       coreY,
@@ -1144,18 +1144,18 @@ class BossController(private val resources: Resources) {
       gatlingDead,
     )
     if (isCoreVulnerable()) {
-      s4SpiralAngle += S4_SPIRAL_SPIN * dt
-      s4SpiralTimer -= dt
-      if (s4SpiralTimer <= 0f) {
-        s4SpiralTimer = S4_SPIRAL_INTERVAL
+      s6SpiralAngle += S6_SPIRAL_SPIN * dt
+      s6SpiralTimer -= dt
+      if (s6SpiralTimer <= 0f) {
+        s6SpiralTimer = S6_SPIRAL_INTERVAL
         val ox = coreX
         val oy = coreY
-        val spd = S4_SPIRAL_SPEED
+        val spd = S6_SPIRAL_SPEED
         var k = 0
-        while (k < S4_SPIRAL_COUNT) {
-          val step = k * S4_SPIRAL_STEP
-          val aCw = s4SpiralAngle + step
-          val aCcw = -s4SpiralAngle + step
+        while (k < S6_SPIRAL_COUNT) {
+          val step = k * S6_SPIRAL_STEP
+          val aCw = s6SpiralAngle + step
+          val aCcw = -s6SpiralAngle + step
           weapons.fireBullet(ox, oy, cos(aCw) * spd, sin(aCw) * spd)
           weapons.fireBullet(ox, oy, cos(aCcw) * spd, sin(aCcw) * spd)
           k++
@@ -1172,7 +1172,7 @@ class BossController(private val resources: Resources) {
   ) {
     playNewModuleSfx()
     if (entering) {
-      weapons.resetStage7Boss()
+      weapons.resetStage4Boss()
       return
     }
     val leftGun = parts[TYPE_WINTER_LEFT_HOWITZER]
@@ -1181,7 +1181,7 @@ class BossController(private val resources: Resources) {
     val leftDead = leftGun.isDestroyed || leftGun.halfW <= 0f
     val rightDead = rightGun.isDestroyed || rightGun.halfW <= 0f
     val blizzardDead = blizzard.isDestroyed || blizzard.halfW <= 0f
-    weapons.updateStage7Boss(
+    weapons.updateStage4Boss(
       dt,
       coreX,
       coreY,
@@ -1194,16 +1194,16 @@ class BossController(private val resources: Resources) {
       blizzardDead,
     )
     if (isCoreVulnerable()) {
-      s7RingAngle += S7_RING_SPIN * dt
-      s7RingTimer -= dt
-      if (s7RingTimer <= 0f) {
-        s7RingTimer = S7_RING_INTERVAL
+      s4RingAngle += S4_RING_SPIN * dt
+      s4RingTimer -= dt
+      if (s4RingTimer <= 0f) {
+        s4RingTimer = S4_RING_INTERVAL
         val ox = coreX
         val oy = coreY
-        val spd = S7_RING_SPEED
+        val spd = S4_RING_SPEED
         var k = 0
-        while (k < S7_RING_COUNT) {
-          val ang = s7RingAngle + k * S7_RING_STEP
+        while (k < S4_RING_COUNT) {
+          val ang = s4RingAngle + k * S4_RING_STEP
           weapons.fireBullet(ox, oy, cos(ang) * spd, sin(ang) * spd)
           k++
         }
@@ -1219,7 +1219,7 @@ class BossController(private val resources: Resources) {
   ) {
     playNewModuleSfx()
     if (entering) {
-      weapons.resetStage8Boss()
+      weapons.resetStage5Boss()
       return
     }
     val leftGun = parts[TYPE_ATOLL_LEFT_GUN]
@@ -1228,7 +1228,7 @@ class BossController(private val resources: Resources) {
     val leftDead = leftGun.isDestroyed || leftGun.halfW <= 0f
     val rightDead = rightGun.isDestroyed || rightGun.halfW <= 0f
     val aaDead = aa.isDestroyed || aa.halfW <= 0f
-    weapons.updateStage8Boss(
+    weapons.updateStage5Boss(
       dt,
       coreX,
       coreY,
@@ -1241,15 +1241,15 @@ class BossController(private val resources: Resources) {
       aaDead,
     )
     if (isCoreVulnerable()) {
-      s8FanTimer -= dt
-      if (s8FanTimer <= 0f) {
-        s8FanTimer = S8_FAN_INTERVAL
+      s5FanTimer -= dt
+      if (s5FanTimer <= 0f) {
+        s5FanTimer = S5_FAN_INTERVAL
         val ox = coreX
         val oy = coreY + bodyHalfH * 0.912f
-        val spd = S8_FAN_SPEED
+        val spd = S5_FAN_SPEED
         var i = -2
         while (i <= 2) {
-          val ang = DOWN_ANGLE + i * S8_FAN_STEP
+          val ang = DOWN_ANGLE + i * S5_FAN_STEP
           weapons.fireBullet(ox, oy, cos(ang) * spd, sin(ang) * spd)
           i++
         }
@@ -1356,68 +1356,68 @@ class BossController(private val resources: Resources) {
         val bh = bodyHalfH * 2f
         setupPart(
           TYPE_CORE,
-          (S6_CORE_L + S6_CORE_R) * 0.5f * bw,
-          (S6_CORE_T + S6_CORE_B) * 0.5f * bh,
-          (S6_CORE_R - S6_CORE_L) * 0.5f * bw,
-          (S6_CORE_B - S6_CORE_T) * 0.5f * bh,
-          S6_CORE_HP,
+          (S8_CORE_L + S8_CORE_R) * 0.5f * bw,
+          (S8_CORE_T + S8_CORE_B) * 0.5f * bh,
+          (S8_CORE_R - S8_CORE_L) * 0.5f * bw,
+          (S8_CORE_B - S8_CORE_T) * 0.5f * bh,
+          S8_CORE_HP,
         )
         setupPart(
           TYPE_LEFT_FLANK,
-          (S6_LEFT_L + S6_LEFT_R) * 0.5f * bw,
-          (S6_FLANK_T + S6_FLANK_B) * 0.5f * bh,
-          (S6_LEFT_R - S6_LEFT_L) * 0.5f * bw,
-          (S6_FLANK_B - S6_FLANK_T) * 0.5f * bh,
-          S6_FLANK_HP,
+          (S8_LEFT_L + S8_LEFT_R) * 0.5f * bw,
+          (S8_FLANK_T + S8_FLANK_B) * 0.5f * bh,
+          (S8_LEFT_R - S8_LEFT_L) * 0.5f * bw,
+          (S8_FLANK_B - S8_FLANK_T) * 0.5f * bh,
+          S8_FLANK_HP,
         )
         setupPart(
           TYPE_RIGHT_FLANK,
-          (S6_RIGHT_L + S6_RIGHT_R) * 0.5f * bw,
-          (S6_FLANK_T + S6_FLANK_B) * 0.5f * bh,
-          (S6_RIGHT_R - S6_RIGHT_L) * 0.5f * bw,
-          (S6_FLANK_B - S6_FLANK_T) * 0.5f * bh,
-          S6_FLANK_HP,
+          (S8_RIGHT_L + S8_RIGHT_R) * 0.5f * bw,
+          (S8_FLANK_T + S8_FLANK_B) * 0.5f * bh,
+          (S8_RIGHT_R - S8_RIGHT_L) * 0.5f * bw,
+          (S8_FLANK_B - S8_FLANK_T) * 0.5f * bh,
+          S8_FLANK_HP,
         )
-        syncStage5Hitboxes()
+        syncStage7Hitboxes()
       }
       BossCombatKind.CANOPY -> {
         val bw = bodyHalfW * 2f
         val bh = bodyHalfH * 2f
         setupPart(
           TYPE_CORE,
-          (S5_CORE_L + S5_CORE_R) * 0.5f * bw,
-          (S5_CORE_T + S5_CORE_B) * 0.5f * bh,
-          (S5_CORE_R - S5_CORE_L) * 0.5f * bw,
-          (S5_CORE_B - S5_CORE_T) * 0.5f * bh,
-          S5_CORE_HP,
+          (S7_CORE_L + S7_CORE_R) * 0.5f * bw,
+          (S7_CORE_T + S7_CORE_B) * 0.5f * bh,
+          (S7_CORE_R - S7_CORE_L) * 0.5f * bw,
+          (S7_CORE_B - S7_CORE_T) * 0.5f * bh,
+          S7_CORE_HP,
         )
         setupPart(
           TYPE_LEFT_FLANK,
-          (S5_LEFT_L + S5_LEFT_R) * 0.5f * bw,
-          (S5_FLANK_T + S5_FLANK_B) * 0.5f * bh,
-          (S5_LEFT_R - S5_LEFT_L) * 0.5f * bw,
-          (S5_FLANK_B - S5_FLANK_T) * 0.5f * bh,
-          S5_FLANK_HP,
+          (S7_LEFT_L + S7_LEFT_R) * 0.5f * bw,
+          (S7_FLANK_T + S7_FLANK_B) * 0.5f * bh,
+          (S7_LEFT_R - S7_LEFT_L) * 0.5f * bw,
+          (S7_FLANK_B - S7_FLANK_T) * 0.5f * bh,
+          S7_FLANK_HP,
         )
         setupPart(
           TYPE_RIGHT_FLANK,
-          (S5_RIGHT_L + S5_RIGHT_R) * 0.5f * bw,
-          (S5_FLANK_T + S5_FLANK_B) * 0.5f * bh,
-          (S5_RIGHT_R - S5_RIGHT_L) * 0.5f * bw,
-          (S5_FLANK_B - S5_FLANK_T) * 0.5f * bh,
-          S5_FLANK_HP,
+          (S7_RIGHT_L + S7_RIGHT_R) * 0.5f * bw,
+          (S7_FLANK_T + S7_FLANK_B) * 0.5f * bh,
+          (S7_RIGHT_R - S7_RIGHT_L) * 0.5f * bw,
+          (S7_FLANK_B - S7_FLANK_T) * 0.5f * bh,
+          S7_FLANK_HP,
         )
-        syncStage5Hitboxes()
+        syncStage7Hitboxes()
       }
       BossCombatKind.ATOLL -> {
-        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.36f, S8_CORE_HP)
+        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.36f, S5_CORE_HP)
         setupPart(
           TYPE_ATOLL_LEFT_GUN,
           -bodyHalfW * 0.650f,
           bodyHalfH * 0.205f,
           bodyHalfW * 0.14f,
           bodyHalfH * 0.14f,
-          S8_GUN_HP,
+          S5_GUN_HP,
         )
         setupPart(
           TYPE_ATOLL_RIGHT_GUN,
@@ -1425,7 +1425,7 @@ class BossController(private val resources: Resources) {
           bodyHalfH * 0.203f,
           bodyHalfW * 0.14f,
           bodyHalfH * 0.14f,
-          S8_GUN_HP,
+          S5_GUN_HP,
         )
         setupPart(
           TYPE_ATOLL_AA,
@@ -1433,18 +1433,18 @@ class BossController(private val resources: Resources) {
           bodyHalfH * 0.912f,
           bodyHalfW * 0.16f,
           bodyHalfH * 0.12f,
-          S8_AA_HP,
+          S5_AA_HP,
         )
       }
       BossCombatKind.WINTER -> {
-        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S7_CORE_HP)
+        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.28f, bodyHalfH * 0.38f, S4_CORE_HP)
         setupPart(
           TYPE_WINTER_LEFT_HOWITZER,
           -bodyHalfW * 0.543f,
           bodyHalfH * 0.318f,
           bodyHalfW * 0.16f,
           bodyHalfH * 0.16f,
-          S7_HOWITZER_HP,
+          S4_HOWITZER_HP,
         )
         setupPart(
           TYPE_WINTER_RIGHT_HOWITZER,
@@ -1452,7 +1452,7 @@ class BossController(private val resources: Resources) {
           bodyHalfH * 0.318f,
           bodyHalfW * 0.16f,
           bodyHalfH * 0.16f,
-          S7_HOWITZER_HP,
+          S4_HOWITZER_HP,
         )
         setupPart(
           TYPE_WINTER_BLIZZARD,
@@ -1460,34 +1460,34 @@ class BossController(private val resources: Resources) {
           bodyHalfH * 0.902f,
           bodyHalfW * 0.20f,
           bodyHalfH * 0.14f,
-          S7_BLIZZARD_HP,
+          S4_BLIZZARD_HP,
         )
       }
       BossCombatKind.JUNGLE -> {
-        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.30f, bodyHalfH * 0.40f, S4_CORE_HP)
+        setupPart(TYPE_CORE, 0f, 0f, bodyHalfW * 0.30f, bodyHalfH * 0.40f, S6_CORE_HP)
         setupPart(
-          TYPE_STAGE4_LEFT_MORTAR,
+          TYPE_STAGE6_LEFT_MORTAR,
           -bodyHalfW * 0.75f,
           -bodyHalfH * 0.10f,
           bodyHalfW * 0.18f,
           bodyHalfH * 0.22f,
-          S4_MORTAR_HP,
+          S6_MORTAR_HP,
         )
         setupPart(
-          TYPE_STAGE4_RIGHT_MORTAR,
+          TYPE_STAGE6_RIGHT_MORTAR,
           bodyHalfW * 0.75f,
           -bodyHalfH * 0.10f,
           bodyHalfW * 0.18f,
           bodyHalfH * 0.22f,
-          S4_MORTAR_HP,
+          S6_MORTAR_HP,
         )
         setupPart(
-          TYPE_STAGE4_HEAVY_GATLING,
+          TYPE_STAGE6_HEAVY_GATLING,
           0f,
           bodyHalfH * 0.48f,
           bodyHalfW * 0.22f,
           bodyHalfH * 0.26f,
-          S4_GATLING_HP,
+          S6_GATLING_HP,
         )
       }
       BossCombatKind.BATTLESHIP -> {
@@ -1666,9 +1666,9 @@ class BossController(private val resources: Resources) {
     const val S3_PART_LEFT_FLAK = 7
     const val S3_PART_RIGHT_FLAK = 8
     const val S3_PART_MEGA_CANNON = 9
-    const val TYPE_STAGE4_LEFT_MORTAR = 10
-    const val TYPE_STAGE4_RIGHT_MORTAR = 11
-    const val TYPE_STAGE4_HEAVY_GATLING = 12
+    const val TYPE_STAGE6_LEFT_MORTAR = 10
+    const val TYPE_STAGE6_RIGHT_MORTAR = 11
+    const val TYPE_STAGE6_HEAVY_GATLING = 12
     const val TYPE_WINTER_LEFT_HOWITZER = 10
     const val TYPE_WINTER_RIGHT_HOWITZER = 11
     const val TYPE_WINTER_BLIZZARD = 12
@@ -1748,67 +1748,67 @@ class BossController(private val resources: Resources) {
     const val S3_SPIRAL_SPIN = 5.2f
     const val S3_SPIRAL_COUNT = 4
     const val S3_SPIRAL_STEP = (Math.PI * 2.0 / S3_SPIRAL_COUNT).toFloat()
-    const val S4_CORE_HP = 520
-    const val S4_MORTAR_HP = 140
-    const val S4_GATLING_HP = 160
-    const val S4_FLAK_SPEED = 580f
-    const val S4_GATLING_SPEED = 720f
-    const val S4_GATLING_INTERVAL = 0.90f
-    const val S4_GATLING_BARREL_SEP = 24f
-    const val S4_MORTAR_INTERVAL = 1.20f
-    const val S4_FAN_STEP = 0.2617994f
-    const val S4_FAN_HALF = 0.2617994f
-    const val S4_SPIRAL_INTERVAL = 0.12f
-    const val S4_SPIRAL_SPEED = 310f
-    const val S4_SPIRAL_SPIN = 4.5f
-    const val S4_SPIRAL_COUNT = 6
-    const val S4_SPIRAL_STEP = (Math.PI * 2.0 / S4_SPIRAL_COUNT).toFloat()
-    const val S7_CORE_HP = 500
-    const val S7_HOWITZER_HP = 150
-    const val S7_BLIZZARD_HP = 170
-    const val S7_RING_INTERVAL = 0.20f
-    const val S7_RING_SPEED = 280f
-    const val S7_RING_SPIN = 2.8f
-    const val S7_RING_COUNT = 8
-    const val S7_RING_STEP = (Math.PI * 2.0 / S7_RING_COUNT).toFloat()
-    const val S8_CORE_HP = 480
-    const val S8_GUN_HP = 145
-    const val S8_AA_HP = 165
-    const val S8_FAN_INTERVAL = 0.22f
-    const val S8_FAN_SPEED = 300f
-    const val S8_FAN_STEP = 0.2618f
-    const val S5_CORE_HP = 350
-    const val S5_FLANK_HP = 180
-    const val S5_LEFT_L = -0.50f
-    const val S5_LEFT_R = -0.18f
-    const val S5_RIGHT_L = 0.18f
-    const val S5_RIGHT_R = 0.50f
-    const val S5_FLANK_T = -0.35f
-    const val S5_FLANK_B = 0.35f
-    const val S5_CORE_L = -0.18f
-    const val S5_CORE_R = 0.18f
-    const val S5_CORE_T = -0.45f
-    const val S5_CORE_B = 0.48f
-    const val S6_CORE_HP = 380
-    const val S6_FLANK_HP = 190
-    const val S6_LEFT_L = -0.50f
-    const val S6_LEFT_R = -0.20f
-    const val S6_RIGHT_L = 0.20f
-    const val S6_RIGHT_R = 0.50f
-    const val S6_FLANK_T = -0.38f
-    const val S6_FLANK_B = 0.38f
-    const val S6_CORE_L = -0.20f
-    const val S6_CORE_R = 0.20f
-    const val S6_CORE_T = -0.48f
-    const val S6_CORE_B = 0.48f
-    const val S6_LEFT_MUZZLE_X = -0.44f
-    const val S6_LEFT_MUZZLE_Y = 0.38f
-    const val S6_RIGHT_MUZZLE_X = 0.44f
-    const val S6_RIGHT_MUZZLE_Y = 0.38f
-    const val S6_CORE_LENS_X = 0f
-    const val S6_CORE_LENS_Y = -0.02f
-    const val S6_PHASE2_CLOCK = 15.1f
-    const val S6_PHASE3_CLOCK = 35.1f
+    const val S6_CORE_HP = 520
+    const val S6_MORTAR_HP = 140
+    const val S6_GATLING_HP = 160
+    const val S6_FLAK_SPEED = 580f
+    const val S6_GATLING_SPEED = 720f
+    const val S6_GATLING_INTERVAL = 0.90f
+    const val S6_GATLING_BARREL_SEP = 24f
+    const val S6_MORTAR_INTERVAL = 1.20f
+    const val S6_FAN_STEP = 0.2617994f
+    const val S6_FAN_HALF = 0.2617994f
+    const val S6_SPIRAL_INTERVAL = 0.12f
+    const val S6_SPIRAL_SPEED = 310f
+    const val S6_SPIRAL_SPIN = 4.5f
+    const val S6_SPIRAL_COUNT = 6
+    const val S6_SPIRAL_STEP = (Math.PI * 2.0 / S6_SPIRAL_COUNT).toFloat()
+    const val S4_CORE_HP = 500
+    const val S4_HOWITZER_HP = 150
+    const val S4_BLIZZARD_HP = 170
+    const val S4_RING_INTERVAL = 0.20f
+    const val S4_RING_SPEED = 280f
+    const val S4_RING_SPIN = 2.8f
+    const val S4_RING_COUNT = 8
+    const val S4_RING_STEP = (Math.PI * 2.0 / S4_RING_COUNT).toFloat()
+    const val S5_CORE_HP = 480
+    const val S5_GUN_HP = 145
+    const val S5_AA_HP = 165
+    const val S5_FAN_INTERVAL = 0.22f
+    const val S5_FAN_SPEED = 300f
+    const val S5_FAN_STEP = 0.2618f
+    const val S7_CORE_HP = 350
+    const val S7_FLANK_HP = 180
+    const val S7_LEFT_L = -0.50f
+    const val S7_LEFT_R = -0.18f
+    const val S7_RIGHT_L = 0.18f
+    const val S7_RIGHT_R = 0.50f
+    const val S7_FLANK_T = -0.35f
+    const val S7_FLANK_B = 0.35f
+    const val S7_CORE_L = -0.18f
+    const val S7_CORE_R = 0.18f
+    const val S7_CORE_T = -0.45f
+    const val S7_CORE_B = 0.48f
+    const val S8_CORE_HP = 380
+    const val S8_FLANK_HP = 190
+    const val S8_LEFT_L = -0.50f
+    const val S8_LEFT_R = -0.20f
+    const val S8_RIGHT_L = 0.20f
+    const val S8_RIGHT_R = 0.50f
+    const val S8_FLANK_T = -0.38f
+    const val S8_FLANK_B = 0.38f
+    const val S8_CORE_L = -0.20f
+    const val S8_CORE_R = 0.20f
+    const val S8_CORE_T = -0.48f
+    const val S8_CORE_B = 0.48f
+    const val S8_LEFT_MUZZLE_X = -0.44f
+    const val S8_LEFT_MUZZLE_Y = 0.38f
+    const val S8_RIGHT_MUZZLE_X = 0.44f
+    const val S8_RIGHT_MUZZLE_Y = 0.38f
+    const val S8_CORE_LENS_X = 0f
+    const val S8_CORE_LENS_Y = -0.02f
+    const val S8_PHASE2_CLOCK = 15.1f
+    const val S8_PHASE3_CLOCK = 35.1f
     const val VICTORY_CASCADE_START = 0.5f
     const val VICTORY_SHATTER_AT = 3.0f
     const val VICTORY_END = 4.5f

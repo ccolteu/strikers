@@ -31,11 +31,11 @@ object StageDirectors {
     return when (waveScript) {
       StageWaveKind.IRON_TREADS -> Stage2Director()
       StageWaveKind.STEEL_ATLANTIC -> Stage3Director()
-      StageWaveKind.JUNGLE_RUINS -> Stage4Director()
-      StageWaveKind.ASCENT_CANOPY -> Stage5Director()
-      StageWaveKind.ORBIT_INTRO -> Stage6Director()
-      StageWaveKind.FROZEN_FRONT -> Stage7Director()
-      StageWaveKind.CORAL_ATOLL -> Stage8Director()
+      StageWaveKind.FROZEN_FRONT -> Stage4Director()
+      StageWaveKind.CORAL_ATOLL -> Stage5Director()
+      StageWaveKind.JUNGLE_RUINS -> Stage6Director()
+      StageWaveKind.ASCENT_CANOPY -> Stage7Director()
+      StageWaveKind.ORBIT_INTRO -> Stage8Director()
       else -> Stage1Director()
     }
   }

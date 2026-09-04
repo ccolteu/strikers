@@ -29,18 +29,18 @@ class ParallaxBackground {
   private var midHeight = 0f
   private var highHeight = 0f
 
-  // Stage 5 & 6 specific height caching structures
-  private var stage5Layer1Height = 0f
-  private var stage5Layer2Height = 0f
-  private var stage6Layer2Height = 0f
+  // Stage 7 & 8 specific height caching structures
+  private var stage7Layer1Height = 0f
+  private var stage7Layer2Height = 0f
+  private var stage8Layer2Height = 0f
 
   private var yGround = 0f
   private var yMid = 0f
   private var yHigh = 0f
-  private var stage5Layer1Y = 0f
-  private var stage5Layer2Y = 0f
-  private var stage6Layer2Y = 0f
-  var stage6SpeedModifier = 1.0f
+  private var stage7Layer1Y = 0f
+  private var stage7Layer2Y = 0f
+  private var stage8Layer2Y = 0f
+  var stage8SpeedModifier = 1.0f
 
   private val paintGround = Paint()
   private val paintStructures = Paint().apply {
@@ -73,10 +73,10 @@ class ParallaxBackground {
     yGround = 0f
     yMid = 0f
     yHigh = 0f
-    stage5Layer1Y = 0f
-    stage5Layer2Y = 0f
-    stage6Layer2Y = 0f
-    stage6SpeedModifier = 1.0f
+    stage7Layer1Y = 0f
+    stage7Layer2Y = 0f
+    stage8Layer2Y = 0f
+    stage8SpeedModifier = 1.0f
   }
 
   fun setScrollLayers(groundBmp: Bitmap?, midBmp: Bitmap?, highBmp: Bitmap?) {
@@ -96,48 +96,48 @@ class ParallaxBackground {
     yHigh = wrap(yHigh + baseSpeed * SPEED_HIGH, highHeight)
   }
 
-  /** Stage 5: floor at scrollSpeedY, canopy at 1.5x. Wrapped strictly by individual asset heights. */
-  fun updateStage5(scrollSpeedY: Float, dt: Float) {
+  /** Stage 7: floor at scrollSpeedY, canopy at 1.5x. Wrapped strictly by individual asset heights. */
+  fun updateStage7(scrollSpeedY: Float, dt: Float) {
     if (screenH <= 0) return
     val speed = scrollSpeedY
     val frame = dt
 
-    stage5Layer1Y += speed * frame
-    if (stage5Layer1Y >= stage5Layer1Height) {
-      stage5Layer1Y -= stage5Layer1Height
+    stage7Layer1Y += speed * frame
+    if (stage7Layer1Y >= stage7Layer1Height) {
+      stage7Layer1Y -= stage7Layer1Height
     }
 
-    stage5Layer2Y += (speed * SPEED_S5_LAYER2) * frame
-    if (stage5Layer2Y >= stage5Layer2Height) {
-      stage5Layer2Y -= stage5Layer2Height
+    stage7Layer2Y += (speed * SPEED_S7_LAYER2) * frame
+    if (stage7Layer2Y >= stage7Layer2Height) {
+      stage7Layer2Y -= stage7Layer2Height
     }
   }
 
-  /** Stage 6 ascent: scrollSpeedY scaled by timeline modifiers. Wrapped by individual asset heights. */
-  fun updateStage6(scrollSpeedY: Float, dt: Float, elapsedTime: Float) {
+  /** Stage 8 ascent: scrollSpeedY scaled by timeline modifiers. Wrapped by individual asset heights. */
+  fun updateStage8(scrollSpeedY: Float, dt: Float, elapsedTime: Float) {
     val t = elapsedTime
-    if (t < S6_CLOUD_END) {
-      stage6SpeedModifier = 1.0f
-    } else if (t < S6_BURN_END) {
-      val u = (t - S6_CLOUD_END) / S6_BURN_SPAN
-      stage6SpeedModifier = 1.0f + u * (S6_BURN_PEAK - 1.0f)
-    } else if (t < S6_ORBIT_END) {
-      val u = (t - S6_BURN_END) / S6_ORBIT_SPAN
-      stage6SpeedModifier = S6_BURN_PEAK + u * (S6_ORBIT_FLOOR - S6_BURN_PEAK)
-    } else if (t < S6_BRAKE_END) {
-      val u = (t - S6_ORBIT_END) / S6_BRAKE_SPAN
-      stage6SpeedModifier = S6_ORBIT_FLOOR + u * (0f - S6_ORBIT_FLOOR)
+    if (t < S8_CLOUD_END) {
+      stage8SpeedModifier = 1.0f
+    } else if (t < S8_BURN_END) {
+      val u = (t - S8_CLOUD_END) / S8_BURN_SPAN
+      stage8SpeedModifier = 1.0f + u * (S8_BURN_PEAK - 1.0f)
+    } else if (t < S8_ORBIT_END) {
+      val u = (t - S8_BURN_END) / S8_ORBIT_SPAN
+      stage8SpeedModifier = S8_BURN_PEAK + u * (S8_ORBIT_FLOOR - S8_BURN_PEAK)
+    } else if (t < S8_BRAKE_END) {
+      val u = (t - S8_ORBIT_END) / S8_BRAKE_SPAN
+      stage8SpeedModifier = S8_ORBIT_FLOOR + u * (0f - S8_ORBIT_FLOOR)
     } else {
-      stage6SpeedModifier = 0f
+      stage8SpeedModifier = 0f
     }
 
-    val speed = scrollSpeedY * stage6SpeedModifier
+    val speed = scrollSpeedY * stage8SpeedModifier
     update(speed * dt)
 
-    if (stage6Layer2Height > 0f) {
-      stage6Layer2Y += (scrollSpeedY * 1.5f) * dt
-      if (stage6Layer2Y >= stage6Layer2Height) {
-        stage6Layer2Y -= stage6Layer2Height
+    if (stage8Layer2Height > 0f) {
+      stage8Layer2Y += (scrollSpeedY * 1.5f) * dt
+      if (stage8Layer2Y >= stage8Layer2Height) {
+        stage8Layer2Y -= stage8Layer2Height
       }
     }
   }
@@ -146,10 +146,10 @@ class ParallaxBackground {
     yGround = 0f
     yMid = 0f
     yHigh = 0f
-    stage5Layer1Y = 0f
-    stage5Layer2Y = 0f
-    stage6Layer2Y = 0f
-    stage6SpeedModifier = 1.0f
+    stage7Layer1Y = 0f
+    stage7Layer2Y = 0f
+    stage8Layer2Y = 0f
+    stage8SpeedModifier = 1.0f
   }
 
   /** Injects cached asset heights into the layout blitting calculations to preserve stitching boundaries. */
@@ -165,28 +165,28 @@ class ParallaxBackground {
     blit(canvas, high, yHigh, highHeight, paintHigh)
   }
 
-  fun drawStage5Floor(canvas: Canvas, floor: Bitmap?) {
+  fun drawStage7Floor(canvas: Canvas, floor: Bitmap?) {
     if (floor != null) {
-      stage5Layer1Height = floor.height.toFloat()
-      blit(canvas, floor, stage5Layer1Y, stage5Layer1Height, paintGround)
+      stage7Layer1Height = floor.height.toFloat()
+      blit(canvas, floor, stage7Layer1Y, stage7Layer1Height, paintGround)
     }
   }
 
-  fun drawStage5Canopy(canvas: Canvas, canopy: Bitmap?) {
+  fun drawStage7Canopy(canvas: Canvas, canopy: Bitmap?) {
     if (canopy == null || canopy.isRecycled) return
-    stage5Layer2Height = canopy.height.toFloat()
-    blit(canvas, canopy, stage5Layer2Y, stage5Layer2Height, paintStructures)
+    stage7Layer2Height = canopy.height.toFloat()
+    blit(canvas, canopy, stage7Layer2Y, stage7Layer2Height, paintStructures)
   }
 
-  fun drawStage6Canopy(canvas: Canvas, canopy: Bitmap?) {
+  fun drawStage8Canopy(canvas: Canvas, canopy: Bitmap?) {
     if (canopy == null || canopy.isRecycled) return
-    stage6Layer2Height = canopy.height.toFloat()
-    blit(canvas, canopy, stage6Layer2Y, stage6Layer2Height, paintStructures)
+    stage8Layer2Height = canopy.height.toFloat()
+    blit(canvas, canopy, stage8Layer2Y, stage8Layer2Height, paintStructures)
   }
 
-  fun drawStage5(canvas: Canvas, floor: Bitmap?, canopy: Bitmap?) {
-    drawStage5Floor(canvas, floor)
-    drawStage5Canopy(canvas, canopy)
+  fun drawStage7(canvas: Canvas, floor: Bitmap?, canopy: Bitmap?) {
+    drawStage7Floor(canvas, floor)
+    drawStage7Canopy(canvas, canopy)
   }
 
   fun release() {
@@ -208,16 +208,16 @@ class ParallaxBackground {
     const val SPEED_GROUND = 1.0f
     const val SPEED_MID = 1.5f
     const val SPEED_HIGH = 2.2f
-    const val SPEED_S5_LAYER2 = 1.5f
-    const val S6_CLOUD_END = 15.0f
-    const val S6_BURN_END = 35.0f
-    const val S6_BURN_SPAN = 20.0f
-    const val S6_BURN_PEAK = 3.5f
-    const val S6_ORBIT_END = 45.0f
-    const val S6_ORBIT_SPAN = 10.0f
-    const val S6_ORBIT_FLOOR = 0.4f
-    const val S6_BRAKE_END = 50.0f
-    const val S6_BRAKE_SPAN = 5.0f
+    const val SPEED_S7_LAYER2 = 1.5f
+    const val S8_CLOUD_END = 15.0f
+    const val S8_BURN_END = 35.0f
+    const val S8_BURN_SPAN = 20.0f
+    const val S8_BURN_PEAK = 3.5f
+    const val S8_ORBIT_END = 45.0f
+    const val S8_ORBIT_SPAN = 10.0f
+    const val S8_ORBIT_FLOOR = 0.4f
+    const val S8_BRAKE_END = 50.0f
+    const val S8_BRAKE_SPAN = 5.0f
     const val MID_ALPHA = 140
     const val HIGH_ALPHA = 36
 

@@ -373,7 +373,7 @@ def bgm_stage3(rng: np.random.Generator) -> np.ndarray:
     )
 
 
-def bgm_stage4(rng: np.random.Generator) -> np.ndarray:
+def bgm_stage6(rng: np.random.Generator) -> np.ndarray:
     """Jungle Ruins — pentatonic chase."""
     return mix_loop(
         rng, 138.0,
@@ -384,7 +384,7 @@ def bgm_stage4(rng: np.random.Generator) -> np.ndarray:
     )
 
 
-def bgm_stage5(rng: np.random.Generator) -> np.ndarray:
+def bgm_stage7(rng: np.random.Generator) -> np.ndarray:
     """Ascent Canopy — tight facility pulse."""
     n = n_samples(4.0)
     pulse = osc_square(7.5, n, 0.10) * 0.05
@@ -397,7 +397,7 @@ def bgm_stage5(rng: np.random.Generator) -> np.ndarray:
     )
 
 
-def bgm_stage6(rng: np.random.Generator) -> np.ndarray:
+def bgm_stage8(rng: np.random.Generator) -> np.ndarray:
     """Orbit Threshold — sparse space drone."""
     n = n_samples(4.0)
     pad = osc_sine(midi_hz(48), n) * 0.10 + osc_sine(midi_hz(55) * 1.003, n) * 0.07
@@ -410,7 +410,7 @@ def bgm_stage6(rng: np.random.Generator) -> np.ndarray:
     )
 
 
-def bgm_stage7(rng: np.random.Generator) -> np.ndarray:
+def bgm_stage4(rng: np.random.Generator) -> np.ndarray:
     """Frozen Front — icy high squares, slow march."""
     return mix_loop(
         rng, 108.0,
@@ -421,7 +421,7 @@ def bgm_stage7(rng: np.random.Generator) -> np.ndarray:
     )
 
 
-def bgm_stage8(rng: np.random.Generator) -> np.ndarray:
+def bgm_stage5(rng: np.random.Generator) -> np.ndarray:
     """Coral Atoll — brighter island pentatonic."""
     return mix_loop(
         rng, 132.0,

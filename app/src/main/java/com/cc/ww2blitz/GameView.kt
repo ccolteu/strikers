@@ -553,9 +553,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             gameState == STATE_CLEAR ||
             gameState == STATE_CAMPAIGN_COMPLETE
           ) {
-            parallax.drawStage5(canvas, theater.floor, theater.canopy)
+            parallax.drawStage7(canvas, theater.floor, theater.canopy)
           } else {
-            parallax.drawStage5Floor(canvas, theater.floor)
+            parallax.drawStage7Floor(canvas, theater.floor)
           }
         } else {
           parallax.draw(
@@ -582,14 +582,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           boss.draw(canvas)
           enemyShots.draw(canvas)
           if (stageManager.isFacilityTheater) {
-            parallax.drawStage5Canopy(canvas, theater.canopy)
+            parallax.drawStage7Canopy(canvas, theater.canopy)
           } else if (
             stageManager.isAscentTheater &&
             timeline.elapsedSeconds() >= stageManager.def.canopyAt
           ) {
             val canopyAsset = theater.canopy
             if (canopyAsset != null && !canopyAsset.isRecycled) {
-              parallax.drawStage6Canopy(canvas, canopyAsset)
+              parallax.drawStage8Canopy(canvas, canopyAsset)
             }
           }
           homingMissiles.draw(canvas)
@@ -1546,10 +1546,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         bossBombDmgBank -= raw
         var dmg = raw
         if (dmg > BOMB_BOSS_DPS_FRAME_CAP) dmg = BOMB_BOSS_DPS_FRAME_CAP
-        if (boss.usesStage5Hitboxes()) {
-          boss.applyStage5AreaDamage(bombLeft, bombTop, bombRight, bombBottom, dmg)
-          if (boss.consumeStage5Break()) {
-            particles.triggerExplosion(boss.stage5BreakX(), boss.stage5BreakY())
+        if (boss.usesStage7Hitboxes()) {
+          boss.applyStage7AreaDamage(bombLeft, bombTop, bombRight, bombBottom, dmg)
+          if (boss.consumeStage7Break()) {
+            particles.triggerExplosion(boss.stage7BreakX(), boss.stage7BreakY())
           }
         } else {
           val parts = boss.getComponents()
@@ -1660,9 +1660,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun tickParallax(scrollSpeedY: Float, dt: Float) {
     if (stageManager.isFacilityTheater) {
-      parallax.updateStage5(scrollSpeedY, dt)
+      parallax.updateStage7(scrollSpeedY, dt)
     } else if (stageManager.isAscentTheater) {
-      parallax.updateStage6(scrollSpeedY, dt, timeline.elapsedSeconds())
+      parallax.updateStage8(scrollSpeedY, dt, timeline.elapsedSeconds())
     } else {
       parallax.update(scrollSpeedY * dt)
     }
@@ -1837,14 +1837,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     if (boss.isActive()) {
-      if (boss.usesStage5Hitboxes()) {
+      if (boss.usesStage7Hitboxes()) {
         bi = 0
         while (bi < bulletCount) {
           val bullet = bulletPool[bi]
-          if (bullet.isActive && boss.checkStage5Collision(bullet)) {
+          if (bullet.isActive && boss.checkStage7Collision(bullet)) {
             bullet.isActive = false
-            if (boss.consumeStage5Break()) {
-              particles.triggerExplosion(boss.stage5BreakX(), boss.stage5BreakY(), false)
+            if (boss.consumeStage7Break()) {
+              particles.triggerExplosion(boss.stage7BreakX(), boss.stage7BreakY(), false)
             }
           }
           bi++
@@ -1854,8 +1854,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           val missile = missilePool[mi]
           if (missile.isActive && boss.checkCollisionAt(missile.x, missile.y, 1)) {
             missile.isActive = false
-            if (boss.consumeStage5Break()) {
-              particles.triggerExplosion(boss.stage5BreakX(), boss.stage5BreakY(), false)
+            if (boss.consumeStage7Break()) {
+              particles.triggerExplosion(boss.stage7BreakX(), boss.stage7BreakY(), false)
             }
           }
           mi++

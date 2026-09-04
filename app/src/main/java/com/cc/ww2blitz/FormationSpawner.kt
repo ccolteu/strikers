@@ -75,70 +75,70 @@ object FormationSpawner {
   const val S3_FLANK_END = 19.5f
   const val S3_FLANK_SPACING = 0.95f
   const val S3_BOSS_AT = 25.0f
-  const val S4_FLANK_START = 1.0f
-  const val S4_FLANK_END = 6.0f
-  const val S4_FLANK_SPACING = 1.25f
-  const val S4_FLANK_VX = 340f
-  const val S4_CRUISER_AT = 22.0f
-  const val S4_CRUISER_HP = 20
-  const val S4_CRUISER_VY = 80f
-  const val S4_WEAVE_START = 15.0f
-  const val S4_WEAVE_END = 21.0f
-  const val S4_WEAVE_SPACING = 1.5f
-  const val S4_WEAVE_PAIRS = 5
-  const val S4_WEAVE_VY = 160f
-  const val S4_KAMI_AT = 25.0f
-  const val S4_KAMI_VY = 680f
-  const val S4_WALL_START = 29.5f
-  const val S4_WALL_END = 33.5f
-  const val S4_WALL_SPACING = 1.0f
-  const val S4_WALL_COUNT = 4
-  const val S4_WALL_VY = 440f
-  const val S4_HOLD_V_AT = 35.0f
-  const val S4_BOSS_AT = 45.0f
-  const val S7_FLURRY_START = 6.0f
-  const val S7_FLURRY_END = 18.0f
-  const val S7_FLURRY_SPACING = 1.55f
-  const val S7_FLURRY_VY = 140f
-  const val S7_HOLD_V_AT = 20.0f
-  const val S7_KAMI_AT = 24.0f
-  const val S7_KAMI_VY = 620f
-  const val S7_CROSS_AT = 28.0f
-  const val S7_CROSS_Y = 0.40f
-  const val S7_HEAVIES_AT = 32.0f
-  const val S7_WALL_AT = 36.0f
-  const val S8_REEF_START = 6.0f
-  const val S8_REEF_END = 16.5f
-  const val S8_REEF_SPACING = 1.40f
-  const val S8_REEF_VY = 165f
-  const val S8_HOLD_V_AT = 18.5f
-  const val S8_KAMI_AT = 23.0f
-  const val S8_KAMI_VY = 640f
-  const val S8_CROSS_AT = 27.0f
-  const val S8_CROSS_Y = 0.42f
-  const val S8_HEAVIES_AT = 31.0f
-  const val S8_WALL_AT = 35.0f
-  const val S5_FLANK_END = 12.0f
-  const val S5_FLANK_SPACING = 1.5f
-  const val S5_SWEEP_VX = 260f
-  const val S5_SWEEP_VY = 280f
-  const val S5_KAMI_V_AT = 8.0f
-  const val S5_KAMI_VY = 680f
-  const val S5_HEAVY_LEFT_AT = 14.0f
-  const val S5_HEAVY_RIGHT_AT = 32.0f
-  const val S5_HEAVY_HP = 32
-  const val S5_WAGONS_AT = 18.5f
-  const val S5_WAGON_HP = 14
-  const val S5_DRIZZLE_START = 14.0f
-  const val S5_DRIZZLE_END = 17.5f
-  const val S5_DRIZZLE_SPACING = 2.0f
-  const val S5_DRIZZLE_VY = 170f
-  const val S5_POWER_WAVE_AT = 34.0f
-  const val S5_POWER_VY = 140f
-  const val S5_KAMI_WALL_AT = 38.0f
-  const val S5_SCROLL_DECAY_AT = 40.0f
-  const val S5_SCROLL_DECAY_SPAN = 5.0f
-  const val S5_SCROLL_START = 280f
+  const val S6_FLANK_START = 1.0f
+  const val S6_FLANK_END = 6.0f
+  const val S6_FLANK_SPACING = 1.25f
+  const val S6_FLANK_VX = 340f
+  const val S6_CRUISER_AT = 22.0f
+  const val S6_CRUISER_HP = 20
+  const val S6_CRUISER_VY = 80f
+  const val S6_WEAVE_START = 15.0f
+  const val S6_WEAVE_END = 21.0f
+  const val S6_WEAVE_SPACING = 1.5f
+  const val S6_WEAVE_PAIRS = 5
+  const val S6_WEAVE_VY = 160f
+  const val S6_KAMI_AT = 25.0f
+  const val S6_KAMI_VY = 680f
+  const val S6_WALL_START = 29.5f
+  const val S6_WALL_END = 33.5f
+  const val S6_WALL_SPACING = 1.0f
+  const val S6_WALL_COUNT = 4
+  const val S6_WALL_VY = 440f
+  const val S6_HOLD_V_AT = 35.0f
+  const val S6_BOSS_AT = 45.0f
+  const val S4_FLURRY_START = 6.0f
+  const val S4_FLURRY_END = 18.0f
+  const val S4_FLURRY_SPACING = 1.55f
+  const val S4_FLURRY_VY = 140f
+  const val S4_HOLD_V_AT = 20.0f
+  const val S4_KAMI_AT = 24.0f
+  const val S4_KAMI_VY = 620f
+  const val S4_CROSS_AT = 28.0f
+  const val S4_CROSS_Y = 0.40f
+  const val S4_HEAVIES_AT = 32.0f
+  const val S4_WALL_AT = 36.0f
+  const val S5_REEF_START = 6.0f
+  const val S5_REEF_END = 16.5f
+  const val S5_REEF_SPACING = 1.40f
+  const val S5_REEF_VY = 165f
+  const val S5_HOLD_V_AT = 18.5f
+  const val S5_KAMI_AT = 23.0f
+  const val S5_KAMI_VY = 640f
+  const val S5_CROSS_AT = 27.0f
+  const val S5_CROSS_Y = 0.42f
+  const val S5_HEAVIES_AT = 31.0f
+  const val S5_WALL_AT = 35.0f
+  const val S7_FLANK_END = 12.0f
+  const val S7_FLANK_SPACING = 1.5f
+  const val S7_SWEEP_VX = 260f
+  const val S7_SWEEP_VY = 280f
+  const val S7_KAMI_V_AT = 8.0f
+  const val S7_KAMI_VY = 680f
+  const val S7_HEAVY_LEFT_AT = 14.0f
+  const val S7_HEAVY_RIGHT_AT = 32.0f
+  const val S7_HEAVY_HP = 32
+  const val S7_WAGONS_AT = 18.5f
+  const val S7_WAGON_HP = 14
+  const val S7_DRIZZLE_START = 14.0f
+  const val S7_DRIZZLE_END = 17.5f
+  const val S7_DRIZZLE_SPACING = 2.0f
+  const val S7_DRIZZLE_VY = 170f
+  const val S7_POWER_WAVE_AT = 34.0f
+  const val S7_POWER_VY = 140f
+  const val S7_KAMI_WALL_AT = 38.0f
+  const val S7_SCROLL_DECAY_AT = 40.0f
+  const val S7_SCROLL_DECAY_SPAN = 5.0f
+  const val S7_SCROLL_START = 280f
   const val FORM_CLEAR = 2.4f
 
   fun spawnSideCross(
@@ -199,22 +199,22 @@ object FormationSpawner {
       val t = n / 3f
       if (fromLeft) {
         val x = (0f + t * 0.20f) * w
-        enemies.spawnEnemy(x, -0.05f * h, S5_SWEEP_VX, S5_SWEEP_VY, TYPE_DRONE, PATTERN_DIAGONAL_SWEEP)
+        enemies.spawnEnemy(x, -0.05f * h, S7_SWEEP_VX, S7_SWEEP_VY, TYPE_DRONE, PATTERN_DIAGONAL_SWEEP)
       } else {
         val x = (1f - t * 0.20f) * w
-        enemies.spawnEnemy(x, -0.05f * h, -S5_SWEEP_VX, S5_SWEEP_VY, TYPE_DRONE, PATTERN_DIAGONAL_SWEEP)
+        enemies.spawnEnemy(x, -0.05f * h, -S7_SWEEP_VX, S7_SWEEP_VY, TYPE_DRONE, PATTERN_DIAGONAL_SWEEP)
       }
       n++
     }
   }
 
   fun spawnS5CenterKamiV(enemies: EnemyPoolManager, w: Float, h: Float) {
-    val vy = S5_KAMI_VY * 0.70f
-    enemies.spawnEnemy(-0.06f * w, 0.10f * h, S5_SWEEP_VX, vy, TYPE_KAMIKAZE)
-    enemies.spawnEnemy(-0.06f * w, 0.22f * h, S5_SWEEP_VX * 1.10f, vy, TYPE_KAMIKAZE)
-    enemies.spawnEnemy(1.06f * w, 0.10f * h, -S5_SWEEP_VX, vy, TYPE_KAMIKAZE)
-    enemies.spawnEnemy(1.06f * w, 0.22f * h, -S5_SWEEP_VX * 1.10f, vy, TYPE_KAMIKAZE)
-    enemies.spawnEnemy(-0.06f * w, 0.34f * h, S5_SWEEP_VX * 0.90f, vy, TYPE_KAMIKAZE)
+    val vy = S7_KAMI_VY * 0.70f
+    enemies.spawnEnemy(-0.06f * w, 0.10f * h, S7_SWEEP_VX, vy, TYPE_KAMIKAZE)
+    enemies.spawnEnemy(-0.06f * w, 0.22f * h, S7_SWEEP_VX * 1.10f, vy, TYPE_KAMIKAZE)
+    enemies.spawnEnemy(1.06f * w, 0.10f * h, -S7_SWEEP_VX, vy, TYPE_KAMIKAZE)
+    enemies.spawnEnemy(1.06f * w, 0.22f * h, -S7_SWEEP_VX * 1.10f, vy, TYPE_KAMIKAZE)
+    enemies.spawnEnemy(-0.06f * w, 0.34f * h, S7_SWEEP_VX * 0.90f, vy, TYPE_KAMIKAZE)
   }
 
   fun spawnSweepArcSquadron(enemies: EnemyPoolManager, h: Float) {

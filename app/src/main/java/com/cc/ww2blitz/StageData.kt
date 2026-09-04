@@ -227,7 +227,7 @@ class StageData {
         // 6 - Space
         // 7 - Winter
         // 8 - Atoll
-        val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 7, 8, 4, 5, 6)
+        val STAGE_SEQUENCE = intArrayOf(1, 2, 3, 4, 5, 6, 7, 8)
         private const val PREFS_NAME = "shmup_arcade_settings"
         private const val KEY_DIFFICULTY = "target_difficulty"
         private const val KEY_FIGHTER = "chosen_fighter"

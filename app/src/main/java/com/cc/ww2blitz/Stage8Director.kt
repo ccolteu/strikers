@@ -1,45 +1,8 @@
 package com.cc.ww2blitz
 
-import com.cc.ww2blitz.FormationSpawner.CROSS_VX
-import com.cc.ww2blitz.FormationSpawner.CROSS_VY
-import com.cc.ww2blitz.FormationSpawner.HEAVY_HP
-import com.cc.ww2blitz.FormationSpawner.HEAVY_VY
-import com.cc.ww2blitz.FormationSpawner.MAX_ACTIVE
-import com.cc.ww2blitz.FormationSpawner.PATTERN_V_HOLD
-import com.cc.ww2blitz.FormationSpawner.PATTERN_WEAVE
-import com.cc.ww2blitz.FormationSpawner.S8_CROSS_AT
-import com.cc.ww2blitz.FormationSpawner.S8_CROSS_Y
-import com.cc.ww2blitz.FormationSpawner.S8_HEAVIES_AT
-import com.cc.ww2blitz.FormationSpawner.S8_HOLD_V_AT
-import com.cc.ww2blitz.FormationSpawner.S8_KAMI_AT
-import com.cc.ww2blitz.FormationSpawner.S8_KAMI_VY
-import com.cc.ww2blitz.FormationSpawner.S8_REEF_END
-import com.cc.ww2blitz.FormationSpawner.S8_REEF_SPACING
-import com.cc.ww2blitz.FormationSpawner.S8_REEF_START
-import com.cc.ww2blitz.FormationSpawner.S8_REEF_VY
-import com.cc.ww2blitz.FormationSpawner.S8_WALL_AT
-import com.cc.ww2blitz.FormationSpawner.SWEEP_VX
-import com.cc.ww2blitz.FormationSpawner.TYPE_DRONE
-import com.cc.ww2blitz.FormationSpawner.TYPE_HEAVY
-import com.cc.ww2blitz.FormationSpawner.TYPE_KAMIKAZE
-
-/** Pacific atoll: two-lane reef weaves, then the flying helipad. Shared boss cue from the def. */
+/** Stage 8 intro is driven by the SpawnTimeline clock; this director is a no-op. */
 class Stage8Director : StageDirector {
-  private var reefGap = 0f
-  private var holdVSpawned = false
-  private var kamiSpawned = false
-  private var crossSpawned = false
-  private var heaviesSpawned = false
-  private var wallSpawned = false
-
-  override fun reset() {
-    reefGap = S8_REEF_SPACING
-    holdVSpawned = false
-    kamiSpawned = false
-    crossSpawned = false
-    heaviesSpawned = false
-    wallSpawned = false
-  }
+  override fun reset() {}
 
   override fun tick(
     dt: Float,
@@ -52,44 +15,5 @@ class Stage8Director : StageDirector {
     stageData: StageData,
     cue: DirectorCue,
   ) {
-    if (cue.bossCueFired) return
-    if (elapsed >= S8_REEF_START && elapsed <= S8_REEF_END) {
-      reefGap += dt
-      var safeguard = 0
-      while (reefGap >= S8_REEF_SPACING && safeguard < 2) {
-        if (enemies.countActive() >= MAX_ACTIVE) break
-        reefGap -= S8_REEF_SPACING
-        safeguard++
-        enemies.spawnEnemy(0.22f * w, -0.05f * h, 0f, S8_REEF_VY, TYPE_DRONE, PATTERN_WEAVE)
-        enemies.spawnEnemy(0.78f * w, -0.05f * h, 0f, S8_REEF_VY * 1.06f, TYPE_DRONE, PATTERN_WEAVE)
-      }
-    }
-    if (!holdVSpawned && elapsed >= S8_HOLD_V_AT) {
-      holdVSpawned = true
-      FormationSpawner.spawnVFormation(enemies, w, h)
-    }
-    if (!kamiSpawned && elapsed >= S8_KAMI_AT) {
-      kamiSpawned = true
-      enemies.spawnEnemy(-0.06f * w, 0.32f * h, SWEEP_VX * 0.90f, S8_KAMI_VY, TYPE_KAMIKAZE)
-      enemies.spawnEnemy(1.06f * w, 0.32f * h, -SWEEP_VX * 0.90f, S8_KAMI_VY, TYPE_KAMIKAZE)
-    }
-    if (!crossSpawned && elapsed >= S8_CROSS_AT) {
-      if (enemies.countActive() < MAX_ACTIVE) {
-        crossSpawned = true
-        FormationSpawner.spawnSideCross(enemies, w, h, S8_CROSS_Y, CROSS_VX * 1.05f, CROSS_VY, TYPE_DRONE)
-      }
-    }
-    if (!heaviesSpawned && elapsed >= S8_HEAVIES_AT) {
-      heaviesSpawned = true
-      enemies.spawnEnemy(0.30f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, PATTERN_V_HOLD, HEAVY_HP)
-      enemies.spawnEnemy(0.70f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, PATTERN_V_HOLD, HEAVY_HP)
-    }
-    if (!wallSpawned && elapsed >= S8_WALL_AT) {
-      wallSpawned = true
-      enemies.spawnEnemy(0.14f * w, -0.06f * h, 0f, S8_REEF_VY * 1.15f, TYPE_DRONE)
-      enemies.spawnEnemy(0.38f * w, -0.10f * h, 0f, S8_REEF_VY * 1.15f, TYPE_DRONE)
-      enemies.spawnEnemy(0.62f * w, -0.10f * h, 0f, S8_REEF_VY * 1.15f, TYPE_DRONE)
-      enemies.spawnEnemy(0.86f * w, -0.06f * h, 0f, S8_REEF_VY * 1.15f, TYPE_DRONE)
-    }
   }
 }

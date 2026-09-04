@@ -12,11 +12,11 @@ object BossCombatKind {
   const val PLANE = 1
   const val TANK = 2
   const val BATTLESHIP = 3
-  const val JUNGLE = 4
-  const val CANOPY = 5
-  const val ORBIT = 6
-  const val WINTER = 7
-  const val ATOLL = 8
+  const val WINTER = 4
+  const val ATOLL = 5
+  const val JUNGLE = 6
+  const val CANOPY = 7
+  const val ORBIT = 8
 }
 
 /** Elapsed-time wave list. Independent of theater, boss peel, and playlist id. */
@@ -24,11 +24,11 @@ object StageWaveKind {
   const val CLOUD_FORTRESS = 1
   const val IRON_TREADS = 2
   const val STEEL_ATLANTIC = 3
-  const val JUNGLE_RUINS = 4
-  const val ASCENT_CANOPY = 5
-  const val ORBIT_INTRO = 6
-  const val FROZEN_FRONT = 7
-  const val CORAL_ATOLL = 8
+  const val FROZEN_FRONT = 4
+  const val CORAL_ATOLL = 5
+  const val JUNGLE_RUINS = 6
+  const val ASCENT_CANOPY = 7
+  const val ORBIT_INTRO = 8
 }
 
 class BossKit(
@@ -150,23 +150,10 @@ object StageCatalog {
     ),
     StageDef(
       id = 4,
-      operationName = charArrayOf('J', 'U', 'N', 'G', 'L', 'E', ' ', 'R', 'U', 'I', 'N', 'S'),
-      scrollSpeedY = 310f,
-      bossAtSeconds = 45f,
-      stageMusicTrack = SoundManager.BGM_STAGE4,
-      theaterKind = StageTheaterKind.SCROLL,
-      locksElapsedAtBoss = true,
-      usesOpeningPowerV = true,
-      waveScript = StageWaveKind.JUNGLE_RUINS,
-      bossCombat = BossCombatKind.JUNGLE,
-      boss = wrecks,
-    ),
-    StageDef(
-      id = 7,
       operationName = charArrayOf('F', 'R', 'O', 'Z', 'E', 'N', ' ', 'F', 'R', 'O', 'N', 'T'),
       scrollSpeedY = 240f,
       bossAtSeconds = 42f,
-      stageMusicTrack = SoundManager.BGM_STAGE7,
+      stageMusicTrack = SoundManager.BGM_STAGE4,
       theaterKind = StageTheaterKind.SCROLL,
       hasOverlayClouds = true,
       keyedOverlayLayers = true,
@@ -179,11 +166,11 @@ object StageCatalog {
       boss = wrecks,
     ),
     StageDef(
-      id = 8,
+      id = 5,
       operationName = charArrayOf('C', 'O', 'R', 'A', 'L', ' ', 'A', 'T', 'O', 'L', 'L'),
       scrollSpeedY = 220f,
       bossAtSeconds = 40f,
-      stageMusicTrack = SoundManager.BGM_STAGE8,
+      stageMusicTrack = SoundManager.BGM_STAGE5,
       theaterKind = StageTheaterKind.SCROLL,
       hasOverlayClouds = true,
       keyedOverlayLayers = true,
@@ -196,11 +183,24 @@ object StageCatalog {
       boss = wrecks,
     ),
     StageDef(
-      id = 5,
+      id = 6,
+      operationName = charArrayOf('J', 'U', 'N', 'G', 'L', 'E', ' ', 'R', 'U', 'I', 'N', 'S'),
+      scrollSpeedY = 310f,
+      bossAtSeconds = 45f,
+      stageMusicTrack = SoundManager.BGM_STAGE6,
+      theaterKind = StageTheaterKind.SCROLL,
+      locksElapsedAtBoss = true,
+      usesOpeningPowerV = true,
+      waveScript = StageWaveKind.JUNGLE_RUINS,
+      bossCombat = BossCombatKind.JUNGLE,
+      boss = wrecks,
+    ),
+    StageDef(
+      id = 7,
       operationName = charArrayOf('A', 'S', 'C', 'E', 'N', 'T', ' ', 'C', 'A', 'N', 'O', 'P', 'Y'),
       scrollSpeedY = 280f,
       bossAtSeconds = 45f,
-      stageMusicTrack = SoundManager.BGM_STAGE5,
+      stageMusicTrack = SoundManager.BGM_STAGE7,
       theaterKind = StageTheaterKind.FACILITY,
       locksElapsedAtBoss = true,
       canopyFile = "canopy.png",
@@ -210,11 +210,11 @@ object StageCatalog {
       boss = wrecksTri,
     ),
     StageDef(
-      id = 6,
+      id = 8,
       operationName = charArrayOf('O', 'R', 'B', 'I', 'T', ' ', 'T', 'H', 'R', 'E', 'S', 'H', 'O', 'L', 'D'),
       scrollSpeedY = 180f,
       bossAtSeconds = 50f,
-      stageMusicTrack = SoundManager.BGM_STAGE6,
+      stageMusicTrack = SoundManager.BGM_STAGE8,
       theaterKind = StageTheaterKind.ASCENT,
       introOnly = true,
       introSecs = 5f,
