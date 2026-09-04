@@ -2883,7 +2883,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (boss.isVictorySequence()) {
           0
         } else if (boss.isActive()) {
-          R.raw.bgm_boss
+          if (boss.isCoreVulnerable()) {
+            R.raw.bgm_boss2
+          } else {
+            R.raw.bgm_boss
+          }
         } else {
           stageManager.stageMusicTrack
         }

@@ -222,6 +222,7 @@ class BossController(private val resources: Resources) {
       si++
     }
     SoundManager.instance.playSFX(SoundManager.SFX_ALARM)
+    SoundManager.instance.playSFX(SoundManager.SFX_BOSS_WARNING)
   }
 
   fun isActive(): Boolean = active

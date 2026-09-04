@@ -107,7 +107,7 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
 
       // Determine the structural stream priority value based on arcade gameplay weights
       val priority = when (id) {
-        SFX_BOMB, SFX_ALARM -> 3          // CRITICAL: Heavy tactical effects / sirens
+        SFX_BOMB, SFX_ALARM, SFX_BOSS_WARNING -> 3
         SFX_VULCAN, SFX_LASER -> 2       // HIGH: Instant player weapon audio feedback
         SFX_PICKUP -> 1                  // NORMAL: Scorecard items and mechanical adjustments
         SFX_SMALL_EXPLOSION, SFX_HEAVY_EXPLOSION -> 0 // LOW: Ambient environment destruction noise
@@ -549,15 +549,22 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
     const val SFX_ALARM = 4
     const val SFX_PICKUP = 5
     const val SFX_BOMB = 6
+    const val SFX_BOSS_WARNING = 7
 
     @JvmField val BGM_STAGE1 = R.raw.bgm_stage1
     @JvmField val BGM_STAGE2 = R.raw.bgm_stage2
-    @JvmField val MUSIC_STAGE_5 = R.raw.bgm_stage2
+    @JvmField val BGM_STAGE3 = R.raw.bgm_stage3
+    @JvmField val BGM_STAGE4 = R.raw.bgm_stage4
+    @JvmField val BGM_STAGE5 = R.raw.bgm_stage5
+    @JvmField val BGM_STAGE6 = R.raw.bgm_stage6
+    @JvmField val BGM_STAGE7 = R.raw.bgm_stage7
+    @JvmField val BGM_STAGE8 = R.raw.bgm_stage8
     @JvmField val BGM_TITLE = R.raw.bgm_title
     @JvmField val BGM_BOSS = R.raw.bgm_boss
+    @JvmField val BGM_BOSS2 = R.raw.bgm_boss2
     @JvmField val BGM_VICTORY = R.raw.bgm_victory
 
-    private const val SFX_COUNT = 7
+    private const val SFX_COUNT = 8
     private const val MAX_STREAMS = 16
     private const val DUCK_VOLUME = 0.35f
     private const val CHAIN_PREPARE_DELAY_MS = 16L
@@ -573,6 +580,7 @@ class SoundManager private constructor() : AudioManager.OnAudioFocusChangeListen
       R.raw.sfx_alarm,
       R.raw.sfx_pickup,
       R.raw.sfx_bomb,
+      R.raw.sfx_boss_warning,
     )
 
     val instance: SoundManager by lazy { SoundManager() }

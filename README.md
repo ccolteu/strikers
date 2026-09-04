@@ -2,6 +2,8 @@
 
 Portrait Android shoot-’em-up (`com.cc.ww2blitz`), version **1.0.3**. One fighter, eight timed stages, peelable bosses. Maps are composed (`StageDef` + director + theater/boss kit), not subclassed from a `BaseLevel`. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
 
+**Play Store.** Each theater now has its own BGM — plus a boss warning sting and a second loop when the core opens.
+
 The software is a Kotlin engine on one `SurfaceView`, clocked by `Choreographer`. Combat is not a Compose tree. The hot path does not allocate.
 
 <p align="center">
@@ -78,6 +80,8 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 58 | A clean stage must pay skill, not only leftovers | Unscaled NO MISS 200k / NO BOMB 100k on recap; gold if earned | [Score and recap](#25-score-and-recap) |
 | 59 | Replay needs a gold route, not only wreck coins | Timed rail medals per map (`HiddenMedalRoute`); SECRET recap | [Score and recap](#25-score-and-recap) |
 | 60 | Monkey 900k must not sit on Hardcore | One EEPROM table per `Difficulty.index`; attract shows the live dip | [Name entry](#26-name-entry-and-campaign-end) |
+| 61 | Maps must not share a song | `bgm_stage1`…`8` on `StageDef.stageMusicTrack` | [Audio](#27-audio) |
+| 62 | Peel must change the pot | Warning sting + `bgm_boss` / `bgm_boss2` when the core opens | [Audio](#27-audio) |
 
 ```mermaid
 flowchart TB
@@ -249,16 +253,16 @@ Art: default folder `assets/stages/$id/`. Set `artFolder` (for example `"stages/
 
 Campaign maps as coded:
 
-| Id | Operation | Theater | Boss kit | Scroll | Boss cue |
-| --- | --- | --- | --- | --- | --- |
-| 1 | CLOUD FORTRESS | SCROLL + clouds | PLANE | ~180 | ~38 s (shared cue) |
-| 2 | IRON TREADS | SCROLL + tank skin | TANK | ~260 | ~30 s (shared cue) |
-| 3 | STEEL ATLANTIC | SCROLL + destroyer skin | BATTLESHIP | ~200 | ~25 s (shared cue; clock freezes) |
-| 4 | JUNGLE RUINS | SCROLL | JUNGLE | ~310 | ~45 s (shared cue; clock freezes) |
-| 7 | FROZEN FRONT | SCROLL + keyed snow overlays | WINTER | ~240 | ~42 s (shared cue; clock freezes) |
-| 8 | CORAL ATOLL | SCROLL + keyed cloud/spray overlays | ATOLL | ~220 | ~40 s (shared cue; clock freezes) |
-| 5 | ASCENT CANOPY | FACILITY + wagon skin | CANOPY | 280 → 0 | ~45 s (director cue; clock freezes) |
-| 6 | ORBIT THRESHOLD | ASCENT | ORBIT | envelope | **5 s** intro-only, no grunts |
+| Id | Operation | Theater | Boss kit | BGM | Scroll | Boss cue |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | CLOUD FORTRESS | SCROLL + clouds | PLANE | `bgm_stage1` | ~180 | ~38 s (shared cue) |
+| 2 | IRON TREADS | SCROLL + tank skin | TANK | `bgm_stage2` | ~260 | ~30 s (shared cue) |
+| 3 | STEEL ATLANTIC | SCROLL + destroyer skin | BATTLESHIP | `bgm_stage3` | ~200 | ~25 s (shared cue; clock freezes) |
+| 4 | JUNGLE RUINS | SCROLL | JUNGLE | `bgm_stage4` | ~310 | ~45 s (shared cue; clock freezes) |
+| 7 | FROZEN FRONT | SCROLL + keyed snow overlays | WINTER | `bgm_stage7` | ~240 | ~42 s (shared cue; clock freezes) |
+| 8 | CORAL ATOLL | SCROLL + keyed cloud/spray overlays | ATOLL | `bgm_stage8` | ~220 | ~40 s (shared cue; clock freezes) |
+| 5 | ASCENT CANOPY | FACILITY + wagon skin | CANOPY | `bgm_stage5` | 280 → 0 | ~45 s (director cue; clock freezes) |
+| 6 | ORBIT THRESHOLD | ASCENT | ORBIT | `bgm_stage6` | envelope | **5 s** intro-only, no grunts |
 
 **To mix and match**
 
@@ -577,7 +581,7 @@ Hidden route: `HiddenMedalRoute` binds on `resetStage` / timeline tick. Five cue
 
 **Why.** Pool playback is the cabinet PCM channel. Cross-fading players is gapless without allocating a new player on the frame.
 
-**Implementation.** `playSFX` lock + `play`. Title / difficulty / character select → `bgm_title`. Play, demo, interstitial → `def.stageMusicTrack`. Clear / registration / campaign complete → victory. Recap tally uses `SFX_PICKUP` so the bonus roll does not sound like the gun. Canopy/orbit victory can `stopBGM()`. `syncBgm()` in `GameView` compares `want` vs `lastBgmRes`. Mute stops alarm loop. Pause/resume from `MainActivity`.
+**Implementation.** `playSFX` lock + `play`. Title / difficulty / character select → `bgm_title`. Play, demo, interstitial → `def.stageMusicTrack` (`bgm_stage1`…`bgm_stage8`, one loop per map). Boss active → `bgm_boss`; core exposed (`isCoreVulnerable`) → `bgm_boss2`. Entrance plays looping `SFX_ALARM` plus one-shot `SFX_BOSS_WARNING`. Clear / registration / campaign complete → victory. Recap tally uses `SFX_PICKUP` so the bonus roll does not sound like the gun. Canopy/orbit victory can `stopBGM()`. `syncBgm()` in `GameView` compares `want` vs `lastBgmRes`. Mute stops alarm loop. Pause/resume from `MainActivity`. Bank is synthesized by `tools/generate_all_bgm_sfx_assets.py`.
 
 ---
 
@@ -631,7 +635,7 @@ Hidden route: `HiddenMedalRoute` binds on `resetStage` / timeline tick. Five cue
 | `ScoreManager` | Score, graze, no-miss/no-bomb, secret count, recap phases, score-extend latch |
 | `HighScoreManager` | Seven dip EEPROM tables × top 10 |
 | `UIController` | Recap HUD, credits; interstitial uses theater briefing |
-| `SoundManager` | SFX pool, looped BGM, volume prefs |
+| `SoundManager` | SFX pool, per-theater BGM, boss sting / loop 2, volume prefs |
 
 ---
 
@@ -650,7 +654,7 @@ New WW2 Blitz stage. Follow this authoring pipeline; ask if anything is unclear.
 
 Playlist. Stages 5 and 6 stay the last two in a real campaign. Insert the new id before them (example: 1,2,3,4,N,5,6). Do not steal Stage 5 facility canopy or Stage 6 orbit.
 
-Kits. Unless I say reuse, give the map its own StageWaveKind and BossCombatKind (new director + peel + fire table). SCROLL theater unless I say otherwise.
+Kits. Unless I say reuse, give the map its own StageWaveKind, BossCombatKind (new director + peel + fire table), and BGM identity (`bgm_stageN` on `stageMusicTrack`; do not reuse another theater’s loop). SCROLL theater unless I say otherwise.
 
 Art folder. app/src/main/assets/stages/N/ with new artwork only:
 
