@@ -31,6 +31,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 9 | Maps have identities, not playlist slots | `StageDef` in `StageCatalog`; compose director + theater + boss kit | [Playlist](#7-playlist-and-stage-identity) |
 | 10 | Operator dipswitch for hardness | Nested `Difficulty` enum: speed, interval, burst, score × | [Difficulty](#8-difficulty-dipswitch) |
 | 11 | Operator dipswitch for ship | Persisted `chosen_fighter`; `applyFighterConfiguration` | [Fighter](#9-fighter-dipswitch) |
+| 64 | Operator honesty on continues | Dip 0/1/2 extra bodies (default 0); ranking is 1CC only | [Lives](#16-lives-hits-respawn) |
 | 12 | Settings survive power cycle | `SharedPreferences` primitives, load once, `apply()` | [Persistence](#10-persistence) |
 | 13 | Sell the next map, freeze combat | `STATE_INTERSTITIAL`, 3 s, timer only | [Briefing](#11-briefing-interstitial) |
 | 14 | Thumb must not hide the plane; finger must not run away from it | Arcade rubber band (thumb leash): chase `finger − grabOffset`, 40 px error cap, class speed | [Player motion](#12-player-motion) |
@@ -193,13 +194,13 @@ Paint: optional world `save`/`translate`/`restore` for shake → background → 
 
 **Choice.** `gameState: Int` constants. Attract is a **second** int (`ATTRACT_*`) plus `attractCycleTimer` so title/demo/ranking do not need extra activities.
 
-**Why.** `when` on an int is free. Nested attract inside title/demo avoids exploding the state table. Dipswitch menus (`STATE_DIFFICULTY_SELECT`, `STATE_CHARACTER_SELECT`) are scenes that **must not** start a credit.
+**Why.** `when` on an int is free. Nested attract inside title/demo avoids exploding the state table. Dipswitch menus are scenes that **must not** start a credit.
 
 **Implementation.**
 
 | Constant | Scene |
 | --- | --- |
-| `STATE_TITLE` (0) | Still, logo, 1P START (visual), audio / difficulty / fighter hits |
+| `STATE_TITLE` (0) | Still, logo, 1P START (visual), audio / difficulty / continue / fighter hits |
 | `STATE_PLAYING` (1) | Campaign |
 | `STATE_CLEAR` (2) | Swept map + recap |
 | `STATE_GAMEOVER` (3) | Death pause (~9 s, tap skip) |
@@ -209,8 +210,10 @@ Paint: optional world `save`/`translate`/`restore` for shake → background → 
 | `STATE_INTERSTITIAL` (7) | Briefing, 3 s |
 | `STATE_DIFFICULTY_SELECT` (8) | Difficulty list over the still |
 | `STATE_CHARACTER_SELECT` (9) | Fighter panels; return only via `[ RETURN TO TITLE ]` |
+| `STATE_CONTINUE_SELECT` (10) | Continue dip 0 / 1 / 2 |
+| `STATE_CONTINUE` (11) | `CONTINUE?` countdown after last life |
 
-Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / difficulty / fighter `RectF`s miss. Those rects are expanded with `inset(-60, -30)` so a miss does not burn a credit. Character-select plane taps mutate `selectedFighterIndex` + `applyFighterConfiguration` + prefs and **do not** change `gameState`.
+Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / difficulty / continue / fighter `RectF`s miss. Those rects are expanded with `inset(-60, -30)` so a miss does not burn a credit. Character-select plane taps mutate `selectedFighterIndex` + `applyFighterConfiguration` + prefs and **do not** change `gameState`. Dipswitch menus (`STATE_DIFFICULTY_SELECT`, `STATE_CHARACTER_SELECT`, `STATE_CONTINUE_SELECT`) are scenes that **must not** start a credit.
 
 ---
 
@@ -334,7 +337,7 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 8, 6, 6)`. No new director class if the wav
 
 **Why.** Ten ints and thirty chars **per dip** are a cabinet EEPROM. Mixing Monkey with Hardcore would make the attract card a lie. `edit().apply()` is fire-and-forget off the frame.
 
-**Implementation.** `StageData.initPersistentSettings` reads difficulty index and fighter 0/1. `HighScoreManager` keeps seven tables (`d{1..7}_score_*` / `_stage_*` / `_name_*`). Insert shifts in place inside one table. Legacy unprefixed `score_0`… keys migrate onto **NORMAL** (`index` 3) on first hydrate, then all seven tables are written. Fallback names (`PSK`, `STK`, …) exist before first hydrate. Audio load/save is synchronized inside `SoundManager`.
+**Implementation.** `StageData.initPersistentSettings` reads difficulty index, fighter 0/1, and continue dip 0/1/2 (`continue_credits`, default 0). `HighScoreManager` keeps seven tables (`d{1..7}_score_*` / `_stage_*` / `_name_*`). Insert shifts in place inside one table. Legacy unprefixed `score_0`… keys migrate onto **NORMAL** (`index` 3) on first hydrate, then all seven tables are written. Fallback names (`PSK`, `STK`, …) exist before first hydrate. Audio load/save is synchronized inside `SoundManager`.
 
 ---
 
@@ -413,7 +416,7 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 8, 6, 6)`. No new director class if the wav
 
 **Why.** Separating explosion from credit-over lets respawn, invuln, and HUD stay honest. Callers that treated `takeDamage() == true` as game over would skip remaining lives.
 
-**Implementation.** Invuln or respawn timer: ignore hits. Decrement hits; if hits remain, 2 s invuln, return false. Else spend a life, reset hits, **weapon power = 1**, dump live rank to 40%, `respawnTimer = 0.4 s`; if lives == 0 set `isGameOverFlag`. After respawn, snap to `(0.5w, 0.78h)` and invuln. Campaign only: `consumeRespawnPowerDrop` spawns a swaying **P** at `shipY − 160` (min Y 96) so it is catchable during i-frames and missable if you dodge. `isOnField()` is false during respawn/game over so bullets do not chew a ghost. Shield pickup calls `restoreHits()`. Demo does not drop the P. Extends: `ScoreManager.armExtends()` on credit start; `addScore` latches crossed thresholds; `GameView.applyPendingExtends` in play and recap calls `grantExtraLife` + `SFX_PICKUP`. Demo and title stay disarmed. Bottom HUD draws **one** life icon plus `xN` (not a row of ships) so extends cannot cover the hit pips or bombs.
+**Implementation.** Invuln or respawn timer: ignore hits. Decrement hits; if hits remain, 2 s invuln, return false. Else spend a life, reset hits, **weapon power = 1**, dump live rank to 40%, `respawnTimer = 0.4 s`; if lives == 0 set `isGameOverFlag`. After respawn, snap to `(0.5w, 0.78h)` and invuln. Campaign only: `consumeRespawnPowerDrop` spawns a swaying **P** at `shipY − 160` (min Y 96) so it is catchable during i-frames and missable if you dodge. `isOnField()` is false during respawn/game over so bullets do not chew a ghost. Shield pickup calls `restoreHits()`. Demo does not drop the P. Extends: `ScoreManager.armExtends()` on credit start; `addScore` latches crossed thresholds; `GameView.applyPendingExtends` in play and recap calls `grantExtraLife` + `SFX_PICKUP`. Demo and title stay disarmed. Bottom HUD draws **one** life icon plus `xN` (not a row of ships) so extends cannot cover the hit pips or bombs. Continue dip (`getContinueDip`, default 0): on last-life explode, if stock remains, `STATE_CONTINUE` shows `CONTINUE?` plus a 9 s count and `CREDIT n`. Tap spends one extra body on **this map** (`acceptContinueBody`: 3 lives, 2 bombs, power 1, catchable **P**, i-frames); score and rank stay. Timeout or dip 0 goes to `GAME OVER`. If the player tapped continue even once, `qualifiesForRanking()` is false — attract stays a 1CC table.
 
 ---
 
@@ -570,7 +573,7 @@ Hidden route: `HiddenMedalRoute` binds on `resetStage` / timeline tick. Five cue
 
 **Why.** CharArray names draw with a `while`. Latch handles duplicate ids in a test sequence. Per-dip EEPROM is how an operator board stays readable.
 
-**Implementation.** `checkIfQualifies(score, difficultyIndex)`, insert shifts that table’s scores/names/stages. Registration: tap left decrements A–Z, right increments, bottom locks one letter, three times, then ranking. Game over ~9 s skippable; if no qualify, skip naming. Credits: `drawCampaignCompleteCredits`, `Paint.breakText` wrap at 85% width. Attract ranking and qualify both use `stageManager.getDifficulty().index`. High-score `ST` is `missionNumber` reached, not catalog id.
+**Implementation.** `checkIfQualifies(score, difficultyIndex)`, insert shifts that table’s scores/names/stages. Registration: tap left decrements A–Z, right increments, bottom locks one letter, three times, then ranking. Game over ~9 s skippable; if no qualify, skip naming. Credits: `drawCampaignCompleteCredits`, `Paint.breakText` wrap at 85% width. Attract ranking and qualify both use `stageManager.getDifficulty().index`. A continued credit never qualifies. High-score `ST` is `missionNumber` reached, not catalog id.
 
 ---
 
@@ -594,7 +597,7 @@ Hidden route: `HiddenMedalRoute` binds on `resetStage` / timeline tick. Five cue
 
 **Why.** One place decides game-over. One place implements Psikyo graze. A shared 28 px disk on the enemy **center** made drones fair and heavies ghost except at the cockpit. Split ellipses keep the P-38 stream a pair of lines while armor still takes body hits.
 
-**Implementation.** `shotHitsEnemy(dx, dy, type)` for vulcan and homing vs the grunt pool. Rams: `PLAYER_HIT_RADIUS + half*ENEMY_RAM_BODY_FRAC` (0.45) — unchanged by the popcorn pad. Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except tri-part half-damage while flanks live). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Pickups vs player. Then consume boss `FX_*` flags. `enterGameOver` only when `isGameOver()` and `STATE_PLAYING`.
+**Implementation.** `shotHitsEnemy(dx, dy, type)` for vulcan and homing vs the grunt pool. Rams: `PLAYER_HIT_RADIUS + half*ENEMY_RAM_BODY_FRAC` (0.45) — unchanged by the popcorn pad. Player bullets/missiles vs boss parts (core gated by `isCoreVulnerable()` except tri-part half-damage while flanks live). Enemy bullets vs player (`resolveEnemyBulletsVsPlayer`: one chip per frame, graze the rest). Pickups vs player. Then consume boss `FX_*` flags. Last-life explode in `STATE_PLAYING` calls `offerContinueOrGameOver`.
 
 ---
 

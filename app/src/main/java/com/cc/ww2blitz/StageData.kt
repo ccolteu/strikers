@@ -33,6 +33,7 @@ class StageData {
     private var currentDifficulty = Difficulty.NORMAL
     private var combatRank = 0f
     private var savedFighterIndex = 0
+    private var savedContinueDip = 0
 
     init {
         liveInstance = this
@@ -129,6 +130,7 @@ class StageData {
         currentDifficulty = difficultyFromIndex(savedIndex)
         val fighter = prefs.getInt(KEY_FIGHTER, 0)
         savedFighterIndex = if (fighter == 1) 1 else 0
+        savedContinueDip = clampContinueDip(prefs.getInt(KEY_CONTINUE, 0))
     }
 
     fun saveDifficultySetting(context: Context, diff: Difficulty) {
@@ -138,6 +140,14 @@ class StageData {
     }
 
     fun getSavedFighterIndex(): Int = savedFighterIndex
+
+    fun getContinueDip(): Int = savedContinueDip
+
+    fun saveContinueSetting(context: Context, credits: Int) {
+        savedContinueDip = clampContinueDip(credits)
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putInt(KEY_CONTINUE, savedContinueDip).apply()
+    }
 
     fun saveFighterSetting(context: Context, typeIndex: Int) {
         savedFighterIndex = if (typeIndex == 1) 1 else 0
@@ -231,6 +241,17 @@ class StageData {
         private const val PREFS_NAME = "shmup_arcade_settings"
         private const val KEY_DIFFICULTY = "target_difficulty"
         private const val KEY_FIGHTER = "chosen_fighter"
+        private const val KEY_CONTINUE = "continue_credits"
+
+        private fun clampContinueDip(value: Int): Int {
+            return if (value < 0) {
+                0
+            } else if (value > 2) {
+                2
+            } else {
+                value
+            }
+        }
         private const val RISE_SECS = 48f
         private const val DEATH_KEEP = 0.40f
         private const val SPEED_GAIN = 0.22f

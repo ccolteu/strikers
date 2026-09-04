@@ -56,6 +56,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private val openSettingsButtonRect = RectF()
   private val openDifficultyButtonRect = RectF()
   private val openFighterSelectButtonRect = RectF()
+  private val openContinueButtonRect = RectF()
+  private val continueButtons = Array(3) { RectF() }
+  private val continueBackButtonRect = RectF()
   private val difficultyButtons = Array(7) { RectF() }
   private val diffBackButtonRect = RectF()
   private val shipLeftSelectRect = RectF()
@@ -122,6 +125,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var campaignCompleteT = 0f
   private var maxStageCleared = 0
   private var gameOverT = 0f
+  private var continuePromptT = 0f
+  private var continuesRemaining = 0
+  private var continuedThisCredit = false
   private var registrationActiveCharIndex = 0
   private var registrationCurrentCharValue = 'A'
   private var registrationTextFlashTimer = 0f
@@ -387,6 +393,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           routeAfterGameOver()
         }
       }
+      STATE_CONTINUE -> {
+        tickParallax(0f, dt)
+        particles.update(dt)
+        continuePromptT += dt
+        if (continuePromptT >= CONTINUE_SECS) {
+          enterGameOver()
+        }
+      }
       STATE_REGISTRATION -> {
         tickParallax(TITLE_SCROLL_PX, dt)
         registrationTextFlashTimer += dt
@@ -404,7 +418,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           gameState = STATE_PLAYING
         }
       }
-      STATE_DIFFICULTY_SELECT, STATE_CHARACTER_SELECT -> {
+      STATE_DIFFICULTY_SELECT, STATE_CHARACTER_SELECT, STATE_CONTINUE_SELECT -> {
       }
       else -> {
         if (boss.locksWorldScroll()) {
@@ -523,7 +537,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (
           gameState == STATE_TITLE ||
           gameState == STATE_DIFFICULTY_SELECT ||
-          gameState == STATE_CHARACTER_SELECT
+          gameState == STATE_CHARACTER_SELECT ||
+          gameState == STATE_CONTINUE_SELECT
         ) {
           val bmp = titleBackdropBmp
           if (bmp != null && !bmp.isRecycled && bmp.width > 0 && bmp.height > 0) {
@@ -573,6 +588,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           gameState != STATE_TITLE &&
           gameState != STATE_DIFFICULTY_SELECT &&
           gameState != STATE_CHARACTER_SELECT &&
+          gameState != STATE_CONTINUE_SELECT &&
           gameState != STATE_CLEAR &&
           gameState != STATE_REGISTRATION &&
           gameState != STATE_CAMPAIGN_COMPLETE &&
@@ -674,6 +690,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     if (gameState == STATE_DIFFICULTY_SELECT) {
       drawDifficultySelectScreen(canvas)
+      return
+    }
+    if (gameState == STATE_CONTINUE_SELECT) {
+      drawContinueSelectScreen(canvas)
       return
     }
     if (gameState == STATE_CHARACTER_SELECT) {
@@ -839,7 +859,46 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           uiGoldShadowPaint,
         )
       }
-      return
+    }
+    if (gameState == STATE_CONTINUE) {
+      if ((continuePromptT * 2f).toInt() % 2 == 0) {
+        uiStringBuilder.setLength(0)
+        uiStringBuilder.append("CONTINUE?")
+        drawCenteredHud(
+          canvas,
+          uiStringBuilder,
+          screenW * 0.5f,
+          screenH * 0.40f,
+          uiGoldPaint,
+          uiGoldShadowPaint,
+        )
+      }
+      val left = (CONTINUE_SECS - continuePromptT).toInt()
+      uiStringBuilder.setLength(0)
+      if (left < 1) {
+        uiStringBuilder.append('0')
+      } else {
+        uiStringBuilder.append(left)
+      }
+      drawCenteredHud(
+        canvas,
+        uiStringBuilder,
+        screenW * 0.5f,
+        screenH * 0.50f,
+        uiGoldPaint,
+        uiGoldShadowPaint,
+      )
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append("CREDIT ")
+      uiStringBuilder.append(continuesRemaining)
+      drawCenteredHud(
+        canvas,
+        uiStringBuilder,
+        screenW * 0.5f,
+        screenH * 0.58f,
+        uiGoldPaint,
+        uiGoldShadowPaint,
+      )
     }
     if (gameState != STATE_CLEAR) return
     uiController.drawStageClear(canvas, screenW, screenH, ScoreManager.instance, stageManager.missionNumber)
@@ -871,14 +930,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val versionY = screenH - 32f
     val creditY = versionY - 28f
     val menuBottomAnchorY = creditY - 130f
-    val menuBlockStride = 180f
-    val tagSubPadding = 64f
+    val menuBlockStride = 148f
+    val tagSubPadding = 56f
     val fighterMenuY = menuBottomAnchorY
     val fighterTagY = fighterMenuY + tagSubPadding
-    val difficultyMenuY = fighterMenuY - menuBlockStride
+    val continueMenuY = fighterMenuY - menuBlockStride
+    val continueTagY = continueMenuY + tagSubPadding
+    val difficultyMenuY = continueMenuY - menuBlockStride
     val difficultyTagY = difficultyMenuY + tagSubPadding
     val audioMenuY = difficultyMenuY - menuBlockStride
-    val startPrompterY = audioMenuY - 180f
+    val startPrompterY = audioMenuY - 160f
     if ((System.currentTimeMillis() / 600L) % 2L == 0L) {
       uiStringBuilder.setLength(0)
       uiStringBuilder.append("1P START")
@@ -913,6 +974,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiSmallPaint.textSize = 32f
     uiSmallShadowPaint.textSize = 32f
     drawCenteredHud(canvas, uiStringBuilder, cx, difficultyTagY, uiSmallPaint, uiSmallShadowPaint)
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ CONTINUE ]")
+    drawCenteredHud(canvas, uiStringBuilder, cx, continueMenuY, uiGoldPaint, uiGoldShadowPaint)
+    val contW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    openContinueButtonRect.set(
+      cx - contW * 0.5f,
+      continueMenuY + uiGoldPaint.ascent(),
+      cx + contW * 0.5f,
+      continueMenuY + uiGoldPaint.descent(),
+    )
+    openContinueButtonRect.inset(-60f, -30f)
+    uiStringBuilder.setLength(0)
+    appendContinueDipName(stageManager.getContinueDip())
+    drawCenteredHud(canvas, uiStringBuilder, cx, continueTagY, uiSmallPaint, uiSmallShadowPaint)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ FIGHTER ]")
     drawCenteredHud(canvas, uiStringBuilder, cx, fighterMenuY, uiGoldPaint, uiGoldShadowPaint)
@@ -986,6 +1061,53 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val backW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
     val backX = cx - backW * 0.5f
     diffBackButtonRect.set(
+      backX,
+      backY + uiGoldPaint.ascent(),
+      backX + backW,
+      backY + uiGoldPaint.descent(),
+    )
+  }
+
+  private fun drawContinueSelectScreen(canvas: Canvas) {
+    canvas.drawColor(0x66000000.toInt())
+    val cx = screenW * 0.5f
+    val savedGold = uiGoldPaint.textSize
+    val savedGoldShadow = uiGoldShadowPaint.textSize
+    uiGoldPaint.textSize = 42f
+    uiGoldShadowPaint.textSize = 42f
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("SELECT CONTINUE")
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
+    uiGoldPaint.textSize = savedGold
+    uiGoldShadowPaint.textSize = savedGoldShadow
+    val selected = stageManager.getContinueDip()
+    val top = screenH * 0.34f
+    val step = screenH * 0.12f
+    val rowHalf = step * 0.40f
+    val hitLeft = screenW * 0.10f
+    val hitRight = screenW * 0.90f
+    var i = 0
+    while (i < 3) {
+      val lineY = top + i * step
+      continueButtons[i].set(hitLeft, lineY - rowHalf, hitRight, lineY + rowHalf)
+      uiStringBuilder.setLength(0)
+      uiStringBuilder.append(i)
+      uiStringBuilder.append(". ")
+      appendContinueDipName(i)
+      if (i == selected) {
+        drawCenteredHud(canvas, uiStringBuilder, cx, lineY, uiGoldPaint, uiGoldShadowPaint)
+      } else {
+        drawCenteredHud(canvas, uiStringBuilder, cx, lineY, uiTextPaint, uiShadowPaint)
+      }
+      i++
+    }
+    uiStringBuilder.setLength(0)
+    uiStringBuilder.append("[ RETURN TO TITLE ]")
+    val backY = screenH * 0.88f
+    drawCenteredHud(canvas, uiStringBuilder, cx, backY, uiGoldPaint, uiGoldShadowPaint)
+    val backW = uiGoldPaint.measureText(uiStringBuilder, 0, uiStringBuilder.length)
+    val backX = cx - backW * 0.5f
+    continueBackButtonRect.set(
       backX,
       backY + uiGoldPaint.ascent(),
       backX + backW,
@@ -1131,6 +1253,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       4 -> uiStringBuilder.append("VERY HARD")
       5 -> uiStringBuilder.append("EXPERT")
       else -> uiStringBuilder.append("HARDCORE")
+    }
+  }
+
+  private fun appendContinueDipName(credits: Int) {
+    if (credits <= 0) {
+      uiStringBuilder.append("OFF")
+    } else if (credits == 1) {
+      uiStringBuilder.append("1 CREDIT")
+    } else {
+      uiStringBuilder.append("2 CREDITS")
     }
   }
 
@@ -1772,7 +1904,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun resolveCollisions() {
     if (player.getHealth() <= 0) {
-      if (gameState == STATE_PLAYING) enterGameOver()
+      if (gameState == STATE_PLAYING) offerContinueOrGameOver()
       return
     }
     val bulletPool = bullets.getBulletPool()
@@ -1944,7 +2076,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         gameState == STATE_PLAYING,
       ) && player.isGameOver() && gameState == STATE_PLAYING
     ) {
-      enterGameOver()
+      offerContinueOrGameOver()
     }
 
     if (!player.isGameOver() && player.isOnField()) {
@@ -1966,7 +2098,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               dropEnemyLoot(enemy)
               if (player.takeDamage()) {
                 particles.triggerExplosion(playerX, playerY)
-                if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
+                if (player.isGameOver() && gameState == STATE_PLAYING) offerContinueOrGameOver()
               }
               break
             }
@@ -1991,7 +2123,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           if ((nx * nx) + (ny * ny) <= 1f) {
             if (player.takeDamage()) {
               particles.triggerExplosion(playerX, playerY)
-              if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
+              if (player.isGameOver() && gameState == STATE_PLAYING) offerContinueOrGameOver()
             }
             break
           }
@@ -2366,6 +2498,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     player.resetWeaponPower()
     player.restoreLives()
     availableBombs = START_BOMBS
+    continuesRemaining = stageManager.getContinueDip()
+    continuedThisCredit = false
     ScoreManager.instance.reset()
     ScoreManager.instance.armExtends()
     maxStageCleared = 0
@@ -2475,6 +2609,30 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     gameState = STATE_DEMO
   }
 
+  private fun offerContinueOrGameOver() {
+    if (continuesRemaining > 0) {
+      SoundManager.instance.stopAlarm()
+      continuePromptT = 0f
+      gameState = STATE_CONTINUE
+      return
+    }
+    enterGameOver()
+  }
+
+  private fun acceptContinueCredit() {
+    if (continuesRemaining <= 0) {
+      enterGameOver()
+      return
+    }
+    continuesRemaining--
+    continuedThisCredit = true
+    availableBombs = START_BOMBS
+    player.resetWeaponPower()
+    player.acceptContinueBody()
+    SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+    gameState = STATE_PLAYING
+  }
+
   private fun enterGameOver() {
     SoundManager.instance.stopAlarm()
     gameOverT = 0f
@@ -2482,11 +2640,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun routeAfterGameOver() {
-    if (HighScoreManager.checkIfQualifies(campaignScore, stageManager.getDifficulty().index)) {
+    if (qualifiesForRanking()) {
       beginRegistration()
     } else {
       finishDemoToHighScore()
     }
+  }
+
+  private fun qualifiesForRanking(): Boolean {
+    if (continuedThisCredit) return false
+    return HighScoreManager.checkIfQualifies(campaignScore, stageManager.getDifficulty().index)
   }
 
   private fun beginRegistration() {
@@ -2688,6 +2851,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             attractCycleState = ATTRACT_TITLE
             gameState = STATE_DIFFICULTY_SELECT
             SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          } else if (down && openContinueButtonRect.contains(x, y)) {
+            attractCycleTimer = 0f
+            attractCycleState = ATTRACT_TITLE
+            gameState = STATE_CONTINUE_SELECT
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
           } else if (down && openFighterSelectButtonRect.contains(x, y)) {
             attractCycleTimer = 0f
             attractCycleState = ATTRACT_TITLE
@@ -2719,6 +2887,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             attractCycleTimer = 0f
             attractCycleState = ATTRACT_TITLE
             gameState = STATE_TITLE
+          }
+        }
+        return true
+      }
+      STATE_CONTINUE_SELECT -> {
+        if (down) {
+          val x = event.x
+          val y = event.y
+          if (continueBackButtonRect.contains(x, y)) {
+            attractCycleTimer = 0f
+            attractCycleState = ATTRACT_TITLE
+            gameState = STATE_TITLE
+            SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+          } else {
+            var i = 0
+            while (i < 3) {
+              if (continueButtons[i].contains(x, y)) {
+                stageManager.saveContinueSetting(context, i)
+                SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
+                break
+              }
+              i++
+            }
           }
         }
         return true
@@ -2776,6 +2967,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (down) routeAfterGameOver()
         return true
       }
+      STATE_CONTINUE -> {
+        if (down) acceptContinueCredit()
+        return true
+      }
       STATE_REGISTRATION -> {
         if (down) {
           layoutRegistrationHitZones()
@@ -2793,7 +2988,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       STATE_CAMPAIGN_COMPLETE -> {
         if (down) {
-          if (HighScoreManager.checkIfQualifies(campaignScore, stageManager.getDifficulty().index)) {
+          if (qualifiesForRanking()) {
             beginRegistration()
           } else {
             finishDemoToHighScore()
@@ -2892,9 +3087,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun syncBgm() {
     val want = when (gameState) {
-      STATE_TITLE, STATE_DIFFICULTY_SELECT, STATE_CHARACTER_SELECT -> R.raw.bgm_title
+      STATE_TITLE, STATE_DIFFICULTY_SELECT, STATE_CHARACTER_SELECT, STATE_CONTINUE_SELECT -> R.raw.bgm_title
       STATE_CLEAR, STATE_REGISTRATION, STATE_CAMPAIGN_COMPLETE -> R.raw.bgm_victory
-      STATE_PLAYING, STATE_DEMO, STATE_INTERSTITIAL -> {
+      STATE_PLAYING, STATE_DEMO, STATE_INTERSTITIAL, STATE_CONTINUE -> {
         if (boss.isVictorySequence()) {
           0
         } else if (boss.isActive()) {
@@ -2956,6 +3151,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val STATE_INTERSTITIAL = 7
     const val STATE_DIFFICULTY_SELECT = 8
     const val STATE_CHARACTER_SELECT = 9
+    const val STATE_CONTINUE_SELECT = 10
+    const val STATE_CONTINUE = 11
     const val INTERSTITIAL_SECS = 3.0f
     const val ATTRACT_TITLE = 0
     const val ATTRACT_CPU_DEMO = 1
@@ -2964,6 +3161,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     const val ATTRACT_DEMO_SECS = 30f
     const val ATTRACT_HIGH_SCORE_SECS = 4f
     const val GAMEOVER_SECS = 9f
+    const val CONTINUE_SECS = 9f
     const val TITLE_SCROLL_PX = 50f
     const val MAX_FRAME_NS = 50_000_000L
     const val PLAYER_HIT_RADIUS = 12f

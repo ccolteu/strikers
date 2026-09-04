@@ -219,6 +219,15 @@ class PlayerShip(private val resources: Resources) {
     respawnPowerDropLatched = false
   }
 
+  /** Extra cabinet body on the same map. Power stays 1; GameView drops the catchable P. */
+  fun acceptContinueBody() {
+    restoreLives()
+    resetForStage()
+    isInvulnerable = true
+    invulnTimer = INVULN_SEC
+    respawnPowerDropLatched = true
+  }
+
   /** Extra life from a score extend. No-op if the credit is dead or the HUD cap is full. */
   fun grantExtraLife(): Boolean {
     if (isGameOverFlag) return false
