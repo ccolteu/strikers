@@ -253,6 +253,7 @@ class PlayerShip(private val resources: Resources) {
   /** @return true if this hit destroyed the ship (explosion). */
   fun takeDamage(): Boolean {
     if (isInvulnerable || isGameOverFlag || respawnTimer > 0f) return false
+    ScoreManager.instance.markMiss()
     hitsLeft -= 1
     if (hitsLeft > 0) {
       isInvulnerable = true

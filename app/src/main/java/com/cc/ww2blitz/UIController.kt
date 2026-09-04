@@ -217,38 +217,67 @@ class UIController {
   fun drawStageClear(canvas: Canvas, screenW: Int, screenH: Int, scores: ScoreManager, stage: Int) {
     val cx = screenW * 0.5f
     val phase = scores.recapPhase()
+    val first = screenH * 0.26f
+    val step = screenH * 0.068f
     var n = writeChars(line, 0, HDR_A)
     n = writeInt(line, n, stage)
     n = writeChars(line, n, HDR_B)
-    drawCentered(canvas, line, n, cx, screenH * 0.20f, goldPaint, goldShadowPaint)
+    drawCentered(canvas, line, n, cx, first - step * 1.15f, goldPaint, goldShadowPaint)
 
     if (phase >= ScoreManager.PHASE_LIVES) {
       n = writeChars(line, 0, LIVES_LABEL)
       n = writeInt(line, n, scores.recapLivesCount())
       n = writeChars(line, n, LIVES_MULT)
-      drawCentered(canvas, line, n, cx, screenH * 0.34f, fillPaint, shadowPaint)
+      drawCentered(canvas, line, n, cx, first, fillPaint, shadowPaint)
     }
     if (phase >= ScoreManager.PHASE_BOMBS) {
       n = writeChars(line, 0, BOMBS_LABEL)
       n = writeInt(line, n, scores.recapBombsCount())
       n = writeChars(line, n, BOMBS_MULT)
-      drawCentered(canvas, line, n, cx, screenH * 0.44f, fillPaint, shadowPaint)
+      drawCentered(canvas, line, n, cx, first + step, fillPaint, shadowPaint)
     }
     if (phase >= ScoreManager.PHASE_GRAZE) {
       n = writeChars(line, 0, GRAZE_LABEL)
       n = writeInt(line, n, scores.recapGrazeCount())
       n = writeChars(line, n, GRAZE_MULT)
-      drawCentered(canvas, line, n, cx, screenH * 0.54f, fillPaint, shadowPaint)
+      drawCentered(canvas, line, n, cx, first + step * 2f, fillPaint, shadowPaint)
+    }
+    if (phase >= ScoreManager.PHASE_SKILL) {
+      val savedGold = goldPaint.textSize
+      val savedGoldShadow = goldShadowPaint.textSize
+      goldPaint.textSize = 32f
+      goldShadowPaint.textSize = 32f
+      n = writeChars(line, 0, NO_MISS_LABEL)
+      n = writeInt(line, n, scores.recapNoMissBonus())
+      drawCentered(canvas, line, n, cx, first + step * 3f, fillPaint, shadowPaint)
+      n = writeChars(line, 0, NO_BOMB_LABEL)
+      n = writeInt(line, n, scores.recapNoBombBonus())
+      drawSkillLine(canvas, n, cx, first + step * 4f, scores.recapNoBombBonus() > 0)
+      n = writeChars(line, 0, SECRET_LABEL)
+      n = writeInt(line, n, scores.recapSecretCollected())
+      n = writeChars(line, n, SECRET_TIMES)
+      n = writeInt(line, n, scores.recapSecretUnit())
+      drawCentered(canvas, line, n, cx, first + step * 5f, fillPaint, shadowPaint)
+      goldPaint.textSize = savedGold
+      goldShadowPaint.textSize = savedGoldShadow
     }
     if (phase >= ScoreManager.PHASE_TOTAL) {
       n = writeChars(line, 0, TOTAL_LABEL)
-      drawCentered(canvas, line, n, cx, screenH * 0.66f, goldPaint, goldShadowPaint)
+      drawCentered(canvas, line, n, cx, first + step * 6.55f, goldPaint, goldShadowPaint)
       n = writeInt(line, 0, scores.recapBonusTotal())
-      drawCentered(canvas, line, n, cx, screenH * 0.74f, goldPaint, goldShadowPaint)
+      drawCentered(canvas, line, n, cx, first + step * 7.45f, goldPaint, goldShadowPaint)
       if ((scores.recapFrame() % FLASH_PERIOD) < FLASH_VISIBLE) {
         n = writeChars(line, 0, PRESS_FIRE)
-        drawCentered(canvas, line, n, cx, screenH * 0.86f, fillPaint, shadowPaint)
+        drawCentered(canvas, line, n, cx, first + step * 8.55f, fillPaint, shadowPaint)
       }
+    }
+  }
+
+  private fun drawSkillLine(canvas: Canvas, count: Int, cx: Float, y: Float, earned: Boolean) {
+    if (earned) {
+      drawCentered(canvas, line, count, cx, y, goldPaint, goldShadowPaint)
+    } else {
+      drawCentered(canvas, line, count, cx, y, fillPaint, shadowPaint)
     }
   }
 
@@ -363,6 +392,16 @@ class UIController {
       'G', 'R', 'A', 'Z', 'E', ' ', 'B', 'O', 'N', 'U', 'S', ':', ' ',
     )
     private val GRAZE_MULT = charArrayOf(' ', 'x', ' ', '5', '0', '0')
+    private val NO_MISS_LABEL = charArrayOf(
+      'N', 'O', ' ', 'M', 'I', 'S', 'S', ' ', 'B', 'O', 'N', 'U', 'S', ':', ' ',
+    )
+    private val NO_BOMB_LABEL = charArrayOf(
+      'N', 'O', ' ', 'B', 'O', 'M', 'B', ' ', 'B', 'O', 'N', 'U', 'S', ':', ' ',
+    )
+    private val SECRET_LABEL = charArrayOf(
+      'S', 'E', 'C', 'R', 'E', 'T', ':', ' ',
+    )
+    private val SECRET_TIMES = charArrayOf(' ', 'x', ' ')
     private val TOTAL_LABEL = charArrayOf(
       'S', 'T', 'A', 'G', 'E', ' ', 'C', 'L', 'E', 'A', 'R', ' ', 'T', 'O', 'T', 'A', 'L', ':',
     )

@@ -15,7 +15,17 @@ class ScoreManager private constructor() {
   private var livesAwarded = 0
   private var bombsAwarded = 0
   private var grazeAwarded = 0
+  private var skillAwarded = 0
   private var recapActive = false
+  private var stageNoMiss = true
+  private var stageNoBomb = true
+  private var secretCollected = 0
+  private var secretMax = 0
+  private var noMissBonusTarget = 0
+  private var noBombBonusTarget = 0
+  private var secretBonusTarget = 0
+  private var secretUnitPoints = 0
+  private var skillBonusTarget = 0
   private var activeMultiplier = 1.0f
   private var nextExtendAt = EXTEND_FIRST
   private var pendingExtends = 0
@@ -129,11 +139,43 @@ class ScoreManager private constructor() {
 
   fun recapGrazeAwarded(): Int = grazeAwarded
 
+  fun recapNoMissBonus(): Int = noMissBonusTarget
+
+  fun recapNoBombBonus(): Int = noBombBonusTarget
+
+  fun recapSecretCollected(): Int = secretCollected
+
+  fun recapSecretMax(): Int = secretMax
+
+  fun recapSecretBonus(): Int = secretBonusTarget
+
+  fun recapSecretUnit(): Int = secretUnitPoints
+
   fun recapBonusTotal(): Int {
-    var sum = livesBonusTarget + bombsBonusTarget + grazeBonusTarget
+    var sum = livesBonusTarget + bombsBonusTarget + grazeBonusTarget + skillBonusTarget
     if (sum < 0) sum = 0
     if (sum > MAX_SCORE) sum = MAX_SCORE
     return sum
+  }
+
+  fun markMiss() {
+    stageNoMiss = false
+  }
+
+  fun markBombUsed() {
+    stageNoBomb = false
+  }
+
+  fun armSecretRoute(count: Int) {
+    var n = count
+    if (n < 0) n = 0
+    secretMax = n
+    secretCollected = 0
+  }
+
+  fun collectSecretMedal() {
+    secretCollected++
+    if (secretCollected > secretMax) secretCollected = secretMax
   }
 
   fun isRecapReady(): Boolean = recapActive && recapPhase == PHASE_TOTAL
@@ -148,9 +190,15 @@ class ScoreManager private constructor() {
     livesBonusTarget = lives * LIFE_BONUS
     bombsBonusTarget = bombs * BOMB_BONUS
     grazeBonusTarget = grazeCount * GRAZE_BONUS
+    noMissBonusTarget = if (stageNoMiss) NO_MISS_BONUS else 0
+    noBombBonusTarget = if (stageNoBomb) NO_BOMB_BONUS else 0
+    secretUnitPoints = scalePoints(SECRET_MEDAL_POINTS)
+    secretBonusTarget = secretCollected * secretUnitPoints
+    skillBonusTarget = noMissBonusTarget + noBombBonusTarget + secretBonusTarget
     livesAwarded = 0
     bombsAwarded = 0
     grazeAwarded = 0
+    skillAwarded = 0
     recapPhase = PHASE_LIVES
     recapTimer = 0f
     recapFrame = 0
@@ -179,6 +227,13 @@ class ScoreManager private constructor() {
       tickPhase(grazeBonusTarget, 2)
       if (recapTimer >= PHASE_DUR) {
         snapPhase(2)
+        recapPhase = PHASE_SKILL
+        recapTimer = 0f
+      }
+    } else if (recapPhase == PHASE_SKILL) {
+      tickPhase(skillBonusTarget, 3)
+      if (recapTimer >= PHASE_DUR) {
+        snapPhase(3)
         recapPhase = PHASE_TOTAL
         recapTimer = 0f
       }
@@ -195,10 +250,20 @@ class ScoreManager private constructor() {
     livesBonusTarget = 0
     bombsBonusTarget = 0
     grazeBonusTarget = 0
+    noMissBonusTarget = 0
+    noBombBonusTarget = 0
+    secretBonusTarget = 0
+    secretUnitPoints = 0
+    skillBonusTarget = 0
     livesAwarded = 0
     bombsAwarded = 0
     grazeAwarded = 0
+    skillAwarded = 0
     recapActive = false
+    stageNoMiss = true
+    stageNoBomb = true
+    secretCollected = 0
+    secretMax = 0
   }
 
   fun reset() {
@@ -250,8 +315,10 @@ class ScoreManager private constructor() {
       livesBonusTarget
     } else if (which == 1) {
       bombsBonusTarget
-    } else {
+    } else if (which == 2) {
       grazeBonusTarget
+    } else {
+      skillBonusTarget
     }
     val awarded = awardedOf(which)
     val remain = target - awarded
@@ -266,8 +333,10 @@ class ScoreManager private constructor() {
       livesAwarded
     } else if (which == 1) {
       bombsAwarded
-    } else {
+    } else if (which == 2) {
       grazeAwarded
+    } else {
+      skillAwarded
     }
   }
 
@@ -276,8 +345,10 @@ class ScoreManager private constructor() {
       livesAwarded = value
     } else if (which == 1) {
       bombsAwarded = value
-    } else {
+    } else if (which == 2) {
       grazeAwarded = value
+    } else {
+      skillAwarded = value
     }
   }
 
@@ -297,13 +368,17 @@ class ScoreManager private constructor() {
     const val LIFE_BONUS = 50_000
     const val BOMB_BONUS = 20_000
     const val GRAZE_BONUS = 500
+    const val NO_MISS_BONUS = 200_000
+    const val NO_BOMB_BONUS = 100_000
+    const val SECRET_MEDAL_POINTS = 2_500
     const val EXTEND_FIRST = 50_000
     const val EXTEND_STEP = 100_000
     const val PHASE_IDLE = -1
     const val PHASE_LIVES = 0
     const val PHASE_BOMBS = 1
     const val PHASE_GRAZE = 2
-    const val PHASE_TOTAL = 3
+    const val PHASE_SKILL = 3
+    const val PHASE_TOTAL = 4
     private const val PHASE_DUR = 1.5f
     private const val TALLY_DUR = 1.0f
     private const val CLICK_EVERY_FRAMES = 5

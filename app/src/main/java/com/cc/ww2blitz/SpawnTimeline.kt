@@ -37,6 +37,8 @@ class SpawnTimeline {
     activeStage = stageData.currentStage
     val def = StageCatalog.get(activeStage)
     if (def.introOnly) {
+      val w = screenWidth.toFloat()
+      val h = screenHeight.toFloat()
       if (!cue.bossCueFired) {
         elapsedTime += dt
         val introSecs = def.introSecs
@@ -45,6 +47,8 @@ class SpawnTimeline {
           elapsedTime = introSecs
         }
       }
+      HiddenMedalRoute.bind(activeStage)
+      HiddenMedalRoute.tick(elapsedTime, w, h, PowerUpManager.instance.items)
       return
     }
     if (!(def.locksElapsedAtBoss && cue.bossCueFired)) {
@@ -59,6 +63,8 @@ class SpawnTimeline {
     updatePowerSafeguard(dt, enemyManager, w, h, playerWeaponPower, boss)
     val dir = if (def.id >= 0 && def.id < directors.size) directors[def.id] else null
     dir?.tick(dt, elapsedTime, enemyManager, w, h, boss, allowBoss, stageData, cue)
+    HiddenMedalRoute.bind(activeStage)
+    HiddenMedalRoute.tick(elapsedTime, w, h, PowerUpManager.instance.items)
     if (allowBoss && !cue.bossCueFired && def.usesSharedBossEntranceCue &&
       elapsedTime >= def.bossAtSeconds
     ) {
@@ -73,6 +79,7 @@ class SpawnTimeline {
     powerUpWaveQueued = false
     powerUpWaveTimer = 0f
     cue.bossCueFired = false
+    HiddenMedalRoute.reset()
     var i = 0
     while (i < directors.size) {
       directors[i]?.reset()

@@ -54,10 +54,10 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 34 | Painted maps must not stretch | Width-lock floors; title is a still, center-cropped | [Theaters](#23-theaters-and-z-order) |
 | 35 | Green key at authoring time | Punch chroma once at bitmap load | [Chroma](#24-green-chroma) |
 | 36 | Recap must be readable | Sweep all combat pools on `STATE_CLEAR` | [Score and recap](#25-score-and-recap) |
-| 37 | Bonus roll like a cabinet ticker | Four-phase recap; combat × dip; ticks `SFX_PICKUP` | [Score and recap](#25-score-and-recap) |
+| 37 | Bonus roll like a cabinet ticker | Five-phase recap; combat × dip; ticks `SFX_PICKUP` | [Score and recap](#25-score-and-recap) |
 | 38 | Kill must tick the HUD without replacing medals | Token 100 / 300 / 1_000 × dip + popup; medals stay the skill money | [Score and recap](#25-score-and-recap) |
 | 39 | Power carries; death resets gun | Continue keeps power; death → power 1 plus a catchable **P** | [Lives](#16-lives-hits-respawn) |
-| 40 | Ten-row table, no JSON on attract | `IntArray` / `CharArray`, in-place insert, `arcade_leaderboard` | [Name entry](#26-name-entry-and-campaign-end) |
+| 40 | Ten-row table **per dip**, no JSON on attract | 7 × 10 `IntArray` / `CharArray`, in-place insert, `arcade_leaderboard` | [Name entry](#26-name-entry-and-campaign-end) |
 | 41 | Finish is the playlist latch, not “stage id 6” | `campaignFinishedLatch` → credits → qualify | [Name entry](#26-name-entry-and-campaign-end) |
 | 42 | Gunshots immediate, music gapless, nothing on the frame | `SoundPool` + dual `MediaPlayer`; volumes in prefs | [Audio](#27-audio) |
 | 43 | Collisions need every pool; fat gunships must take body hits | Armor shots `10 + 0.55×half`; popcorn `3 + 0.28×half`; ram 45% | [Collisions](#28-collision-ownership) |
@@ -75,6 +75,9 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 55 | Tanks and ships sit on the ground, not in the flight | Two-pass grunt blit: `isGroundHeavy()` then airborne | [Theaters](#23-theaters-and-z-order) |
 | 56 | A seventh map must not subclass the engine | Folder + `StageDef` + director slot; reuse theater/boss kinds | [Playlist](#7-playlist-and-stage-identity) |
 | 57 | A new map must ship with a fixed art/authoring order | Floor wrap → overlays → `boss.png` → muzzles → briefing (3D boss) → band wrecks | [New stage prompt](#30-new-stage-prompt) |
+| 58 | A clean stage must pay skill, not only leftovers | Unscaled NO MISS 200k / NO BOMB 100k on recap; gold if earned | [Score and recap](#25-score-and-recap) |
+| 59 | Replay needs a gold route, not only wreck coins | Timed rail medals per map (`HiddenMedalRoute`); SECRET recap | [Score and recap](#25-score-and-recap) |
+| 60 | Monkey 900k must not sit on Hardcore | One EEPROM table per `Difficulty.index`; attract shows the live dip | [Name entry](#26-name-entry-and-campaign-end) |
 
 ```mermaid
 flowchart TB
@@ -91,6 +94,7 @@ flowchart TB
     SC[StageCatalog]
     TH[StageTheater]
     TL[SpawnTimeline]
+    HMR[HiddenMedalRoute]
     DR[StageDirector]
     FS[FormationSpawner]
     EN[EnemyPoolManager]
@@ -112,6 +116,8 @@ flowchart TB
   SD --> SC
   ST --> TH
   ST --> TL
+  TL --> HMR
+  HMR --> PU
   TL --> DR
   DR --> FS
   DR --> EN
@@ -211,7 +217,7 @@ Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / d
 
 **Why.** A fake “attract-only” spawn list would desync from the product. Reusing the director means the window always shows shippable waves. Forbidding insert keeps the operator table honest.
 
-**Implementation.** `ATTRACT_TITLE_SECS = 4`, `ATTRACT_DEMO_SECS = 30`, `ATTRACT_HIGH_SCORE_SECS = 4`. Title footer: CREDIT line, then `VER` plus `PackageManager` `versionName` (cached at `GameView` init), both `uiSmallPaint` / arcade face. On title timeout, `beginDemo()` picks a catalog map that is not `introOnly`, skipping `lastDemoStage` when more than one attract map exists. `demoPilot` steers toward the lowest living enemy or boss part, sidesteps nearby downward bullets, sine-wanders if idle (`DEMO_SPEED`). `resolveEnemyBulletsVsPlayer(..., awardScore = false)`. Touch on demo or ranking returns to interactive title. Surface recreate does **not** force `ATTRACT_TITLE`; ranking can survive a flap. `HighScoreManager` insert is not called on this path.
+**Implementation.** `ATTRACT_TITLE_SECS = 4`, `ATTRACT_DEMO_SECS = 30`, `ATTRACT_HIGH_SCORE_SECS = 4`. Title footer: CREDIT line, then `VER` plus `PackageManager` `versionName` (cached at `GameView` init), both `uiSmallPaint` / arcade face. Ranking card is **TOP SCORES** plus the saved dip name; rows read `HighScoreManager` for that `Difficulty.index` only. On title timeout, `beginDemo()` picks a catalog map that is not `introOnly`, skipping `lastDemoStage` when more than one attract map exists. `demoPilot` steers toward the lowest living enemy or boss part, sidesteps nearby downward bullets, sine-wanders if idle (`DEMO_SPEED`). `resolveEnemyBulletsVsPlayer(..., awardScore = false)`. Touch on demo or ranking returns to interactive title. Surface recreate does **not** force `ATTRACT_TITLE`; ranking can survive a flap. `HighScoreManager` insert is not called on this path.
 
 ---
 
@@ -231,13 +237,13 @@ Empty-glass tap on title calls `beginCampaignFromMenu()` only after settings / d
 
 **Why.** Index-based finish is what the operator programmed. Identity on the def lets a facility canopy and an ocean freeze work even if you reorder the array. A clone of jungle-over-new-art is a folder, a catalog row, a director object, and a playlist entry.
 
-**Implementation.** Default `intArrayOf(1, 2, 3, 4, 7, 8, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. `StageData.def` is `StageCatalog.get(stageId)`. Derived flags: `hasOverlayClouds`, `isFacilityTheater`, `isAscentTheater`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `introOnly`. `applyStageMetrics` copies `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport. Later title size bounces do not call it.
+**Implementation.** Default `intArrayOf(1, 2, 3, 7, 8, 4, 5, 6)`. `setCurrentStage` / `resetToStart` / `advanceToNextStage` maintain `sequenceIndex` and `stageId`. `currentStage` is the catalog id; `missionNumber` is `sequenceIndex + 1` (what recap prints as `STAGE N CLEAR`). `StageData.def` is `StageCatalog.get(stageId)`. Derived flags: `hasOverlayClouds`, `isFacilityTheater`, `isAscentTheater`, `locksElapsedAtBoss`, `usesOpeningPowerV`, `introOnly`. `applyStageMetrics` copies `scrollSpeedY`, `targetBossTimelineSeconds`, `stageMusicTrack`. `GameView.bootLaunchStageIfNeeded` runs **once** on the first valid viewport. Later title size bounces do not call it.
 
 Theater kinds (`StageTheaterKind`): **SCROLL** (width-locked floor, optional overlay clouds), **FACILITY** (floor + keyed canopy over hostiles), **ASCENT** (unscaled floor, `floor_alt` swap, late canopy). GameView/Parallax branch on kind, not on ids 5 and 6.
 
 Boss kits (`BossCombatKind`): **PLANE**, **TANK**, **BATTLESHIP**, **JUNGLE**, **WINTER**, **ATOLL**, **CANOPY**, **ORBIT**. Bind peels, wreck overlays, and fire tables. `BossKit.triPart` is canopy/orbit victory. Reuse a kind on a new def to clone an existing fortress.
 
-Waves: `SpawnTimeline` is the clock (opening P-V, power safeguard, shared boss cue, `introOnly` gate). Each catalog id gets its own director instance from `StageDef.waveScript` (`StageWaveKind`), not from the id number. Gaps are idle. `FormationSpawner` is shared helpers. Directors stay Kotlin; there is no wave DSL.
+Waves: `SpawnTimeline` is the clock (opening P-V, power safeguard, shared boss cue, `introOnly` gate, `HiddenMedalRoute` tick). Each catalog id gets its own director instance from `StageDef.waveScript` (`StageWaveKind`), not from the id number. Gaps are idle. `FormationSpawner` is shared helpers. Directors stay Kotlin; there is no wave DSL.
 
 Art: default folder `assets/stages/$id/`. Set `artFolder` (for example `"stages/4"`) to reuse another map’s PNGs without copying them. `StageBitmaps` decodes off the vsync path. Shared sprites stay in `res/drawable`. `ParallaxBackground` **borrows** theater bitmaps and must not recycle them. `resetStage` restarts theater playback so a duplicated id (including ascent) begins as a fresh run.
 
@@ -319,11 +325,11 @@ Then `STAGE_SEQUENCE = intArrayOf(3, 8, 6, 6)`. No new director class if the wav
 
 **Need.** Operator settings and the ranking table must survive process death. Attract must not parse JSON.
 
-**Choice.** Primitive prefs. Arcade dips in `shmup_arcade_settings`. Audio in `StrikersAudioPrefs`. Leaderboard in `arcade_leaderboard`. Load once (`hydrated` on scores).
+**Choice.** Primitive prefs. Arcade dips in `shmup_arcade_settings`. Audio in `StrikersAudioPrefs`. Seven leaderboards in `arcade_leaderboard`. Load once (`hydrated` on scores).
 
-**Why.** Ten ints and thirty chars are a cabinet EEPROM. `edit().apply()` is fire-and-forget off the frame.
+**Why.** Ten ints and thirty chars **per dip** are a cabinet EEPROM. Mixing Monkey with Hardcore would make the attract card a lie. `edit().apply()` is fire-and-forget off the frame.
 
-**Implementation.** `StageData.initPersistentSettings` reads difficulty index and fighter 0/1. `HighScoreManager` keeps `topScores`, `topNames` (length 30), `topStages`; insert shifts in place. Fallback names (`PSK`, `STK`, …) exist before first hydrate. Audio load/save is synchronized inside `SoundManager`.
+**Implementation.** `StageData.initPersistentSettings` reads difficulty index and fighter 0/1. `HighScoreManager` keeps seven tables (`d{1..7}_score_*` / `_stage_*` / `_name_*`). Insert shifts in place inside one table. Legacy unprefixed `score_0`… keys migrate onto **NORMAL** (`index` 3) on first hydrate, then all seven tables are written. Fallback names (`PSK`, `STK`, …) exist before first hydrate. Audio load/save is synchronized inside `SoundManager`.
 
 ---
 
@@ -537,27 +543,29 @@ Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turre
 
 ## 25. Score and recap
 
-**Need.** Running score must cap like a cabinet counter. Dip must scale combat payouts. Recap on top of a frozen bullet soup is unreadable. Bonus roll is a ticker, not a dialog. Gun power carries to the next map; death resets it. A wave that only drops medals, with coins still falling, used to leave the HUD frozen — players read that as “score is broken.”
+**Need.** Running score must cap like a cabinet counter. Dip must scale combat payouts. Recap on top of a frozen bullet soup is unreadable. Bonus roll is a ticker, not a dialog. Gun power carries to the next map; death resets it. A wave that only drops medals, with coins still falling, used to leave the HUD frozen — players read that as “score is broken.” Beating the war once must not be the only scoring game: a clean stage and a hidden gold route have to pay.
 
-**Choice.** `ScoreManager` singleton, cap 99,999,999. Combat × `activeMultiplier`. Recap lines 50k/20k/500 **unscaled**. On playing→clear, sweep every combat pool. Four-phase recap. Continue does not call `resetWeaponPower`; `takeDamage` on life-loss does. Grunt kills pay a **token** (not a new sprite): 100 drone/kami, 300 interceptor, 1_000 heavy, then × dip, plus the same floating popup as extra P/B. Medals stay the real money.
+**Choice.** `ScoreManager` singleton, cap 99,999,999. Combat × `activeMultiplier`. Recap leftovers 50k/20k/500 **unscaled**. Skill recap also unscaled: NO MISS 200k (no `takeDamage` chip that map), NO BOMB 100k (no panic blast). SECRET recap is collected × `scalePoints(2500)` — the same popup as the red medal. On playing→clear, sweep every combat pool. Five-phase recap. Continue does not call `resetWeaponPower`; `takeDamage` on life-loss does. Grunt kills pay a **token** (not a new sprite): 100 drone/kami, 300 interceptor, 1_000 heavy, then × dip, plus the same floating popup as extra P/B. Wreck medals stay the real money; **secret** medals are extra timed spawns, not loot rolls.
 
-**Why.** Cabinets always ticked the counter on explode, then paid again if you scooped the gold. A 100-point drone does not rival a 2000-point face medal, so the Psikyo “pick the gold” skill still decides the ranking. The player **sees** the HUD move on every wreck, even if they miss the coin. Demo does not pay (same honesty as graze).
+**Why.** Cabinets always ticked the counter on explode, then paid again if you scooped the gold. A 100-point drone does not rival a 2000-point face medal, so the Psikyo “pick the gold” skill still decides the ranking. No-miss / no-bomb / rail gold is the second game on the same credit. The player **sees** the HUD move on every wreck, even if they miss the coin. Demo does not pay (same honesty as graze).
 
-**Implementation.** `addScore` / `scalePoints`. `GameView.onEnemyKilled` (vulcan, missile, bomb, ram — `STATE_PLAYING` only) calls `awardKillScore`: `KILL_SCORE_*` × dip, `addScore`, `triggerFloatingScore` at the wreck. No extra medal or chip is spawned for the token. Graze count separate. Recap: `PHASE_LIVES` → `BOMBS` → `GRAZE` → `TOTAL` (~1 s each, `SFX_PICKUP` every 5 frames while rolling — not the vulcan sample). Recap tally can cross an extend threshold. `UIController.drawStageClear` from char buffers. `ACTION_UP` when `isRecapReady()`: `resetStageCounters`, `advanceToNextStage`; if latch → `STATE_CAMPAIGN_COMPLETE`, else interstitial. 40% black wash under the card. World sprites not drawn in `STATE_CLEAR`.
+**Implementation.** `addScore` / `scalePoints`. `GameView.onEnemyKilled` (vulcan, missile, bomb, ram — `STATE_PLAYING` only) calls `awardKillScore`: `KILL_SCORE_*` × dip, `addScore`, `triggerFloatingScore` at the wreck. No extra medal or chip is spawned for the token. Graze count separate. `PlayerShip.takeDamage` (after i-frames fail) calls `markMiss`. Panic activate calls `markBombUsed`. Recap: `PHASE_LIVES` → `BOMBS` → `GRAZE` → `PHASE_SKILL` → `TOTAL` (~1.5 s each, `SFX_PICKUP` every 5 frames while rolling — not the vulcan sample). Skill lines gold if the bonus is > 0. Header `STAGE N CLEAR` uses `missionNumber`, not catalog id. Recap tally can cross an extend threshold. `UIController.drawStageClear` from char buffers. `ACTION_UP` when `isRecapReady()`: `resetStageCounters`, `advanceToNextStage`; if latch → `STATE_CAMPAIGN_COMPLETE`, else interstitial. 40% black wash under the card. World sprites not drawn in `STATE_CLEAR`.
 
-Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FULL_SCORE` (2000) + floating popup (`collectPowerUp`), same pattern as extra **B** at 3 stock (`BOMB_FULL_SCORE` 5000 + popup). Falling medals still score face-up 2000 / edge 200 at Normal, then × dip. Extra **P/B** chance after the medal: base 15% popcorn / 40% armor, × `lootChanceScale()`, then cap 20% / 50%. Shield `restoreHits()`. Stage 5 cancel medals during core-kill freeze. Medals **magnet**: within 96 px they slide toward the ship at 420 px/s; in the outer 10% of the screen, if the plane is hugging that same wall, the pull radius is 188 px so rim coins still collect (the sprite clamp cannot kiss the bezel). P/B are unchanged wall-bounce at 30 px.
+Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FULL_SCORE` (2000) + floating popup (`collectPowerUp`), same pattern as extra **B** at 3 stock (`BOMB_FULL_SCORE` 5000 + popup). Falling wreck medals still score face-up 2000 / edge 200 at Normal, then × dip. Extra **P/B** chance after the medal: base 15% popcorn / 40% armor, × `lootChanceScale()`, then cap 20% / 50%. Shield `restoreHits()`. Stage 5 cancel medals during core-kill freeze. Medals **magnet**: within 96 px they slide toward the ship at 420 px/s; in the outer 10% of the screen, if the plane is hugging that same wall, the pull radius is 188 px so rim coins still collect (the sprite clamp cannot kiss the bezel). P/B are unchanged wall-bounce at 30 px.
+
+Hidden route: `HiddenMedalRoute` binds on `resetStage` / timeline tick. Five cues per map (three on Orbit Threshold), `at` seconds + `xFrac`/`yFrac`, mostly rails. `PowerUpItem.spawnSecretMedal` sets `isSecretMedal` and `pickupPoints = 2500` (then × dip on collect). Recap line is `SECRET: N x unit` with that same scaled unit. `armSecretRoute(cueCount)` sets the route length. Center magnet does not reach a rail spawn; hugging that wall does.
 
 ---
 
 ## 26. Name entry and campaign end
 
-**Need.** Beat 10th place, enter three letters. Finishing the war is credits, then the same qualify path. Finish is “playlist walked off the end,” not “we saw id 6.”
+**Need.** Beat 10th place **on this dip**, enter three letters. Finishing the war is credits, then the same qualify path. Finish is “playlist walked off the end,” not “we saw id 6.” Hardcore and Monkey must not share a table.
 
-**Choice.** `HighScoreManager` ten rows, in-place insert. `STATE_REGISTRATION` left/right halves of a letter row, lock at the bottom. `STATE_CAMPAIGN_COMPLETE` credits (~22 s) then blink register.
+**Choice.** `HighScoreManager` seven tables × ten rows, in-place insert keyed by `Difficulty.index`. `STATE_REGISTRATION` left/right halves of a letter row, lock at the bottom; the live dip name sits under HI-SCORE ENTRY. `STATE_CAMPAIGN_COMPLETE` credits (~22 s) then blink register.
 
-**Why.** CharArray names draw with a `while`. Latch handles duplicate ids in a test sequence.
+**Why.** CharArray names draw with a `while`. Latch handles duplicate ids in a test sequence. Per-dip EEPROM is how an operator board stays readable.
 
-**Implementation.** `doesScoreQualify`, insert shifts scores/names/stages. Registration: tap left decrements A–Z, right increments, bottom locks one letter, three times, then ranking. Game over ~9 s skippable; if no qualify, skip naming. Credits: `drawCampaignCompleteCredits`, `Paint.breakText` wrap at 85% width.
+**Implementation.** `checkIfQualifies(score, difficultyIndex)`, insert shifts that table’s scores/names/stages. Registration: tap left decrements A–Z, right increments, bottom locks one letter, three times, then ranking. Game over ~9 s skippable; if no qualify, skip naming. Credits: `drawCampaignCompleteCredits`, `Paint.breakText` wrap at 85% width. Attract ranking and qualify both use `stageManager.getDifficulty().index`. High-score `ST` is `missionNumber` reached, not catalog id.
 
 ---
 
@@ -606,7 +614,8 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 | `StageData` | Playlist, dipswitches, live `combatRank`, derived theater flags, metrics |
 | `StageCatalog` / `StageDef` | Map identity: paths, flags, `theaterKind`, `bossCombat`, briefing name |
 | `StageTheater` / `StageBitmaps` | Live floor / canopy / briefing / skins from `assets/stages/N/` |
-| `SpawnTimeline` | Elapsed clock, opening P-V, power safeguard, shared/intro boss cue |
+| `SpawnTimeline` | Elapsed clock, opening P-V, power safeguard, shared/intro boss cue, secret-medal tick |
+| `HiddenMedalRoute` | Per-id timed rail medal cues |
 | `StageDirector` / `StageDirectors` | Per-id wave script; bind table |
 | `FormationSpawner` | Shared spawn helpers and beat constants |
 | `EnemyPoolManager` / `Enemy` | Grunt motion, types, patterns, aim; borrows theater skins |
@@ -619,8 +628,8 @@ Pickups: **P** increments power to 3; extra **P** at max power pays `POWERUP_FUL
 | `PowerUpItem` | P / B / shield / medal slots |
 | `ParallaxBackground` | Scroll / facility / ascent blit; borrows theater bitmaps |
 | `ParticleManager` | Explosions, graze sparks |
-| `ScoreManager` | Score, graze count, recap phases, score-extend latch |
-| `HighScoreManager` | Top 10 EEPROM |
+| `ScoreManager` | Score, graze, no-miss/no-bomb, secret count, recap phases, score-extend latch |
+| `HighScoreManager` | Seven dip EEPROM tables × top 10 |
 | `UIController` | Recap HUD, credits; interstitial uses theater briefing |
 | `SoundManager` | SFX pool, looped BGM, volume prefs |
 

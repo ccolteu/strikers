@@ -1142,9 +1142,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiGoldShadowPaint.textSize = 48f
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("TOP SCORES")
-    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.11f, uiGoldPaint, uiGoldShadowPaint)
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.08f, uiGoldPaint, uiGoldShadowPaint)
     uiGoldPaint.textSize = savedGold
     uiGoldShadowPaint.textSize = savedGoldShadow
+    val dip = stageManager.getDifficulty().index
+    uiStringBuilder.setLength(0)
+    appendDifficultyName(dip - 1)
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.13f, uiTextPaint, uiShadowPaint)
     val savedSmall = uiSmallPaint.textSize
     val savedSmallShadow = uiSmallShadowPaint.textSize
     uiSmallPaint.textSize = 36f
@@ -1155,7 +1159,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       uiStringBuilder.setLength(0)
       uiStringBuilder.append(i + 1)
       uiStringBuilder.append(' ')
-      var score = HighScoreManager.scoreAt(i)
+      var score = HighScoreManager.scoreAt(dip, i)
       if (score < 0) score = 0
       if (score > 99_999_999) score = 99_999_999
       var digits = 1
@@ -1171,11 +1175,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       uiStringBuilder.append(score)
       uiStringBuilder.append("  ")
-      uiStringBuilder.append(HighScoreManager.nameChar(i, 0))
-      uiStringBuilder.append(HighScoreManager.nameChar(i, 1))
-      uiStringBuilder.append(HighScoreManager.nameChar(i, 2))
+      uiStringBuilder.append(HighScoreManager.nameChar(dip, i, 0))
+      uiStringBuilder.append(HighScoreManager.nameChar(dip, i, 1))
+      uiStringBuilder.append(HighScoreManager.nameChar(dip, i, 2))
       uiStringBuilder.append("  ST")
-      uiStringBuilder.append(HighScoreManager.stageAt(i))
+      uiStringBuilder.append(HighScoreManager.stageAt(dip, i))
       val rowY = screenH * 0.20f + i * rowStep
       drawCenteredHud(canvas, uiStringBuilder, cx, rowY, uiSmallPaint, uiSmallShadowPaint)
       i++
@@ -1210,6 +1214,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("HI-SCORE ENTRY")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.24f, uiTextPaint, uiShadowPaint)
+    uiStringBuilder.setLength(0)
+    appendDifficultyName(stageManager.getDifficulty().index - 1)
+    drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.29f, uiGoldPaint, uiGoldShadowPaint)
     val originalGoldSize = uiGoldPaint.textSize
     val originalGoldShadowSize = uiGoldShadowPaint.textSize
     uiGoldPaint.textSize = 72f
@@ -2165,6 +2172,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
     val awarded = ScoreManager.instance.scalePoints(points)
     ScoreManager.instance.addScore(awarded)
+    if (item.isSecretMedal) {
+      ScoreManager.instance.collectSecretMedal()
+    }
     triggerFloatingScore(item.x, item.y, awarded)
     SoundManager.instance.playSFX(SoundManager.SFX_PICKUP)
   }
@@ -2380,6 +2390,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     boss.deactivate()
     boss.bindStage(stageManager.currentStage)
     timeline.reset()
+    HiddenMedalRoute.bind(stageManager.currentStage)
+    ScoreManager.instance.armSecretRoute(HiddenMedalRoute.cueCount())
     if (stageManager.def.introOnly) {
       enemies.deactivateAll()
       enemyShots.deactivateAll()
@@ -2455,7 +2467,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun routeAfterGameOver() {
-    if (HighScoreManager.checkIfQualifies(campaignScore)) {
+    if (HighScoreManager.checkIfQualifies(campaignScore, stageManager.getDifficulty().index)) {
       beginRegistration()
     } else {
       finishDemoToHighScore()
@@ -2494,6 +2506,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         pendingInitials[1],
         pendingInitials[2],
         maxStageCleared,
+        stageManager.getDifficulty().index,
       )
       finishDemoToHighScore()
     } else {
@@ -2765,7 +2778,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       }
       STATE_CAMPAIGN_COMPLETE -> {
         if (down) {
-          if (HighScoreManager.checkIfQualifies(campaignScore)) {
+          if (HighScoreManager.checkIfQualifies(campaignScore, stageManager.getDifficulty().index)) {
             beginRegistration()
           } else {
             finishDemoToHighScore()
@@ -2787,6 +2800,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           if (!panicBomb.isActive) {
             availableBombs--
             panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+            ScoreManager.instance.markBombUsed()
             bombCoreWasOpen = boss.isCoreVulnerable()
             bossBombDmgBank = 0f
             addScreenShake(0.8f)
@@ -2811,6 +2825,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
           if (!panicBomb.isActive) {
             availableBombs--
             panicBomb.activate(player.getHitboxX(), player.getHitboxY())
+            ScoreManager.instance.markBombUsed()
             bombCoreWasOpen = boss.isCoreVulnerable()
             bossBombDmgBank = 0f
             addScreenShake(0.8f)

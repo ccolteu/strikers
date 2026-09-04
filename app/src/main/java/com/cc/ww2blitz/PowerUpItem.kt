@@ -18,6 +18,7 @@ class PowerUpSlot {
   var swayT = 0f
   var swayDrop = false
   var pickupPoints = 0
+  var isSecretMedal = false
   var isActive = false
   var itemType = PowerUpItem.ITEM_TYPE_POWERUP
   var medalFrameTime = 0f
@@ -39,6 +40,11 @@ class PowerUpItem {
   private val medalPaint = Paint().apply {
     isFilterBitmap = false
     isAntiAlias = false
+  }
+  private val secretMedalPaint = Paint().apply {
+    isFilterBitmap = false
+    isAntiAlias = false
+    colorFilter = PorterDuffColorFilter(0xFFFF8A8A.toInt(), PorterDuff.Mode.MULTIPLY)
   }
   private val medalOutlinePaint = Paint().apply {
     isFilterBitmap = false
@@ -222,7 +228,7 @@ class PowerUpItem {
           if (frame != null) {
             val hx = MEDAL_HALF
             itemDst.set(s.x - hx, s.y - hx, s.x + hx, s.y + hx)
-            blitOutlined(canvas, frame, medalPaint)
+            blitOutlined(canvas, frame, if (s.isSecretMedal) secretMedalPaint else medalPaint)
           }
         } else if (s.itemType == ITEM_TYPE_BOMB) {
           if (bombBmp != null) {
@@ -284,7 +290,24 @@ class PowerUpItem {
     s.swayT = 0f
     s.swayDrop = false
     s.pickupPoints = 0
+    s.isSecretMedal = false
     s.isActive = true
+  }
+
+  fun spawnSecretMedal(startX: Float, startY: Float) {
+    var i = 0
+    while (i < POOL_SIZE) {
+      val s = pool[i]
+      if (!s.isActive) {
+        fillSlot(s, startX, startY, ITEM_TYPE_MEDAL)
+        s.vx = 0f
+        s.vy = 78f
+        s.pickupPoints = ScoreManager.SECRET_MEDAL_POINTS
+        s.isSecretMedal = true
+        return
+      }
+      i++
+    }
   }
 
   private fun syncLegacy(s: PowerUpSlot) {
