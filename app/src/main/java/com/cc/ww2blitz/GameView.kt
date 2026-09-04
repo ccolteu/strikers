@@ -95,6 +95,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var isSettingsMenuOpen = false
   private var logoBmp: Bitmap? = null
   private var titleBackdropBmp: Bitmap? = null
+  var onFirstFramePosted: (() -> Unit)? = null
+  private var firstPresentSent = false
   private var selectPreviewP38: Bitmap? = null
   private var selectPreviewHellcat: Bitmap? = null
   private var powerUpBmp: Bitmap? = null
@@ -297,13 +299,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     popupPaint.typeface = face
     popupShadowPaint.typeface = face
     uiController.bindTypeface(face)
-    var ver = "1.0.3"
+    var ver = "1.0.4"
     try {
       val name = context.packageManager.getPackageInfo(context.packageName, 0).versionName
       if (name != null && name.isNotEmpty()) ver = name
     } catch (_: Exception) {
     }
     appVersionName = ver
+    titleBackdropBmp = decodeOpaque(R.drawable.title_screen_backdrop)
   }
 
   override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -644,6 +647,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         drawArcadeUI(canvas)
       } finally {
         holder.unlockCanvasAndPost(canvas)
+        if (!firstPresentSent && screenW > 0) {
+          firstPresentSent = true
+          val done = onFirstFramePosted
+          onFirstFramePosted = null
+          if (done != null) {
+            post(done)
+          }
+        }
       }
     }
     choreographer.postFrameCallback(this)

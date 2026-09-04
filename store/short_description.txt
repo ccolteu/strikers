@@ -1,1 +1,1 @@
-Arcade WWII shooter. Two fighters, six stages, medals, bombs. One credit.
+Arcade WWII STG. Eight ops, two fighters, medals, captains. One credit.

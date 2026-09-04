@@ -4,7 +4,11 @@ import android.app.Activity
 import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.ImageView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -20,10 +24,27 @@ class MainActivity : Activity() {
     volumeControlStream = AudioManager.STREAM_MUSIC
     window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     hideSystemBars()
-    SoundManager.instance.initialize(this)
-    val view = GameView(this)
-    gameView = view
-    setContentView(view)
+    val root = FrameLayout(this)
+    val still = ImageView(this)
+    still.scaleType = ImageView.ScaleType.CENTER_CROP
+    still.setImageResource(R.drawable.title_screen_backdrop)
+    still.importantForAccessibility = ImageView.IMPORTANT_FOR_ACCESSIBILITY_NO
+    val fill = FrameLayout.LayoutParams(
+      ViewGroup.LayoutParams.MATCH_PARENT,
+      ViewGroup.LayoutParams.MATCH_PARENT,
+    )
+    root.addView(still, fill)
+    setContentView(root)
+    root.post {
+      SoundManager.instance.initialize(this)
+      val view = GameView(this)
+      gameView = view
+      view.onFirstFramePosted = {
+        still.visibility = View.GONE
+      }
+      root.addView(view, 0, fill)
+      still.bringToFront()
+    }
   }
 
   override fun onPause() {

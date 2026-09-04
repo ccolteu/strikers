@@ -1,6 +1,6 @@
 Take the stick. Clear the sky.
 
-WW2 BLITZ is a portrait arcade shooter built like a cabinet: one credit, six operations, no waiting for a meter to refill. You grab your fighter and the guns stay up. The rest is skill, greed, and whether you save the bomb.
+WW2 BLITZ is a portrait arcade shooter built like a cabinet: one credit, eight operations, no waiting for a meter to refill. You grab your fighter and the guns stay up. The rest is skill, greed, and whether you save the bomb.
 
 HOW TO FLY
 Touch and hold on the plane. It follows your thumb on a short leash — tight enough for micro-dodges, loose enough that your finger does not sit on the sprite. Let go and you stop shooting. Double-tap to dump a screen-clearing bomb. You start with three lives, and each life takes three hits. Chip damage turns the hull pips gold, then red. The last pip blinks. The next solid hit is a funeral.
@@ -12,13 +12,19 @@ F6F Hellcat — heavier, a three-way spread, built to cover the screen.
 Both carry homing missiles once you are fully powered. Pick on the hangar panel; the game remembers.
 
 EIGHT OPERATIONS
-A single campaign. No stage-select grid. CLOUD FORTRESS, IRON TREADS, STEEL ATLANTIC, FROZEN FRONT, CORAL ATOLL, JUNGLE RUINS, ASCENT CANOPY and ORBIT THRESHOLD. Each map has its own music, its own formations, and a boss that has to come apart before you see the recap. Leave the title idle and attract mode will fly a demo — tap to steal the stick back.
+A single campaign. No stage-select grid. CLOUD FORTRESS, IRON TREADS, STEEL ATLANTIC, FROZEN FRONT, CORAL ATOLL, JUNGLE RUINS, ASCENT CANOPY and ORBIT THRESHOLD. Each map has its own music, its own formations, and a fortress that has to come apart before you see the recap.
+
+Mid-campaign, captains take the sky first. A destroyer on the Atlantic, a tank on the Frozen Front, a heavy over the Coral Atoll, a helicopter in the Jungle. They hold, they dump medals, then they dive off so the fortress can own the screen. Leave the title idle and attract mode will fly a demo — tap to steal the stick back.
 
 POWER, MEDALS, GREED
-P items step your shot up to three. Extra P at max power still pays. B restocks bombs; extra B at three in the rack pays more. Every kill drops a spinning medal — catch them face-up if you can, they are the real money. Graze enemy fire for extra points. A panic bomb erases shots in the blast and cooks anything still in the fire.
+P items step your shot up to three. Extra P at max power still pays. B restocks bombs; extra B at three in the rack pays more. Every kill drops a spinning medal — catch them face-up if you can, they are the real money. Secret medals sit on timed rails if you know the route. Graze enemy fire for extra points. A panic bomb erases shots in the blast and cooks anything still in the fire.
+
+Finish a map clean and the recap pays like a cabinet: NO MISS and NO BOMB in gold if you earned them, SECRET if you robbed the rails. Extends at 50,000 then every 100,000. The table is local, per difficulty, and it only wants a one-credit clear.
 
 DIPSWITCHES
 Monkey through Hardcore. Shot speed, density, and score multiplier all move. Hardcore is for people who still remember what a credit was worth.
+
+CONTINUE is an operator switch — zero, one, or two extra bodies, default off. Spend one and you stay on this map. Spend one and you do not qualify for ranking. The board is for 1CC.
 
 RANKS
 Local high scores. Initials. No account, no ads, no in-app purchases. Your ranking lives on this device.
