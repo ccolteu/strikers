@@ -1530,7 +1530,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               onEnemyKilled(enemy)
               enemy.isActive = false
               particles.triggerExplosion(enemy.x, enemy.y, true)
-              dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
+              dropEnemyLoot(enemy)
             }
           }
         }
@@ -1681,7 +1681,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val def = stageManager.def
     enemies.bindTheaterSkins(null, null, null)
     theater.load(context.assets, def, width, restartPlayback)
-    enemies.bindTheaterSkins(theater.skinTank, theater.skinDestroyer, theater.skinWagon)
+    enemies.bindTheaterSkins(
+      theater.skinTank,
+      theater.skinDestroyer,
+      theater.skinWagon,
+      theater.skinHelicopter,
+    )
     val floorLayer =
       if (def.theaterKind == StageTheaterKind.ASCENT) theater.activeFloor else theater.floor
     parallax.setScrollLayers(floorLayer, theater.mid, theater.high)
@@ -1793,7 +1798,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 fireRevengeIfNeeded(enemy)
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
-                dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
+                dropEnemyLoot(enemy)
               }
               break
             }
@@ -1825,7 +1830,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 fireRevengeIfNeeded(enemy)
                 enemy.isActive = false
                 particles.triggerExplosion(enemy.x, enemy.y, true)
-                dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
+                dropEnemyLoot(enemy)
               }
               break
             }
@@ -1958,7 +1963,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
               onEnemyKilled(enemy)
               enemy.isActive = false
               particles.triggerExplosion(enemy.x, enemy.y)
-              dropEnemyLoot(enemy.x, enemy.y, enemy.type, enemy.isRedShipAnchor)
+              dropEnemyLoot(enemy)
               if (player.takeDamage()) {
                 particles.triggerExplosion(playerX, playerY)
                 if (player.isGameOver() && gameState == STATE_PLAYING) enterGameOver()
@@ -2075,6 +2080,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
   private fun fireRevengeIfNeeded(enemy: Enemy) {
     if (enemy.deathClearBullets) return
+    if (enemy.isMidBoss) return
     val popcorn =
       enemy.type != ENEMY_TYPE_INTERCEPTOR && enemy.type != ENEMY_TYPE_HEAVY
     if (!stageManager.revengeOnDeath()) {
@@ -2102,19 +2108,28 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
   }
 
-  private fun dropEnemyLoot(
-    x: Float,
-    y: Float,
-    enemyType: Int,
-    guaranteedPowerup: Boolean,
-  ) {
+  private fun dropEnemyLoot(enemy: Enemy) {
+    val x = enemy.x
+    val y = enemy.y
+    if (enemy.isMidBoss) {
+      powerUpItem.spawn(x - 28f, y, PowerUpItem.ITEM_TYPE_MEDAL)
+      powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_MEDAL)
+      powerUpItem.spawn(x + 28f, y, PowerUpItem.ITEM_TYPE_MEDAL)
+      val extra = if (availableBombs < MAX_BOMBS) {
+        PowerUpItem.ITEM_TYPE_BOMB
+      } else {
+        PowerUpItem.ITEM_TYPE_POWERUP
+      }
+      powerUpItem.spawn(x, y + 36f, extra)
+      return
+    }
     powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_MEDAL)
-    if (guaranteedPowerup) {
+    if (enemy.isRedShipAnchor) {
       powerUpItem.spawn(x, y, PowerUpItem.ITEM_TYPE_POWERUP)
       return
     }
     val armored =
-      enemyType == ENEMY_TYPE_HEAVY || enemyType == ENEMY_TYPE_INTERCEPTOR
+      enemy.type == ENEMY_TYPE_HEAVY || enemy.type == ENEMY_TYPE_INTERCEPTOR
     var dropChance = if (armored) 0.40f else 0.15f
     dropChance *= stageManager.lootChanceScale()
     val cap = if (armored) 0.50f else 0.20f

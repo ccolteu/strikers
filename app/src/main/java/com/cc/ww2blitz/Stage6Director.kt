@@ -1,11 +1,9 @@
 package com.cc.ww2blitz
 
 import com.cc.ww2blitz.FormationSpawner.MAX_ACTIVE
-import com.cc.ww2blitz.FormationSpawner.PATTERN_V_HOLD
 import com.cc.ww2blitz.FormationSpawner.PATTERN_WEAVE
 import com.cc.ww2blitz.FormationSpawner.S6_CRUISER_AT
 import com.cc.ww2blitz.FormationSpawner.S6_CRUISER_HP
-import com.cc.ww2blitz.FormationSpawner.S6_CRUISER_VY
 import com.cc.ww2blitz.FormationSpawner.S6_FLANK_END
 import com.cc.ww2blitz.FormationSpawner.S6_FLANK_SPACING
 import com.cc.ww2blitz.FormationSpawner.S6_FLANK_START
@@ -24,7 +22,6 @@ import com.cc.ww2blitz.FormationSpawner.S6_WEAVE_SPACING
 import com.cc.ww2blitz.FormationSpawner.S6_WEAVE_START
 import com.cc.ww2blitz.FormationSpawner.S6_WEAVE_VY
 import com.cc.ww2blitz.FormationSpawner.TYPE_DRONE
-import com.cc.ww2blitz.FormationSpawner.TYPE_HEAVY
 import com.cc.ww2blitz.FormationSpawner.TYPE_KAMIKAZE
 
 class Stage6Director : StageDirector {
@@ -88,16 +85,16 @@ class Stage6Director : StageDirector {
     }
     if (!s6CruiserSpawned && elapsed >= S6_CRUISER_AT) {
       s6CruiserSpawned = true
-      enemies.spawnEnemy(
-        0.50f * w,
-        -0.10f * h,
-        0f,
-        S6_CRUISER_VY,
-        TYPE_HEAVY,
-        PATTERN_V_HOLD,
+      FormationSpawner.spawnMidBoss(
+        enemies,
+        w,
+        h,
+        0.50f,
         S6_CRUISER_HP,
+        isHelicopter = true,
       )
     }
+    if (enemies.hasActiveMidBoss()) return
     if (!s6KamiSpawned && elapsed >= S6_KAMI_AT) {
       s6KamiSpawned = true
       enemies.spawnEnemy(-0.06f * w, 0.22f * h, S6_FLANK_VX * 0.90f, S6_KAMI_VY * 0.70f, TYPE_KAMIKAZE)

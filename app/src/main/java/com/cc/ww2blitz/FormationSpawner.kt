@@ -71,16 +71,19 @@ object FormationSpawner {
   const val S3_DESTROYER_HP = 12
   const val S3_CROSS_AT = 10.5f
   const val S3_CROSS_Y = 0.38f
+  const val S3_MID_AT = 12.0f
+  const val S3_MID_HP = 96
+  const val S3_RECOVERY_AT = 38.0f
   const val S3_FLANK_START = 14.0f
   const val S3_FLANK_END = 19.5f
   const val S3_FLANK_SPACING = 0.95f
-  const val S3_BOSS_AT = 25.0f
+  const val S3_BOSS_AT = 42.0f
   const val S6_FLANK_START = 1.0f
   const val S6_FLANK_END = 6.0f
   const val S6_FLANK_SPACING = 1.25f
   const val S6_FLANK_VX = 340f
   const val S6_CRUISER_AT = 22.0f
-  const val S6_CRUISER_HP = 20
+  const val S6_CRUISER_HP = 96
   const val S6_CRUISER_VY = 80f
   const val S6_WEAVE_START = 15.0f
   const val S6_WEAVE_END = 21.0f
@@ -101,6 +104,8 @@ object FormationSpawner {
   const val S4_FLURRY_SPACING = 1.55f
   const val S4_FLURRY_VY = 140f
   const val S4_HOLD_V_AT = 20.0f
+  const val S4_MID_AT = 20.0f
+  const val S4_MID_HP = 96
   const val S4_KAMI_AT = 24.0f
   const val S4_KAMI_VY = 620f
   const val S4_CROSS_AT = 28.0f
@@ -112,6 +117,8 @@ object FormationSpawner {
   const val S5_REEF_SPACING = 1.40f
   const val S5_REEF_VY = 165f
   const val S5_HOLD_V_AT = 18.5f
+  const val S5_MID_AT = 18.5f
+  const val S5_MID_HP = 96
   const val S5_KAMI_AT = 23.0f
   const val S5_KAMI_VY = 640f
   const val S5_CROSS_AT = 27.0f
@@ -152,6 +159,31 @@ object FormationSpawner {
   ) {
     enemies.spawnEnemy(-0.06f * w, yFrac * h, vx, vy, type, PATTERN_DIAGONAL_SWEEP)
     enemies.spawnEnemy(1.06f * w, yFrac * h, -vx, vy, type, PATTERN_DIAGONAL_SWEEP)
+  }
+
+  fun spawnMidBoss(
+    enemies: EnemyPoolManager,
+    w: Float,
+    h: Float,
+    xFrac: Float,
+    hp: Int,
+    isDestroyer: Boolean = false,
+    isLandVehicle: Boolean = false,
+    isHelicopter: Boolean = false,
+  ) {
+    enemies.spawnEnemy(
+      xFrac * w,
+      -0.12f * h,
+      0f,
+      HEAVY_VY,
+      TYPE_HEAVY,
+      PATTERN_V_HOLD,
+      hp,
+      isDestroyer = isDestroyer,
+      isLandVehicle = isLandVehicle,
+      isHelicopter = isHelicopter,
+      isMidBoss = true,
+    )
   }
 
   fun spawnVFormation(enemies: EnemyPoolManager, w: Float, h: Float) {

@@ -25,6 +25,8 @@ class StageTheater {
     private set
   var skinWagon: Bitmap? = null
     private set
+  var skinHelicopter: Bitmap? = null
+    private set
   var activeFloor: Bitmap? = null
   var floorSwapped = false
   private var loadedWidth = -1
@@ -57,6 +59,7 @@ class StageTheater {
     skinTank = StageBitmaps.tryDecode(assets, next.skinTankPath(), keyed = true, widthLock = 0)
     skinDestroyer = StageBitmaps.tryDecode(assets, next.skinDestroyerPath(), keyed = true, widthLock = 0)
     skinWagon = StageBitmaps.tryDecode(assets, next.skinWagonPath(), keyed = true, widthLock = 0)
+    skinHelicopter = StageBitmaps.tryDecode(assets, next.skinHelicopterPath(), keyed = true, widthLock = 0)
     floorSwapped = false
     activeFloor = floor
   }
@@ -78,6 +81,7 @@ class StageTheater {
     StageBitmaps.recycle(skinTank)
     StageBitmaps.recycle(skinDestroyer)
     StageBitmaps.recycle(skinWagon)
+    StageBitmaps.recycle(skinHelicopter)
     floor = null
     mid = null
     high = null
@@ -87,6 +91,7 @@ class StageTheater {
     skinTank = null
     skinDestroyer = null
     skinWagon = null
+    skinHelicopter = null
     activeFloor = null
     floorSwapped = false
     loadedWidth = -1

@@ -34,6 +34,7 @@ class EnemyPoolManager(private val resources: Resources) {
   private var destroyerSheet: Bitmap? = null
   private var tankSheet: Bitmap? = null
   private var wagonSheet: Bitmap? = null
+  private var helicopterSheet: Bitmap? = null
   private val halfW = FloatArray(TYPE_COUNT)
   private val halfH = FloatArray(TYPE_COUNT)
   private var screenW = 0f
@@ -96,8 +97,11 @@ class EnemyPoolManager(private val resources: Resources) {
 
   fun halfHOf(e: Enemy): Float = halfHOf(e.type) * drawScaleOf(e)
 
-  private fun drawScaleOf(e: Enemy): Float =
-    if (e.isLandVehicle || e.isWagon) GROUND_DRAW_SCALE else 1f
+  private fun drawScaleOf(e: Enemy): Float {
+    if (e.isMidBoss) return MID_DRAW_SCALE
+    if (e.isLandVehicle || e.isWagon) return GROUND_DRAW_SCALE
+    return 1f
+  }
 
   fun deactivateAll() {
     synchronized(lock) {
@@ -108,6 +112,8 @@ class EnemyPoolManager(private val resources: Resources) {
         pool[i].isDestroyer = false
         pool[i].isLandVehicle = false
         pool[i].isWagon = false
+        pool[i].isHelicopter = false
+        pool[i].isMidBoss = false
         pool[i].flightProfile = 0
         pool[i].flightTime = 0f
         pool[i].patternDelay = 0f
@@ -139,6 +145,8 @@ class EnemyPoolManager(private val resources: Resources) {
     isDestroyer: Boolean = false,
     isLandVehicle: Boolean = false,
     isWagon: Boolean = false,
+    isHelicopter: Boolean = false,
+    isMidBoss: Boolean = false,
   ) {
     synchronized(lock) {
       for (i in 0 until POOL_SIZE) {
@@ -167,6 +175,8 @@ class EnemyPoolManager(private val resources: Resources) {
         e.isDestroyer = isDestroyer
         e.isLandVehicle = isLandVehicle
         e.isWagon = isWagon
+        e.isHelicopter = isHelicopter
+        e.isMidBoss = isMidBoss
         e.deathClearBullets = spawnCue == SpawnEvent.CUE_DEATH_CLEAR
         e.diamondLeader = spawnCue == SpawnEvent.CUE_DIAMOND_LEADER
         e.diamondWingSign = 0f
@@ -187,6 +197,34 @@ class EnemyPoolManager(private val resources: Resources) {
         val e = pool[i]
         if (e.isActive && e.diamondWingSign != 0f) {
           e.splinterVeer = true
+        }
+        i++
+      }
+    }
+  }
+
+  fun hasActiveMidBoss(): Boolean {
+    synchronized(lock) {
+      var i = 0
+      while (i < POOL_SIZE) {
+        val e = pool[i]
+        if (e.isActive && e.isMidBoss) return true
+        i++
+      }
+      return false
+    }
+  }
+
+  /** Send living captains off the bottom so the fortress can take the top of the screen. */
+  fun beginMidBossExit() {
+    synchronized(lock) {
+      var i = 0
+      while (i < POOL_SIZE) {
+        val e = pool[i]
+        if (e.isActive && e.isMidBoss) {
+          e.aiPhase = 2
+          e.vx = 0f
+          e.vy = MID_RETREAT_VY
         }
         i++
       }
@@ -253,6 +291,8 @@ class EnemyPoolManager(private val resources: Resources) {
           e.isDestroyer = false
           e.isLandVehicle = false
           e.isWagon = false
+          e.isHelicopter = false
+          e.isMidBoss = false
           continue
         }
         if (e.type == TYPE_KAMIKAZE) continue
@@ -267,6 +307,8 @@ class EnemyPoolManager(private val resources: Resources) {
     e.isDestroyer = false
     e.isLandVehicle = false
     e.isWagon = false
+    e.isHelicopter = false
+    e.isMidBoss = false
     e.flightProfile = 0
     e.flightTime = 0f
     e.patternDelay = 0f
@@ -360,7 +402,11 @@ class EnemyPoolManager(private val resources: Resources) {
     val heavyHold = e.type == TYPE_HEAVY
     val s3AirHeavy = heavyHold && !e.isGroundHeavy() &&
       StageData.liveInstance?.def?.airHeavyHighHold == true
-    val holdY = screenH * if (e.isGroundHeavy()) {
+    val holdY = screenH * if (e.isMidBoss && e.isGroundHeavy()) {
+      MID_DESTROYER_HOLD_Y_FRAC
+    } else if (e.isMidBoss) {
+      MID_HOLD_Y_FRAC
+    } else if (e.isGroundHeavy()) {
       DESTROYER_HOLD_Y_FRAC
     } else if (s3AirHeavy) {
       S3_AIR_HEAVY_HOLD_Y_FRAC
@@ -378,7 +424,9 @@ class EnemyPoolManager(private val resources: Resources) {
           e.vx = 0f
           e.vy = 0f
           e.aiPhase = 1
-          e.holdTimer = if (e.isGroundHeavy()) {
+          e.holdTimer = if (e.isMidBoss) {
+            MID_HOLD_SEC
+          } else if (e.isGroundHeavy()) {
             DESTROYER_HOLD_SEC
           } else if (s3AirHeavy) {
             S3_AIR_HEAVY_HOLD_SEC
@@ -394,7 +442,9 @@ class EnemyPoolManager(private val resources: Resources) {
         e.holdTimer -= dt
         if (e.holdTimer <= 0f) {
           e.aiPhase = 2
-          e.vy = if (e.isGroundHeavy()) {
+          e.vy = if (e.isMidBoss) {
+            MID_RETREAT_VY
+          } else if (e.isGroundHeavy()) {
             DESTROYER_RETREAT_VY
           } else if (s3AirHeavy) {
             S3_AIR_HEAVY_RETREAT_VY
@@ -446,8 +496,17 @@ class EnemyPoolManager(private val resources: Resources) {
 
     when (e.type) {
       TYPE_HEAVY -> {
-        fireHeavyRing(e, weapons, RING_SPEED * shotSpeedScale())
-        e.fireTimer = scaledInterval(HEAVY_FIRE_GAP)
+        if (e.isMidBoss) {
+          if (e.aiPhase == 1) {
+            fireMidBoss(e, weapons, RING_SPEED * shotSpeedScale())
+            e.fireTimer = scaledInterval(MID_FIRE_GAP)
+          } else {
+            e.fireTimer = scaledInterval(MID_FIRE_GAP)
+          }
+        } else {
+          fireHeavyRing(e, weapons, RING_SPEED * shotSpeedScale())
+          e.fireTimer = scaledInterval(HEAVY_FIRE_GAP)
+        }
       }
       TYPE_INTERCEPTOR -> {
         writeSniperAim(e, playerX, playerY, speed)
@@ -492,6 +551,30 @@ class EnemyPoolManager(private val resources: Resources) {
       lead,
       slop,
     )
+  }
+
+  private fun fireMidBoss(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
+    if (!writeSniperAim(e, lastPlayerX, lastPlayerY, speed)) return
+    weapons.fireBullet(e.x, e.y, e.aimVx, e.aimVy)
+    val base = kotlin.math.atan2(e.aimVy, e.aimVx)
+    val fan = 0.32f
+    weapons.fireBullet(
+      e.x,
+      e.y,
+      kotlin.math.cos(base - fan) * speed,
+      kotlin.math.sin(base - fan) * speed,
+    )
+    weapons.fireBullet(
+      e.x,
+      e.y,
+      kotlin.math.cos(base + fan) * speed,
+      kotlin.math.sin(base + fan) * speed,
+    )
+    val down = speed * 0.82f
+    val side = speed * 0.38f
+    weapons.fireBullet(e.x, e.y, -side, down)
+    weapons.fireBullet(e.x, e.y, side, down)
+    SoundManager.instance.playSFX(SoundManager.SFX_LASER)
   }
 
   private fun fireInterceptorSpread(e: Enemy, weapons: EnemyWeaponSystem, speed: Float) {
@@ -585,6 +668,8 @@ class EnemyPoolManager(private val resources: Resources) {
       tankSheet ?: base
     } else if (e.isWagon) {
       wagonSheet ?: base
+    } else if (e.isHelicopter) {
+      helicopterSheet ?: base
     } else if (e.isRedShipAnchor) {
       droneRedSheet ?: base
     } else {
@@ -639,6 +724,7 @@ class EnemyPoolManager(private val resources: Resources) {
     destroyerSheet = null
     tankSheet = null
     wagonSheet = null
+    helicopterSheet = null
   }
 
   private fun typeIndex(type: Int): Int =
@@ -655,10 +741,16 @@ class EnemyPoolManager(private val resources: Resources) {
     sheets[TYPE_HEAVY] = loadKeyed(R.drawable.enemy_heavy)
   }
 
-  fun bindTheaterSkins(tank: Bitmap?, destroyer: Bitmap?, wagon: Bitmap?) {
+  fun bindTheaterSkins(
+    tank: Bitmap?,
+    destroyer: Bitmap?,
+    wagon: Bitmap?,
+    helicopter: Bitmap? = null,
+  ) {
     tankSheet = tank
     destroyerSheet = destroyer
     wagonSheet = wagon
+    helicopterSheet = helicopter
   }
 
   private fun loadKeyed(drawableId: Int): Bitmap {
@@ -698,6 +790,12 @@ class EnemyPoolManager(private val resources: Resources) {
     const val HOLD_FIRE_GAP = 0.55f
     const val INTERCEPT_REFIRE = 0.85f
     const val HEAVY_FIRE_GAP = 1.5f
+    const val MID_FIRE_GAP = 0.62f
+    const val MID_HOLD_SEC = 22f
+    const val MID_HOLD_Y_FRAC = 0.28f
+    const val MID_DESTROYER_HOLD_Y_FRAC = 0.46f
+    const val MID_RETREAT_VY = 620f
+    const val MID_DRAW_SCALE = 1.55f
     const val BURST_EXTRA = 2
     const val BURST_GAP = 0.10f
     const val SCOUT_REFIRE = 0.85f

@@ -68,6 +68,7 @@ class StageDef(
   val skinTankFile: String? = null,
   val skinDestroyerFile: String? = null,
   val skinWagonFile: String? = null,
+  val skinHelicopterFile: String? = null,
   val waveScript: Int,
   val bossCombat: Int,
   val boss: BossKit,
@@ -87,6 +88,7 @@ class StageDef(
   fun skinTankPath(): String? = skinTankFile?.let { asset(it) }
   fun skinDestroyerPath(): String? = skinDestroyerFile?.let { asset(it) }
   fun skinWagonPath(): String? = skinWagonFile?.let { asset(it) }
+  fun skinHelicopterPath(): String? = skinHelicopterFile?.let { asset(it) }
   fun bossBodyPath(): String = asset(boss.body)
   fun wreckLeftPath(): String = asset(boss.wreckLeft)
   fun wreckRightPath(): String = asset(boss.wreckRight)
@@ -137,7 +139,7 @@ object StageCatalog {
       id = 3,
       operationName = charArrayOf('S', 'T', 'E', 'E', 'L', ' ', 'A', 'T', 'L', 'A', 'N', 'T', 'I', 'C'),
       scrollSpeedY = 200f,
-      bossAtSeconds = 25f,
+      bossAtSeconds = 42f,
       stageMusicTrack = SoundManager.BGM_STAGE3,
       theaterKind = StageTheaterKind.SCROLL,
       locksElapsedAtBoss = true,
@@ -159,6 +161,7 @@ object StageCatalog {
       keyedOverlayLayers = true,
       locksElapsedAtBoss = true,
       usesOpeningPowerV = true,
+      skinTankFile = "skin_tank.png",
       midFile = "mid.png",
       highFile = "high.png",
       waveScript = StageWaveKind.FROZEN_FRONT,
@@ -191,6 +194,7 @@ object StageCatalog {
       theaterKind = StageTheaterKind.SCROLL,
       locksElapsedAtBoss = true,
       usesOpeningPowerV = true,
+      skinHelicopterFile = "skin_hellicopter.png",
       waveScript = StageWaveKind.JUNGLE_RUINS,
       bossCombat = BossCombatKind.JUNGLE,
       boss = wrecks,

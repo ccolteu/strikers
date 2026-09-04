@@ -25,6 +25,8 @@ class Enemy {
   var isDestroyer = false
   var isLandVehicle = false
   var isWagon = false
+  var isHelicopter = false
+  var isMidBoss = false
   fun isGroundHeavy(): Boolean = isDestroyer || isLandVehicle || isWagon
   var fireTimer = 0f
   var burstLeft = 0

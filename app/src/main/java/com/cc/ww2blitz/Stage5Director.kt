@@ -2,17 +2,14 @@ package com.cc.ww2blitz
 
 import com.cc.ww2blitz.FormationSpawner.CROSS_VX
 import com.cc.ww2blitz.FormationSpawner.CROSS_VY
-import com.cc.ww2blitz.FormationSpawner.HEAVY_HP
-import com.cc.ww2blitz.FormationSpawner.HEAVY_VY
 import com.cc.ww2blitz.FormationSpawner.MAX_ACTIVE
-import com.cc.ww2blitz.FormationSpawner.PATTERN_V_HOLD
 import com.cc.ww2blitz.FormationSpawner.PATTERN_WEAVE
 import com.cc.ww2blitz.FormationSpawner.S5_CROSS_AT
 import com.cc.ww2blitz.FormationSpawner.S5_CROSS_Y
-import com.cc.ww2blitz.FormationSpawner.S5_HEAVIES_AT
-import com.cc.ww2blitz.FormationSpawner.S5_HOLD_V_AT
 import com.cc.ww2blitz.FormationSpawner.S5_KAMI_AT
 import com.cc.ww2blitz.FormationSpawner.S5_KAMI_VY
+import com.cc.ww2blitz.FormationSpawner.S5_MID_AT
+import com.cc.ww2blitz.FormationSpawner.S5_MID_HP
 import com.cc.ww2blitz.FormationSpawner.S5_REEF_END
 import com.cc.ww2blitz.FormationSpawner.S5_REEF_SPACING
 import com.cc.ww2blitz.FormationSpawner.S5_REEF_START
@@ -20,24 +17,21 @@ import com.cc.ww2blitz.FormationSpawner.S5_REEF_VY
 import com.cc.ww2blitz.FormationSpawner.S5_WALL_AT
 import com.cc.ww2blitz.FormationSpawner.SWEEP_VX
 import com.cc.ww2blitz.FormationSpawner.TYPE_DRONE
-import com.cc.ww2blitz.FormationSpawner.TYPE_HEAVY
 import com.cc.ww2blitz.FormationSpawner.TYPE_KAMIKAZE
 
-/** Pacific atoll: two-lane reef weaves, then the flying helipad. Shared boss cue from the def. */
+/** Pacific atoll: reef weaves, mid-lane captain, then the helipad. */
 class Stage5Director : StageDirector {
   private var reefGap = 0f
-  private var holdVSpawned = false
+  private var midSpawned = false
   private var kamiSpawned = false
   private var crossSpawned = false
-  private var heaviesSpawned = false
   private var wallSpawned = false
 
   override fun reset() {
     reefGap = S5_REEF_SPACING
-    holdVSpawned = false
+    midSpawned = false
     kamiSpawned = false
     crossSpawned = false
-    heaviesSpawned = false
     wallSpawned = false
   }
 
@@ -64,10 +58,11 @@ class Stage5Director : StageDirector {
         enemies.spawnEnemy(0.78f * w, -0.05f * h, 0f, S5_REEF_VY * 1.06f, TYPE_DRONE, PATTERN_WEAVE)
       }
     }
-    if (!holdVSpawned && elapsed >= S5_HOLD_V_AT) {
-      holdVSpawned = true
-      FormationSpawner.spawnVFormation(enemies, w, h)
+    if (!midSpawned && elapsed >= S5_MID_AT) {
+      midSpawned = true
+      FormationSpawner.spawnMidBoss(enemies, w, h, 0.50f, S5_MID_HP)
     }
+    if (enemies.hasActiveMidBoss()) return
     if (!kamiSpawned && elapsed >= S5_KAMI_AT) {
       kamiSpawned = true
       enemies.spawnEnemy(-0.06f * w, 0.32f * h, SWEEP_VX * 0.90f, S5_KAMI_VY, TYPE_KAMIKAZE)
@@ -78,11 +73,6 @@ class Stage5Director : StageDirector {
         crossSpawned = true
         FormationSpawner.spawnSideCross(enemies, w, h, S5_CROSS_Y, CROSS_VX * 1.05f, CROSS_VY, TYPE_DRONE)
       }
-    }
-    if (!heaviesSpawned && elapsed >= S5_HEAVIES_AT) {
-      heaviesSpawned = true
-      enemies.spawnEnemy(0.30f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, PATTERN_V_HOLD, HEAVY_HP)
-      enemies.spawnEnemy(0.70f * w, -0.10f * h, 0f, HEAVY_VY, TYPE_HEAVY, PATTERN_V_HOLD, HEAVY_HP)
     }
     if (!wallSpawned && elapsed >= S5_WALL_AT) {
       wallSpawned = true
