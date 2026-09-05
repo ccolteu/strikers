@@ -1,6 +1,6 @@
 # WW2 Blitz
 
-Portrait Android shoot-’em-up (`com.cc.ww2blitz`), version **1.0.4**. One fighter, eight timed stages, peelable bosses. Maps are composed (`StageDef` + director + theater/boss kit), not subclassed from a `BaseLevel`. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
+Portrait Android shoot-’em-up (`com.cc.ww2blitz`), version **1.0.5**. One fighter, eight timed stages, peelable bosses. Maps are composed (`StageDef` + director + theater/boss kit), not subclassed from a `BaseLevel`. The product is a 1990s arcade cabinet: attract while idle, one linear credit, briefing cards, time-scripted waves, a tiny hitbox, a panic bomb, a recap ticker, and three-letter name entry.
 
 **Play Store.** Mid-stage captains now hold the Atlantic, Frozen Front, Coral Atoll, and Jungle — a destroyer, tank, heavy, and helicopter that dive off before the fortress takes the screen.
 
@@ -54,7 +54,7 @@ This is the full inventory. Nothing in the engine is “just a UI preference”;
 | 31 | Armor hits must confirm without a white flash | 2 px micro-shudder, 0.08 s | [Hit confirm and camera](#22-hit-confirm-and-camera) |
 | 32 | Cabinet kick on phase/death | Shake/flash as durations + LCG translate; HUD unshaken | [Hit confirm and camera](#22-hit-confirm-and-camera) |
 | 33 | Facility/ascent roof occludes hostiles, not you | Floor → enemies/boss/shots → canopy → player | [Theaters](#23-theaters-and-z-order) |
-| 34 | Painted maps must not stretch | Width-lock floors; title is a still, center-cropped | [Theaters](#23-theaters-and-z-order) |
+| 34 | Painted maps must not stretch | Width-lock every theater floor (uniform scale); title is a still, center-cropped | [Theaters](#23-theaters-and-z-order) |
 | 35 | Green key at authoring time | Punch chroma once at bitmap load | [Chroma](#24-green-chroma) |
 | 36 | Recap must be readable | Sweep all combat pools on `STATE_CLEAR` | [Score and recap](#25-score-and-recap) |
 | 37 | Bonus roll like a cabinet ticker | Five-phase recap; combat × dip; ticks `SFX_PICKUP` | [Score and recap](#25-score-and-recap) |
@@ -529,11 +529,11 @@ Part HP as coded: plane wings 70 / turret 58 / core 240; tank treads 100 / turre
 
 **Need.** Painted maps are ~2:3. Stretching them on a tall phone melts hangars. Facility and ascent theaters have a roof that should hide **enemy** craft, not the player. The title must sell the product, not scroll a canyon behind the logo.
 
-**Choice.** Width-lock scroll floors (scale X to the viewport, keep authored vertical seams). Title is a center-cropped still (`max(scaleX, scaleY)`). Facility/ascent draw floor, then hostiles, then canopy, then player/shots/HUD. Inside the grunt pass, ground heavies draw before airborne so tanks and destroyers cannot cover planes.
+**Choice.** Width-lock every theater floor, `floor_alt`, and keyed canopy: scale X to the viewport and multiply height by the same factor so authored vertical seams stay stitches, not a smear. Never scale X independently of Y — that is the stretch that would lean Orbit Threshold’s painted column (the “limb”). Title is a center-cropped still (`max(scaleX, scaleY)`). Facility/ascent draw floor, then hostiles, then canopy, then player/shots/HUD. Inside the grunt pass, ground heavies draw before airborne so tanks and destroyers cannot cover planes.
 
-**Why.** Width-lock preserves loop stitches. Z-order is the 1942 “you fly under the bridge” trick. A still title is an attract card. Theater kind, not map id, picks the blit path so a second facility map keeps the roof.
+**Why.** Uniform width-lock is how a 1080-wide PNG covers a 1600-wide tablet without shearing the ascent stack into a parallelogram. Leaving ascent **unscaled** was meant to protect that column, but `blit` stamps at `x = 0` in native pixels; on a phone ~1080 it filled the glass, on a wide tablet it left a hole where the hardware canvas still showed the title still. Z-order is the 1942 “you fly under the bridge” trick. A still title is an attract card. Theater kind, not map id, picks the blit path so a second facility map keeps the roof.
 
-**Implementation.** `StageTheater` decodes from `assets/stages/N/` via `StageBitmaps` (width-lock on scroll floors; unscaled on ascent so the limb stays straight). `ParallaxBackground` **borrows** those bitmaps and must not recycle them. Mid/high clouds `PorterDuff.SCREEN`. Facility: floor at `scrollSpeedY`, keyed canopy at 1.5×. Ascent: cloud floor, swap pointer to `floor_alt` at `def.spaceSwapAt` (30 s on map 8), orbit overlay from `def.canopyAt` (35 s on map 8), speed envelope in `updateStage8`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are a def flag (campaign maps 1, 4, and 5; winter and atoll also set `keyedOverlayLayers` so chroma snow/spray punches to alpha). Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne (helicopter captains sit in the air pass). Theater skins load with the map kit (`skin_tank.png` on 2 and 4, `skin_destroyer.png` on 3, `skin_hellicopter.png` on 6, wagon on 7).
+**Implementation.** `StageTheater` decodes from `assets/stages/N/` via `StageBitmaps` (`widthLock = screenW` on floor, mid, high, canopy, and `floor_alt`; briefing and theater skins stay native). Height is `ceil(srcH * screenW / srcW)` — the same uniform scale on Orbit Threshold as on Cloud Fortress. `ParallaxBackground` **borrows** those bitmaps and must not recycle them. Mid/high clouds `PorterDuff.SCREEN`. Facility: floor at `scrollSpeedY`, keyed canopy at 1.5×. Ascent: cloud floor, swap pointer to `floor_alt` at `def.spaceSwapAt` (30 s on map 8), orbit overlay from `def.canopyAt` (35 s on map 8), speed envelope in `updateStage8`. Title: `max(scaleX, scaleY)` into reused `titleDstRect`. Overlay clouds (`hasOverlayClouds`) are a def flag (campaign maps 1, 4, and 5; winter and atoll also set `keyedOverlayLayers` so chroma snow/spray punches to alpha). Grunt blit is two passes: `isGroundHeavy()` (tanks, destroyers, wagons) then airborne (helicopter captains sit in the air pass). Theater skins load with the map kit (`skin_tank.png` on 2 and 4, `skin_destroyer.png` on 3, `skin_hellicopter.png` on 6, wagon on 7).
 
 ---
 

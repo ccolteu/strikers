@@ -48,13 +48,12 @@ class StageTheater {
     def = next
     loadedId = next.id
     loadedWidth = width
-    val lock = if (next.theaterKind == StageTheaterKind.ASCENT) 0 else width
-    floor = StageBitmaps.decode(assets, next.floorPath(), keyed = false, widthLock = lock)
+    floor = StageBitmaps.decode(assets, next.floorPath(), keyed = false, widthLock = width)
     val overlayKeyed = next.keyedOverlayLayers
     mid = StageBitmaps.tryDecode(assets, next.midPath(), keyed = overlayKeyed, widthLock = width)
     high = StageBitmaps.tryDecode(assets, next.highPath(), keyed = overlayKeyed, widthLock = width)
-    canopy = StageBitmaps.tryDecode(assets, next.canopyPath(), keyed = true, widthLock = 0)
-    floorAlt = StageBitmaps.tryDecode(assets, next.floorAltPath(), keyed = false, widthLock = 0)
+    canopy = StageBitmaps.tryDecode(assets, next.canopyPath(), keyed = true, widthLock = width)
+    floorAlt = StageBitmaps.tryDecode(assets, next.floorAltPath(), keyed = false, widthLock = width)
     briefing = StageBitmaps.tryDecode(assets, next.briefingPath(), keyed = false, widthLock = 0)
     skinTank = StageBitmaps.tryDecode(assets, next.skinTankPath(), keyed = true, widthLock = 0)
     skinDestroyer = StageBitmaps.tryDecode(assets, next.skinDestroyerPath(), keyed = true, widthLock = 0)
