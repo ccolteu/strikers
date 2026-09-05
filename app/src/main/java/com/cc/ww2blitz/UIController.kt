@@ -48,6 +48,11 @@ class UIController {
     textSize = 32f
     isAntiAlias = true
   }
+  private var creditScrollPx = 75f
+  private var creditLineGap = 55f
+  private var hudDrop = 4f
+  private var hudRim = 2f
+  private var hudCull = 60f
   private val creditBreakWidth = FloatArray(1)
   private val interstitialDst = RectF()
   private val interstitialCardPaint = Paint().apply {
@@ -120,14 +125,17 @@ class UIController {
   }
 
   fun onSizeChanged(width: Int, height: Int) {
-    val short = if (width < height) width else height
-    val body = short * 0.038f
-    val title = short * 0.048f
-    fillPaint.textSize = body
-    shadowPaint.textSize = body
-    accentPaint.textSize = body
-    goldPaint.textSize = title
-    goldShadowPaint.textSize = title
+    val scale = if (width > 0) width / HUD_DESIGN_WIDTH else 1f
+    fillPaint.textSize = 32f * scale
+    shadowPaint.textSize = 32f * scale
+    accentPaint.textSize = 32f * scale
+    goldPaint.textSize = 42f * scale
+    goldShadowPaint.textSize = 42f * scale
+    creditScrollPx = 75f * scale
+    creditLineGap = 55f * scale
+    hudDrop = 4f * scale
+    hudRim = 2f * scale
+    hudCull = 60f * scale
   }
 
   fun drawCampaignCompleteCredits(
@@ -139,7 +147,7 @@ class UIController {
     val cx = screenW * 0.5f
     val h = screenH.toFloat()
     val maxWidth = screenW * CREDIT_MAX_WIDTH_FRAC
-    var y = h - (elapsedSeconds * CREDIT_SCROLL_PX)
+    var y = h - (elapsedSeconds * creditScrollPx)
     var index = 0
     val count = CREDIT_LINES.size
     while (index < count) {
@@ -169,7 +177,7 @@ class UIController {
     shadow: Paint,
   ): Float {
     val n = src.size
-    val gap = CREDIT_LINE_GAP
+    val gap = creditLineGap
     var start = 0
     var y = originY
     var drew = false
@@ -200,7 +208,7 @@ class UIController {
       }
       val len = end - start
       if (len > 0) {
-        if (y >= -60f && y <= screenH + 60f) {
+        if (y >= -hudCull && y <= screenH + hudCull) {
           drawCentered(canvas, src, start, len, centerX, y, fill, shadow)
         }
         y += gap
@@ -245,8 +253,8 @@ class UIController {
     if (phase >= ScoreManager.PHASE_SKILL) {
       val savedGold = goldPaint.textSize
       val savedGoldShadow = goldShadowPaint.textSize
-      goldPaint.textSize = 32f
-      goldShadowPaint.textSize = 32f
+      goldPaint.textSize = fillPaint.textSize
+      goldShadowPaint.textSize = fillPaint.textSize
       n = writeChars(line, 0, NO_MISS_LABEL)
       n = writeInt(line, n, scores.recapNoMissBonus())
       drawCentered(canvas, line, n, cx, first + step * 3f, fillPaint, shadowPaint)
@@ -331,8 +339,8 @@ class UIController {
     } else {
       accentPaint.color = 0xFF3A3A3A.toInt()
     }
-    canvas.drawText(buf, offset, count, x + 4f, y + 4f, shadow)
-    canvas.drawText(buf, offset, count, x + 2f, y + 2f, accentPaint)
+    canvas.drawText(buf, offset, count, x + hudDrop, y + hudDrop, shadow)
+    canvas.drawText(buf, offset, count, x + hudRim, y + hudRim, accentPaint)
     canvas.drawText(buf, offset, count, x, y, fill)
   }
 
@@ -409,8 +417,7 @@ class UIController {
       'P', 'R', 'E', 'S', 'S', ' ', 'F', 'I', 'R', 'E', ' ',
       'T', 'O', ' ', 'C', 'O', 'N', 'T', 'I', 'N', 'U', 'E',
     )
-    private const val CREDIT_SCROLL_PX = 75f
-    private const val CREDIT_LINE_GAP = 55f
+    private const val HUD_DESIGN_WIDTH = 1080f
     private const val CREDIT_MAX_WIDTH_FRAC = 0.85f
     private const val CREDIT_THANK_INDEX = 18
     private val CREDIT_LINES = arrayOf(

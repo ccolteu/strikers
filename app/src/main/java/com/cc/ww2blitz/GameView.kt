@@ -213,6 +213,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   private var bossWasExploding = false
   private var screenW = 0
   private var screenH = 0
+  private var hudScale = 1f
   private var arcadeTypeface: Typeface? = null
   private val uiTextPaint = Paint().apply {
     color = Color.WHITE
@@ -337,6 +338,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     particles.onSizeChanged(width, height)
     boss.onSizeChanged(width, height)
     uiController.onSizeChanged(width, height)
+    hudScale = width / HUD_DESIGN_WIDTH
+    applyHudTypeSizes()
     screenW = width
     screenH = height
     if (!sizeChanged) return
@@ -938,11 +941,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       canvas.drawBitmap(logo, null, hudIconDst, bodyPaint)
     }
     val cx = screenW * 0.5f
-    val versionY = screenH - 32f
-    val creditY = versionY - 28f
-    val menuBottomAnchorY = creditY - 130f
-    val menuBlockStride = 148f
-    val tagSubPadding = 56f
+    val versionY = screenH - hudPx(32f)
+    val creditY = versionY - hudPx(28f)
+    val menuBottomAnchorY = creditY - hudPx(130f)
+    val menuBlockStride = hudPx(148f)
+    val tagSubPadding = hudPx(56f)
     val fighterMenuY = menuBottomAnchorY
     val fighterTagY = fighterMenuY + tagSubPadding
     val continueMenuY = fighterMenuY - menuBlockStride
@@ -950,7 +953,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val difficultyMenuY = continueMenuY - menuBlockStride
     val difficultyTagY = difficultyMenuY + tagSubPadding
     val audioMenuY = difficultyMenuY - menuBlockStride
-    val startPrompterY = audioMenuY - 160f
+    val startPrompterY = audioMenuY - hudPx(160f)
     if ((System.currentTimeMillis() / 600L) % 2L == 0L) {
       uiStringBuilder.setLength(0)
       uiStringBuilder.append("1P START")
@@ -966,7 +969,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       cx + settingsW * 0.5f,
       audioMenuY + uiGoldPaint.descent(),
     )
-    openSettingsButtonRect.inset(-60f, -30f)
+    openSettingsButtonRect.inset(-hudPx(60f), -hudPx(30f))
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ DIFFICULTY ]")
     drawCenteredHud(canvas, uiStringBuilder, cx, difficultyMenuY, uiGoldPaint, uiGoldShadowPaint)
@@ -977,13 +980,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       cx + diffW * 0.5f,
       difficultyMenuY + uiGoldPaint.descent(),
     )
-    openDifficultyButtonRect.inset(-60f, -30f)
+    openDifficultyButtonRect.inset(-hudPx(60f), -hudPx(30f))
     uiStringBuilder.setLength(0)
     appendDifficultyName(stageManager.getDifficulty().index - 1)
     val savedTag = uiSmallPaint.textSize
     val savedTagShadow = uiSmallShadowPaint.textSize
-    uiSmallPaint.textSize = 32f
-    uiSmallShadowPaint.textSize = 32f
+    uiSmallPaint.textSize = hudPx(32f)
+    uiSmallShadowPaint.textSize = hudPx(32f)
     drawCenteredHud(canvas, uiStringBuilder, cx, difficultyTagY, uiSmallPaint, uiSmallShadowPaint)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ CONTINUE ]")
@@ -995,7 +998,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       cx + contW * 0.5f,
       continueMenuY + uiGoldPaint.descent(),
     )
-    openContinueButtonRect.inset(-60f, -30f)
+    openContinueButtonRect.inset(-hudPx(60f), -hudPx(30f))
     uiStringBuilder.setLength(0)
     appendContinueDipName(stageManager.getContinueDip())
     drawCenteredHud(canvas, uiStringBuilder, cx, continueTagY, uiSmallPaint, uiSmallShadowPaint)
@@ -1009,7 +1012,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       cx + fightW * 0.5f,
       fighterMenuY + uiGoldPaint.descent(),
     )
-    openFighterSelectButtonRect.inset(-60f, -30f)
+    openFighterSelectButtonRect.inset(-hudPx(60f), -hudPx(30f))
     uiStringBuilder.setLength(0)
     if (player.chosenFighterIndex == 1) {
       uiStringBuilder.append("TYPE-02: F6F HELLCAT")
@@ -1020,7 +1023,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiSmallPaint.textSize = savedTag
     uiSmallShadowPaint.textSize = savedTagShadow
     uiStringBuilder.setLength(0)
-    uiStringBuilder.append("CREDIT 2026 Claudiu Colteu. All rights reserved.")
+    uiStringBuilder.append("2026 Claudiu Colteu. All rights reserved.")
     drawCenteredHud(canvas, uiStringBuilder, cx, creditY, uiSmallPaint, uiSmallShadowPaint)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("VER ")
@@ -1033,8 +1036,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val cx = screenW * 0.5f
     val savedGold = uiGoldPaint.textSize
     val savedGoldShadow = uiGoldShadowPaint.textSize
-    uiGoldPaint.textSize = 42f
-    uiGoldShadowPaint.textSize = 42f
+    uiGoldPaint.textSize = hudPx(42f)
+    uiGoldShadowPaint.textSize = hudPx(42f)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("SELECT DIFFICULTY")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
@@ -1084,8 +1087,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val cx = screenW * 0.5f
     val savedGold = uiGoldPaint.textSize
     val savedGoldShadow = uiGoldShadowPaint.textSize
-    uiGoldPaint.textSize = 42f
-    uiGoldShadowPaint.textSize = 42f
+    uiGoldPaint.textSize = hudPx(42f)
+    uiGoldShadowPaint.textSize = hudPx(42f)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("SELECT CONTINUE")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
@@ -1132,8 +1135,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val savedGoldShadow = uiGoldShadowPaint.textSize
     val savedText = uiTextPaint.textSize
     val savedTextShadow = uiShadowPaint.textSize
-    uiGoldPaint.textSize = 42f
-    uiGoldShadowPaint.textSize = 42f
+    uiGoldPaint.textSize = hudPx(42f)
+    uiGoldShadowPaint.textSize = hudPx(42f)
 
     val cx = screenW * 0.5f
     val cy = screenH * 0.5f
@@ -1141,10 +1144,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiStringBuilder.append("SELECT FIGHTER")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.14f, uiGoldPaint, uiGoldShadowPaint)
 
-    uiGoldPaint.textSize = 32f
-    uiGoldShadowPaint.textSize = 32f
-    uiTextPaint.textSize = 26f
-    uiShadowPaint.textSize = 26f
+    uiGoldPaint.textSize = hudPx(32f)
+    uiGoldShadowPaint.textSize = hudPx(32f)
+    uiTextPaint.textSize = hudPx(26f)
+    uiShadowPaint.textSize = hudPx(26f)
 
     val boxHeight = 320f
     val textBlockHeight = 340f
@@ -1168,9 +1171,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     val leftColumnCenterX = (shipLeftSelectRect.left + shipLeftSelectRect.right) * 0.5f
     val rightColumnCenterX = (shipRightSelectRect.left + shipRightSelectRect.right) * 0.5f
-    val line1Y = boxBottom + 110f
-    val line2Y = line1Y + 64f
-    val line3Y = line2Y + 72f
+    val line1Y = boxBottom + hudPx(110f)
+    val line2Y = line1Y + hudPx(64f)
+    val line3Y = line2Y + hudPx(72f)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("TYPE-01:")
     drawCenteredHud(canvas, uiStringBuilder, leftColumnCenterX, line1Y, uiGoldPaint, uiGoldShadowPaint)
@@ -1206,7 +1209,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       cx + btnW * 0.5f,
       returnBtnY + uiGoldPaint.descent(),
     )
-    fighterReturnToTitleRect.inset(-60f, -30f)
+    fighterReturnToTitleRect.inset(-hudPx(60f), -hudPx(30f))
   }
 
   private fun drawArcadeSelectFrame(canvas: Canvas, rect: RectF, focused: Boolean) {
@@ -1281,8 +1284,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val cx = screenW * 0.5f
     val savedGold = uiGoldPaint.textSize
     val savedGoldShadow = uiGoldShadowPaint.textSize
-    uiGoldPaint.textSize = 48f
-    uiGoldShadowPaint.textSize = 48f
+    uiGoldPaint.textSize = hudPx(48f)
+    uiGoldShadowPaint.textSize = hudPx(48f)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("TOP SCORES")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.08f, uiGoldPaint, uiGoldShadowPaint)
@@ -1294,8 +1297,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.13f, uiTextPaint, uiShadowPaint)
     val savedSmall = uiSmallPaint.textSize
     val savedSmallShadow = uiSmallShadowPaint.textSize
-    uiSmallPaint.textSize = 36f
-    uiSmallShadowPaint.textSize = 36f
+    uiSmallPaint.textSize = hudPx(36f)
+    uiSmallShadowPaint.textSize = hudPx(36f)
     val rowStep = screenH * 0.065f
     var i = 0
     while (i < HighScoreManager.SLOT_COUNT) {
@@ -1362,14 +1365,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.29f, uiGoldPaint, uiGoldShadowPaint)
     val originalGoldSize = uiGoldPaint.textSize
     val originalGoldShadowSize = uiGoldShadowPaint.textSize
-    uiGoldPaint.textSize = 72f
-    uiGoldShadowPaint.textSize = 72f
-    val charSpacing = 110f
+    uiGoldPaint.textSize = hudPx(72f)
+    uiGoldShadowPaint.textSize = hudPx(72f)
+    val charSpacing = hudPx(110f)
     val totalWidth = 2f * charSpacing
     val startX = cx - (totalWidth * 0.5f)
     val letterY = screenH * 0.46f
     val blink = kotlin.math.sin(registrationTextFlashTimer * 14f) * 0.5f + 0.5f
     val blinkAlpha = (80f + blink * 175f).toInt()
+    val wingOffset = hudPx(54f)
     var idx = 0
     while (idx < 3) {
       val slotX = startX + (idx * charSpacing)
@@ -1379,20 +1383,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         pendingInitials[idx]
       }
       if (idx == registrationActiveCharIndex) {
-        uiTextPaint.textSize = 72f
-        uiShadowPaint.textSize = 72f
+        uiTextPaint.textSize = hudPx(72f)
+        uiShadowPaint.textSize = hudPx(72f)
         uiTextPaint.alpha = blinkAlpha
         uiShadowPaint.alpha = blinkAlpha
         uiStringBuilder.setLength(0)
         uiStringBuilder.append('<')
-        drawCenteredHud(canvas, uiStringBuilder, slotX - 54f, letterY, uiTextPaint, uiShadowPaint)
+        drawCenteredHud(canvas, uiStringBuilder, slotX - wingOffset, letterY, uiTextPaint, uiShadowPaint)
         uiStringBuilder.setLength(0)
         uiStringBuilder.append('>')
-        drawCenteredHud(canvas, uiStringBuilder, slotX + 54f, letterY, uiTextPaint, uiShadowPaint)
+        drawCenteredHud(canvas, uiStringBuilder, slotX + wingOffset, letterY, uiTextPaint, uiShadowPaint)
         uiTextPaint.alpha = 255
         uiShadowPaint.alpha = 255
-        uiTextPaint.textSize = 32f
-        uiShadowPaint.textSize = 32f
+        uiTextPaint.textSize = hudPx(32f)
+        uiShadowPaint.textSize = hudPx(32f)
         uiGoldPaint.alpha = blinkAlpha
         uiGoldShadowPaint.alpha = blinkAlpha
       }
@@ -1403,8 +1407,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       uiGoldShadowPaint.alpha = 255
       idx++
     }
-    uiGoldPaint.textSize = 26f
-    uiGoldShadowPaint.textSize = 26f
+    uiGoldPaint.textSize = hudPx(26f)
+    uiGoldShadowPaint.textSize = hudPx(26f)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("[ PRESS ENTER TO LOCK INITIAL ]")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.78f, uiGoldPaint, uiGoldShadowPaint)
@@ -1417,8 +1421,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val cx = screenW * 0.5f
     val savedGold = uiGoldPaint.textSize
     val savedGoldShadow = uiGoldShadowPaint.textSize
-    uiGoldPaint.textSize = 42f
-    uiGoldShadowPaint.textSize = 42f
+    uiGoldPaint.textSize = hudPx(42f)
+    uiGoldShadowPaint.textSize = hudPx(42f)
     uiStringBuilder.setLength(0)
     uiStringBuilder.append("AUDIO SETTINGS")
     drawCenteredHud(canvas, uiStringBuilder, cx, screenH * 0.16f, uiGoldPaint, uiGoldShadowPaint)
@@ -1427,8 +1431,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     val savedText = uiTextPaint.textSize
     val savedTextShadow = uiShadowPaint.textSize
-    uiTextPaint.textSize = 52f
-    uiShadowPaint.textSize = 52f
+    uiTextPaint.textSize = hudPx(52f)
+    uiShadowPaint.textSize = hudPx(52f)
 
     val mid = screenH * 0.52f
     val bgmScale = SoundManager.instance.getBgmVolumeScale()
@@ -1492,8 +1496,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val savedGoldShadow = uiGoldShadowPaint.textSize
     val savedText = uiTextPaint.textSize
     val savedShadow = uiShadowPaint.textSize
-    val caretSize = 56f
-    val gageSize = 88f
+    val caretSize = hudPx(56f)
+    val gageSize = hudPx(88f)
     uiGoldPaint.textSize = gageSize
     uiGoldShadowPaint.textSize = gageSize
     uiTextPaint.textSize = caretSize
@@ -1536,7 +1540,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     uiStringBuilder.setLength(0)
     uiStringBuilder.append('<')
     val caretW = uiTextPaint.measureText(uiStringBuilder, 0, 1)
-    val caretGap = 18f
+    val caretGap = hudPx(18f)
     drawCenteredHud(
       canvas,
       uiStringBuilder,
@@ -1565,7 +1569,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
   }
 
   private fun layoutVolumeCaretHits(track: RectF, downRect: RectF, upRect: RectF) {
-    val pad = 40f
+    val pad = hudPx(40f)
     downRect.set(0f, track.top - pad, track.left, track.bottom + pad)
     upRect.set(track.right, track.top - pad, screenW.toFloat(), track.bottom + pad)
   }
@@ -1609,8 +1613,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     } else {
       accentShadowPaint.color = 0xFF3A3A3A.toInt()
     }
-    canvas.drawText(text, start, end, x + 4f, y + 4f, shadow)
-    canvas.drawText(text, start, end, x + 2f, y + 2f, accentShadowPaint)
+    val drop = hudPx(4f)
+    val rim = hudPx(2f)
+    canvas.drawText(text, start, end, x + drop, y + drop, shadow)
+    canvas.drawText(text, start, end, x + rim, y + rim, accentShadowPaint)
     canvas.drawText(text, start, end, x, y, fill)
   }
 
@@ -1730,7 +1736,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     val frame = panicBomb.currentFrameIndex
     if (frame < 0 || frame > 5) return
     val activeBmp = bombSheets[frame] ?: return
-    canvas.drawBitmap(activeBmp, srcCore, bombDstRect, bodyPaint)
+    canvas.drawBitmap(activeBmp, null, bombDstRect, bodyPaint)
   }
 
   private fun loadBombSheetsIfNeeded() {
@@ -1743,7 +1749,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
       bombSheets[5] = decodeKeyed(R.drawable.player_bomb_6)
     }
     val referenceBmp = bombSheets[0] ?: return
-    srcCore.set(0, 0, referenceBmp.width, referenceBmp.height)
     if (screenW <= 0 || screenH <= 0) return
     val targetDisplayH = screenH.toFloat()
     val inverseAspect = referenceBmp.width.toFloat() / referenceBmp.height.toFloat()
@@ -2401,7 +2406,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         uiStringBuilder.append(p.scoreValue)
         val end = uiStringBuilder.length
         val w = popupPaint.measureText(uiStringBuilder, 0, end)
-        canvas.drawText(uiStringBuilder, 0, end, p.x - w * 0.5f + 2f, p.y + 2f, popupShadowPaint)
+        val drop = hudPx(2f)
+        canvas.drawText(uiStringBuilder, 0, end, p.x - w * 0.5f + drop, p.y + drop, popupShadowPaint)
         canvas.drawText(uiStringBuilder, 0, end, p.x - w * 0.5f, p.y, popupPaint)
       }
       i++
@@ -3150,7 +3156,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     canvas.drawBitmap(bmp, null, hudIconDst, bodyPaint)
   }
 
+  private fun hudPx(designPx: Float): Float = designPx * hudScale
+
+  private fun applyHudTypeSizes() {
+    uiTextPaint.textSize = hudPx(32f)
+    uiShadowPaint.textSize = hudPx(32f)
+    uiGoldPaint.textSize = hudPx(42f)
+    uiGoldShadowPaint.textSize = hudPx(42f)
+    uiSmallPaint.textSize = hudPx(20f)
+    uiSmallShadowPaint.textSize = hudPx(20f)
+    uiRegRedPaint.textSize = hudPx(42f)
+    accentShadowPaint.textSize = hudPx(32f)
+    popupPaint.textSize = hudPx(28f)
+    popupShadowPaint.textSize = hudPx(28f)
+  }
+
   private companion object {
+    const val HUD_DESIGN_WIDTH = 1080f
     const val STATE_TITLE = 0
     const val STATE_PLAYING = 1
     const val STATE_CLEAR = 2
